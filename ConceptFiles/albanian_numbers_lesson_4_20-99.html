@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Albanian Numbers Flashcards</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #ffffff;
+      --text: #111827;
+      --muted: #64748b;
+      --accent: #2563eb;
+      --accent2: #16a34a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top, #1e3a8a, var(--bg));
+      color: var(--card);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+    }
+    .app { width: min(480px, 100%); text-align: center; }
+    h1 { font-size: 1.25rem; font-weight: 700; margin: 0 0 14px; }
+    .card {
+      background: var(--card);
+      color: var(--text);
+      border-radius: 28px;
+      min-height: 360px;
+      padding: 28px 20px;
+      box-shadow: 0 24px 60px rgba(0,0,0,.3);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+    .label { color: var(--muted); font-size: 1rem; margin-bottom: 8px; }
+    .number { font-size: clamp(7rem, 32vw, 11rem); line-height: 1; font-weight: 800; }
+    .word { font-size: clamp(3rem, 14vw, 5rem); line-height: 1.05; font-weight: 800; color: var(--accent); margin-top: 16px; }
+    .pronunciation { font-size: 1.4rem; color: var(--muted); margin-top: 10px; }
+    .timer { margin: 18px auto 0; width: 100%; height: 10px; background: rgba(255,255,255,.25); border-radius: 99px; overflow: hidden; }
+    .bar { width: 100%; height: 100%; background: var(--accent2); transform-origin: left; animation: shrink 5s linear forwards; }
+    @keyframes shrink { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+    .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+    button {
+      border: 0;
+      border-radius: 14px;
+      padding: 14px 12px;
+      font-weight: 700;
+      font-size: 1rem;
+      cursor: pointer;
+      color: white;
+      background: var(--accent);
+    }
+    button.secondary { background: #475569; }
+    .hint { color: #cbd5e1; font-size: .95rem; margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <h1>Albanian Numbers: 1–10</h1>
+    <section class="card" aria-live="polite">
+      <div class="label" id="label">What is this number in Albanian?</div>
+      <div class="number" id="number">1</div>
+      <div class="word" id="word" hidden>një</div>
+      <div class="pronunciation" id="pronunciation" hidden>nyuh</div>
+    </section>
+    <div class="timer"><div class="bar" id="bar"></div></div>
+    <div class="controls">
+      <button id="nextBtn">Next Card</button>
+      <button class="secondary" id="showBtn">Show Now</button>
+    </div>
+    <div class="hint">A new random number appears. After 5 seconds, the Albanian word appears.</div>
+  </main>
+
+  <script>
+    const cards = [
+      { n: 20, word: "njëzet", pronunciation: "" },
+      { n: 21, word: "njëzet e një", pronunciation: "" },
+      { n: 22, word: "njëzet e dy", pronunciation: "" },
+      { n: 23, word: "njëzet e tre", pronunciation: "" },
+      { n: 24, word: "njëzet e katër", pronunciation: "" },
+      { n: 25, word: "njëzet e pesë", pronunciation: "" },
+      { n: 26, word: "njëzet e gjashtë", pronunciation: "" },
+      { n: 27, word: "njëzet e shtatë", pronunciation: "" },
+      { n: 28, word: "njëzet e tetë", pronunciation: "" },
+      { n: 29, word: "njëzet e nëntë", pronunciation: "" },
+      { n: 30, word: "tridhjetë", pronunciation: "" },
+      { n: 31, word: "tridhjetë e një", pronunciation: "" },
+      { n: 32, word: "tridhjetë e dy", pronunciation: "" },
+      { n: 33, word: "tridhjetë e tre", pronunciation: "" },
+      { n: 34, word: "tridhjetë e katër", pronunciation: "" },
+      { n: 35, word: "tridhjetë e pesë", pronunciation: "" },
+      { n: 36, word: "tridhjetë e gjashtë", pronunciation: "" },
+      { n: 37, word: "tridhjetë e shtatë", pronunciation: "" },
+      { n: 38, word: "tridhjetë e tetë", pronunciation: "" },
+      { n: 39, word: "tridhjetë e nëntë", pronunciation: "" },
+      { n: 40, word: "dyzet", pronunciation: "" },
+      { n: 41, word: "dyzet e një", pronunciation: "" },
+      { n: 42, word: "dyzet e dy", pronunciation: "" },
+      { n: 43, word: "dyzet e tre", pronunciation: "" },
+      { n: 44, word: "dyzet e katër", pronunciation: "" },
+      { n: 45, word: "dyzet e pesë", pronunciation: "" },
+      { n: 46, word: "dyzet e gjashtë", pronunciation: "" },
+      { n: 47, word: "dyzet e shtatë", pronunciation: "" },
+      { n: 48, word: "dyzet e tetë", pronunciation: "" },
+      { n: 49, word: "dyzet e nëntë", pronunciation: "" },
+      { n: 50, word: "pesëdhjetë", pronunciation: "" },
+      { n: 51, word: "pesëdhjetë e një", pronunciation: "" },
+      { n: 52, word: "pesëdhjetë e dy", pronunciation: "" },
+      { n: 53, word: "pesëdhjetë e tre", pronunciation: "" },
+      { n: 54, word: "pesëdhjetë e katër", pronunciation: "" },
+      { n: 55, word: "pesëdhjetë e pesë", pronunciation: "" },
+      { n: 56, word: "pesëdhjetë e gjashtë", pronunciation: "" },
+      { n: 57, word: "pesëdhjetë e shtatë", pronunciation: "" },
+      { n: 58, word: "pesëdhjetë e tetë", pronunciation: "" },
+      { n: 59, word: "pesëdhjetë e nëntë", pronunciation: "" },
+      { n: 60, word: "gjashtëdhjetë", pronunciation: "" },
+      { n: 61, word: "gjashtëdhjetë e një", pronunciation: "" },
+      { n: 62, word: "gjashtëdhjetë e dy", pronunciation: "" },
+      { n: 63, word: "gjashtëdhjetë e tre", pronunciation: "" },
+      { n: 64, word: "gjashtëdhjetë e katër", pronunciation: "" },
+      { n: 65, word: "gjashtëdhjetë e pesë", pronunciation: "" },
+      { n: 66, word: "gjashtëdhjetë e gjashtë", pronunciation: "" },
+      { n: 67, word: "gjashtëdhjetë e shtatë", pronunciation: "" },
+      { n: 68, word: "gjashtëdhjetë e tetë", pronunciation: "" },
+      { n: 69, word: "gjashtëdhjetë e nëntë", pronunciation: "" },
+      { n: 70, word: "shtatëdhjetë", pronunciation: "" },
+      { n: 71, word: "shtatëdhjetë e një", pronunciation: "" },
+      { n: 72, word: "shtatëdhjetë e dy", pronunciation: "" },
+      { n: 73, word: "shtatëdhjetë e tre", pronunciation: "" },
+      { n: 74, word: "shtatëdhjetë e katër", pronunciation: "" },
+      { n: 75, word: "shtatëdhjetë e pesë", pronunciation: "" },
+      { n: 76, word: "shtatëdhjetë e gjashtë", pronunciation: "" },
+      { n: 77, word: "shtatëdhjetë e shtatë", pronunciation: "" },
+      { n: 78, word: "shtatëdhjetë e tetë", pronunciation: "" },
+      { n: 79, word: "shtatëdhjetë e nëntë", pronunciation: "" },
+      { n: 80, word: "tetëdhjetë", pronunciation: "" },
+      { n: 81, word: "tetëdhjetë e një", pronunciation: "" },
+      { n: 82, word: "tetëdhjetë e dy", pronunciation: "" },
+      { n: 83, word: "tetëdhjetë e tre", pronunciation: "" },
+      { n: 84, word: "tetëdhjetë e katër", pronunciation: "" },
+      { n: 85, word: "tetëdhjetë e pesë", pronunciation: "" },
+      { n: 86, word: "tetëdhjetë e gjashtë", pronunciation: "" },
+      { n: 87, word: "tetëdhjetë e shtatë", pronunciation: "" },
+      { n: 88, word: "tetëdhjetë e tetë", pronunciation: "" },
+      { n: 89, word: "tetëdhjetë e nëntë", pronunciation: "" },
+      { n: 90, word: "nëntëdhjetë", pronunciation: "" },
+      { n: 91, word: "nëntëdhjetë e një", pronunciation: "" },
+      { n: 92, word: "nëntëdhjetë e dy", pronunciation: "" },
+      { n: 93, word: "nëntëdhjetë e tre", pronunciation: "" },
+      { n: 94, word: "nëntëdhjetë e katër", pronunciation: "" },
+      { n: 95, word: "nëntëdhjetë e pesë", pronunciation: "" },
+      { n: 96, word: "nëntëdhjetë e gjashtë", pronunciation: "" },
+      { n: 97, word: "nëntëdhjetë e shtatë", pronunciation: "" },
+      { n: 98, word: "nëntëdhjetë e tetë", pronunciation: "" },
+      { n: 99, word: "nëntëdhjetë e nëntë", pronunciation: "" }
+    ];
+
+    const numberEl = document.getElementById("number");
+    const wordEl = document.getElementById("word");
+    const pronEl = document.getElementById("pronunciation");
+    const labelEl = document.getElementById("label");
+    const barEl = document.getElementById("bar");
+    const nextBtn = document.getElementById("nextBtn");
+    const showBtn = document.getElementById("showBtn");
+
+    let current = null;
+    let timer = null;
+    let lastNumber = null;
+
+    function randomCard() {
+      let card;
+      do {
+        card = cards[Math.floor(Math.random() * cards.length)];
+      } while (cards.length > 1 && card.n === lastNumber);
+      lastNumber = card.n;
+      return card;
+    }
+
+    function resetBar() {
+      barEl.style.animation = "none";
+      void barEl.offsetWidth;
+      barEl.style.animation = "shrink 5s linear forwards";
+    }
+
+    function showAnswer() {
+      if (!current) return;
+      wordEl.hidden = false;
+      pronEl.hidden = false;
+      labelEl.textContent = "Albanian spelling:";
+      clearTimeout(timer);
+      barEl.style.animationPlayState = "paused";
+    }
+
+    function nextCard() {
+      current = randomCard();
+      numberEl.textContent = current.n;
+      wordEl.textContent = current.word;
+      pronEl.textContent = current.pronunciation;
+      wordEl.hidden = true;
+      pronEl.hidden = true;
+      labelEl.textContent = "What is this number in Albanian?";
+      clearTimeout(timer);
+      resetBar();
+      timer = setTimeout(showAnswer, 5000);
+    }
+
+    nextBtn.addEventListener("click", nextCard);
+    showBtn.addEventListener("click", showAnswer);
+    document.addEventListener("keydown", (event) => {
+      if (event.key === " " || event.key === "Enter") showAnswer();
+      if (event.key.toLowerCase() === "n") nextCard();
+    });
+
+    nextCard();
+  </script>
+</body>
+</html>

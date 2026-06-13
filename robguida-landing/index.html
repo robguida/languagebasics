@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- ============================================================= -->
+  <!-- PLACEHOLDER COPY [PH-TITLE]: page <title> / browser tab text.  -->
+  <!-- Robby supplies final string. Drop replacement between tags.    -->
+  <!-- ============================================================= -->
+  <title>robguida.com</title>
+
+  <!-- ============================================================= -->
+  <!-- PLACEHOLDER COPY [PH-META-DESC]: meta description for search.  -->
+  <!-- Robby supplies final string in the content="" attribute.      -->
+  <!-- ============================================================= -->
+  <meta name="description" content="Landing page for robguida.com" />
+
+  <style>
+    :root {
+      --bg: #0f1419;
+      --card: #1a212b;
+      --text: #e8edf2;
+      --muted: #9aa7b4;
+      --accent: #4f9cf9;
+      --border: #2a333f;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      min-height: 100%;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    main {
+      width: 100%;
+      max-width: 480px;
+      text-align: center;
+    }
+
+    .headline {
+      font-size: 2rem;
+      font-weight: 700;
+      margin: 0 0 8px;
+    }
+
+    .subhead {
+      font-size: 1.05rem;
+      color: var(--muted);
+      margin: 0 0 32px;
+    }
+
+    .links {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .portal-link {
+      display: block;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 24px;
+      text-decoration: none;
+      color: var(--text);
+      transition: border-color 0.15s ease, transform 0.15s ease;
+    }
+
+    .portal-link:hover,
+    .portal-link:focus-visible {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+      outline: none;
+    }
+
+    .portal-link .label {
+      font-size: 1.15rem;
+      font-weight: 600;
+    }
+
+    .portal-link .desc {
+      font-size: 0.92rem;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    footer {
+      margin-top: 40px;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    @media (max-width: 420px) {
+      .headline { font-size: 1.6rem; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <!-- ============================================================= -->
+    <!-- PLACEHOLDER COPY [PH-HEADLINE]: main headline.                 -->
+    <!-- Robby supplies final string. Replace text inside <h1>.        -->
+    <!-- ============================================================= -->
+    <h1 class="headline">robguida.com</h1>
+
+    <!-- ============================================================= -->
+    <!-- PLACEHOLDER COPY [PH-SUBHEAD]: one-line subhead / tagline.     -->
+    <!-- Robby supplies final string. Replace text inside <p>.         -->
+    <!-- Delete this <p> if Robby decides no subhead is needed.        -->
+    <!-- ============================================================= -->
+    <p class="subhead">Choose where to go.</p>
+
+    <nav class="links">
+      <!-- LINK 1: US debt clock — href is FIXED, do not change. -->
+      <a class="portal-link" href="https://usdebt.robguida.com">
+        <!-- ========================================================= -->
+        <!-- PLACEHOLDER COPY [PH-LINK1-LABEL]: link 1 label.          -->
+        <!-- Robby supplies final string. Replace text in .label span. -->
+        <!-- ========================================================= -->
+        <span class="label">The US Debt Clock</span>
+
+        <!-- ========================================================= -->
+        <!-- PLACEHOLDER COPY [PH-LINK1-DESC]: link 1 supporting line. -->
+        <!-- Robby supplies final string (or remove .desc span).       -->
+        <!-- ========================================================= -->
+        <span class="desc">usdebt.robguida.com</span>
+      </a>
+
+      <!-- LINK 2: Language Basics — href is FIXED, do not change. -->
+      <a class="portal-link" href="https://languagebasics.robguida.com">
+        <!-- ========================================================= -->
+        <!-- PLACEHOLDER COPY [PH-LINK2-LABEL]: link 2 label.          -->
+        <!-- Robby supplies final string. Replace text in .label span. -->
+        <!-- ========================================================= -->
+        <span class="label">Language Basics — Albanian Flashcards</span>
+
+        <!-- ========================================================= -->
+        <!-- PLACEHOLDER COPY [PH-LINK2-DESC]: link 2 supporting line. -->
+        <!-- Robby supplies final string (or remove .desc span).       -->
+        <!-- ========================================================= -->
+        <span class="desc">languagebasics.robguida.com</span>
+      </a>
+    </nav>
+
+    <!-- ============================================================= -->
+    <!-- PLACEHOLDER COPY [PH-FOOTER]: footer line (optional).         -->
+    <!-- Robby supplies final string, or this <footer> can be removed. -->
+    <!-- ============================================================= -->
+    <footer>&copy; robguida.com</footer>
+  </main>
+</body>
+</html>

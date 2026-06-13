@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Albanian Numbers Flashcards</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app">
+    <h1 id="title">Albanian Numbers</h1>
+
+    <div class="lesson-select">
+      <label for="lessonPicker" class="visually-hidden">Choose a lesson</label>
+      <select id="lessonPicker" aria-label="Choose a lesson">
+        <option value="sq/lesson-1">Lesson 1 — Numbers 1–10</option>
+        <option value="sq/lesson-2">Lesson 2 — Numbers 11–19</option>
+        <option value="sq/lesson-3">Lesson 3 — Tens 20–90</option>
+        <option value="sq/lesson-4">Lesson 4 — Numbers 20–99</option>
+        <option value="sq/lesson-5">Lesson 5 — Big Number Roots</option>
+        <option value="sq/lesson-6">Lesson 6 — Number Builder</option>
+      </select>
+    </div>
+
+    <section class="card" aria-live="polite">
+      <div class="label" id="label">What is this number in Albanian?</div>
+      <div class="recall" id="recall"></div>
+      <div class="number" id="number">1</div>
+      <div class="word" id="word" hidden></div>
+      <div class="pronunciation" id="pronunciation" hidden></div>
+    </section>
+
+    <div class="timer"><div class="bar" id="bar"></div></div>
+
+    <div class="controls">
+      <button id="nextBtn">Next Card</button>
+      <button class="secondary" id="showBtn">Show Now</button>
+    </div>
+
+    <div class="hint">Say the number out loud, then reveal. After the timer, the Albanian word appears.</div>
+  </main>
+
+  <script>
+    /* Lesson selection — file:// friendly, no fetch.
+     *
+     * Approach: a single shell. We read ?lesson=sq/lesson-N from the URL,
+     * sanitize it against a whitelist, then document.write a <script src>
+     * for that lesson's data file so it loads SYNCHRONOUSLY before engine.js
+     * runs. The dropdown just rewrites the ?lesson= param and reloads.
+     *
+     * Why this shape: the .js-globals data format means each lesson's cards
+     * are a plain global assignment (window.LB_LESSON). One shell loading one
+     * data file keeps "double-click index.html and it works" intact with zero
+     * server, zero build, and no per-lesson HTML duplication.
+     */
+    (function () {
+      var ALLOWED = {
+        "sq/lesson-1": true, "sq/lesson-2": true, "sq/lesson-3": true,
+        "sq/lesson-4": true, "sq/lesson-5": true, "sq/lesson-6": true
+      };
+      var DEFAULT_LESSON = "sq/lesson-1";
+
+      function currentLesson() {
+        var m = /[?&]lesson=([^&]+)/.exec(window.location.search);
+        var raw = m ? decodeURIComponent(m[1]) : "";
+        return ALLOWED[raw] ? raw : DEFAULT_LESSON;
+      }
+
+      var lesson = currentLesson();
+
+      // Sync the dropdown to the active lesson and wire switching.
+      document.addEventListener("DOMContentLoaded", function () {
+        var picker = document.getElementById("lessonPicker");
+        if (!picker) return;
+        picker.value = lesson;
+        picker.addEventListener("change", function () {
+          var next = ALLOWED[picker.value] ? picker.value : DEFAULT_LESSON;
+          window.location.search = "?lesson=" + encodeURIComponent(next);
+        });
+      });
+
+      // Load the active lesson's data file synchronously, then the engine.
+      // content/sq/lesson-N.js -> sets window.LB_LESSON
+      document.write(
+        '<scr' + 'ipt src="content/' + lesson + '.js"></scr' + 'ipt>'
+      );
+    })();
+  </script>
+
+  <script src="engine.js"></script>
+  <script>
+    // Kick off once the data file + engine are both parsed.
+    document.addEventListener("DOMContentLoaded", function () {
+      if (window.LBEngine && window.LB_LESSON) {
+        window.LBEngine.start(window.LB_LESSON);
+      } else {
+        console.warn("[index] engine or lesson data missing", {
+          engine: !!window.LBEngine, lesson: !!window.LB_LESSON
+        });
+      }
+    });
+  </script>
+</body>
+</html>
