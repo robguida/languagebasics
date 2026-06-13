@@ -7,7 +7,7 @@
  *     id:          "sq/lesson-1",                 // string, for the selector
  *     title:       "Albanian Numbers: 1-10",      // shown in <h1>
  *     revealMs:    5000,                           // optional, default 5000
- *     recallPrompt:"Say it out loud, then reveal", // optional, see DEFAULTS
+ *     recallPrompt:"Say it out loud, then reveal.", // optional, see DEFAULTS
  *     cards: [ { prompt, answer, hint, audio }, ... ]
  *   }
  *
@@ -27,7 +27,7 @@
     revealMs: 5000,
     // Placeholder copy. Robby drops final microcopy in here (or per-card via
     // card.recallPrompt) WITHOUT touching this engine.
-    recallPrompt: "Say it out loud, then reveal"
+    recallPrompt: "Say it out loud, then reveal."
   };
 
   // Length-based font auto-shrink ladder (generalized from lesson 6).
