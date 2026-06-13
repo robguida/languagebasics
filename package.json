@@ -1,0 +1,9 @@
+{
+  "name": "languagebasics",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Static Albanian-numbers flashcard app. No build, no deps. Tests use Node's built-in test runner only.",
+  "scripts": {
+    "test": "node --test test/schema.test.js test/loop-resilience.test.js"
+  }
+}

@@ -1,0 +1,96 @@
+/* Schema validation for every content/sq/lesson-N.js data file.
+ *
+ * Run:  node --test
+ *
+ * Asserts, per lesson:
+ *   - window.LB_LESSON is present with required keys (id, title, cards)
+ *   - every card has a non-empty prompt (string|number) and non-empty answer
+ *   - optional fields (hint, audio, recallPrompt) are correct type when present
+ *   - window.LB_LESSONS received exactly one {id, title} entry for the lesson
+ *   - known card counts hold (1=10, 2=9, 3=8, 4=80, 5=8, 6=6)
+ *   - lesson 6 revealMs === 10000 (10s)
+ *
+ * Built-ins only: node:test, node:assert. No npm installs.
+ */
+"use strict";
+
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const { loadLesson } = require("./helpers/load-lesson.js");
+
+// Expected card counts per lesson (from Freddy's data shape + verified data).
+const EXPECTED = {
+  "lesson-1.js": { count: 10, id: "sq/lesson-1", revealMs: 5000 },
+  "lesson-2.js": { count: 9, id: "sq/lesson-2", revealMs: 5000 },
+  "lesson-3.js": { count: 8, id: "sq/lesson-3", revealMs: 5000 },
+  "lesson-4.js": { count: 80, id: "sq/lesson-4", revealMs: 5000 },
+  "lesson-5.js": { count: 8, id: "sq/lesson-5", revealMs: 5000 },
+  "lesson-6.js": { count: 6, id: "sq/lesson-6", revealMs: 10000 },
+};
+
+for (const [file, expected] of Object.entries(EXPECTED)) {
+  test(`${file}: schema + counts`, () => {
+    const { lesson, lessonsIndex } = loadLesson(file);
+
+    // --- LB_LESSON present with required keys ---
+    assert.ok(lesson, `${file}: window.LB_LESSON must be defined`);
+    assert.equal(typeof lesson.id, "string", `${file}: id must be a string`);
+    assert.ok(lesson.id.length > 0, `${file}: id must be non-empty`);
+    assert.equal(lesson.id, expected.id, `${file}: id mismatch`);
+    assert.equal(typeof lesson.title, "string", `${file}: title must be a string`);
+    assert.ok(lesson.title.length > 0, `${file}: title must be non-empty`);
+    assert.ok(Array.isArray(lesson.cards), `${file}: cards must be an array`);
+
+    // --- revealMs: optional, but when present must be a positive number ---
+    if (lesson.revealMs !== undefined) {
+      assert.equal(typeof lesson.revealMs, "number", `${file}: revealMs must be a number`);
+      assert.ok(lesson.revealMs > 0, `${file}: revealMs must be > 0`);
+    }
+    assert.equal(lesson.revealMs, expected.revealMs, `${file}: revealMs mismatch`);
+
+    // --- optional lesson.recallPrompt override ---
+    if (lesson.recallPrompt !== undefined) {
+      assert.equal(typeof lesson.recallPrompt, "string", `${file}: lesson.recallPrompt must be a string`);
+    }
+
+    // --- card count ---
+    assert.equal(
+      lesson.cards.length,
+      expected.count,
+      `${file}: expected ${expected.count} cards, found ${lesson.cards.length}`
+    );
+
+    // --- per-card schema ---
+    lesson.cards.forEach((card, i) => {
+      const where = `${file} card #${i}`;
+      assert.ok(card && typeof card === "object", `${where}: must be an object`);
+
+      // prompt: string|number, required, non-empty
+      const pt = typeof card.prompt;
+      assert.ok(pt === "string" || pt === "number", `${where}: prompt must be string|number`);
+      assert.ok(String(card.prompt).length > 0, `${where}: prompt must be non-empty`);
+
+      // answer: string, required, non-empty
+      assert.equal(typeof card.answer, "string", `${where}: answer must be a string`);
+      assert.ok(card.answer.length > 0, `${where}: answer must be non-empty`);
+
+      // hint: optional, string when present
+      if (card.hint !== undefined) {
+        assert.equal(typeof card.hint, "string", `${where}: hint must be a string when present`);
+      }
+      // audio: optional (reserved), string when present
+      if (card.audio !== undefined) {
+        assert.equal(typeof card.audio, "string", `${where}: audio must be a string when present`);
+      }
+      // recallPrompt: optional per-card override, string when present
+      if (card.recallPrompt !== undefined) {
+        assert.equal(typeof card.recallPrompt, "string", `${where}: recallPrompt must be a string when present`);
+      }
+    });
+
+    // --- LB_LESSONS index got exactly one matching {id,title} entry ---
+    assert.equal(lessonsIndex.length, 1, `${file}: should push exactly one LB_LESSONS entry`);
+    assert.equal(lessonsIndex[0].id, lesson.id, `${file}: LB_LESSONS entry id must match lesson.id`);
+    assert.equal(lessonsIndex[0].title, lesson.title, `${file}: LB_LESSONS entry title must match lesson.title`);
+  });
+}
