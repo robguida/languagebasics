@@ -22,7 +22,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
-const ENGINE_PATH = path.resolve(__dirname, "..", "engine.js");
+const ENGINE_PATH = path.resolve(__dirname, "..", "src", "engine.js");
 const ENGINE_SRC = fs.readFileSync(ENGINE_PATH, "utf8");
 
 /* Minimal DOM shim — just enough for engine.start() to run headless.

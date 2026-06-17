@@ -12,7 +12,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
-const CONTENT_DIR = path.resolve(__dirname, "..", "..", "content", "sq");
+const CONTENT_DIR = path.resolve(__dirname, "..", "..", "src", "content", "sq");
 
 /**
  * Load one lesson data file in isolation.
