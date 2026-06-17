@@ -4,10 +4,12 @@
  *
  * Asserts, per lesson:
  *   - window.LB_LESSON is present with required keys (id, title, cards)
- *   - every card has a non-empty prompt (string|number) and non-empty answer
- *   - optional fields (hint, audio, recallPrompt) are correct type when present
+ *   - every card has a non-empty prompt (string|number), non-empty answer,
+ *     and a non-empty hint (the final dataset filled all hints app-wide,
+ *     including lesson 6 which was previously blank)
+ *   - optional fields (audio, recallPrompt) are correct type when present
  *   - window.LB_LESSONS received exactly one {id, title} entry for the lesson
- *   - known card counts hold (1=10, 2=9, 3=8, 4=80, 5=8, 6=6)
+ *   - known card counts hold (1=11, 2=9, 3=8, 4=80, 5=56, 6=6)
  *   - lesson 6 revealMs === 10000 (10s)
  *
  * Built-ins only: node:test, node:assert. No npm installs.
@@ -20,11 +22,11 @@ const { loadLesson } = require("./helpers/load-lesson.js");
 
 // Expected card counts per lesson (from Freddy's data shape + verified data).
 const EXPECTED = {
-  "lesson-1.js": { count: 10, id: "sq/lesson-1", revealMs: 5000 },
+  "lesson-1.js": { count: 11, id: "sq/lesson-1", revealMs: 5000 },
   "lesson-2.js": { count: 9, id: "sq/lesson-2", revealMs: 5000 },
   "lesson-3.js": { count: 8, id: "sq/lesson-3", revealMs: 5000 },
   "lesson-4.js": { count: 80, id: "sq/lesson-4", revealMs: 5000 },
-  "lesson-5.js": { count: 8, id: "sq/lesson-5", revealMs: 5000 },
+  "lesson-5.js": { count: 56, id: "sq/lesson-5", revealMs: 5000 },
   "lesson-6.js": { count: 6, id: "sq/lesson-6", revealMs: 10000 },
 };
 
@@ -74,10 +76,10 @@ for (const [file, expected] of Object.entries(EXPECTED)) {
       assert.equal(typeof card.answer, "string", `${where}: answer must be a string`);
       assert.ok(card.answer.length > 0, `${where}: answer must be non-empty`);
 
-      // hint: optional, string when present
-      if (card.hint !== undefined) {
-        assert.equal(typeof card.hint, "string", `${where}: hint must be a string when present`);
-      }
+      // hint: required, string, non-empty (final dataset filled all hints
+      // app-wide, incl. lesson 6 which was previously blank)
+      assert.equal(typeof card.hint, "string", `${where}: hint must be a string`);
+      assert.ok(card.hint.trim().length > 0, `${where}: hint must be non-empty`);
       // audio: optional (reserved), string when present
       if (card.audio !== undefined) {
         assert.equal(typeof card.audio, "string", `${where}: audio must be a string when present`);

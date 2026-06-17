@@ -8,15 +8,15 @@ window.LB_LESSON = {
   title: "Albanian Numbers: 11–19",
   revealMs: 5000,
   cards: [
-    { prompt: 11, answer: "një | mbëdhjetë",    hint: "nyem-buh-DHYET-uh",       audio: "" },
-    { prompt: 12, answer: "dy | mbëdhjetë",      hint: "deem-buh-DHYET-uh",       audio: "" },
-    { prompt: 13, answer: "tre | mbëdhjetë",     hint: "trem-buh-DHYET-uh",       audio: "" },
-    { prompt: 14, answer: "katër | mbëdhjetë",  hint: "ka-ter-mbuh-DHYET-uh",    audio: "" },
-    { prompt: 15, answer: "pesë | mbëdhjetë",   hint: "peh-suh-mbuh-DHYET-uh",   audio: "" },
-    { prompt: 16, answer: "gjashtë | mbëdhjetë",hint: "gyasht-mbuh-DHYET-uh",    audio: "" },
-    { prompt: 17, answer: "shtatë | mbëdhjetë", hint: "shtaht-mbuh-DHYET-uh",    audio: "" },
-    { prompt: 18, answer: "tetë | mbëdhjetë",   hint: "teh-tuh-mbuh-DHYET-uh",   audio: "" },
-    { prompt: 19, answer: "nëntë | mbëdhjetë", hint: "nun-tuh-mbuh-DHYET-uh",   audio: "" }
+    { prompt: 11, answer: "një | mbëdhjetë",    hint: "Nyuhm buh they yet",     audio: "" },
+    { prompt: 12, answer: "dy | mbëdhjetë",      hint: "Doom buh they yet",      audio: "" },
+    { prompt: 13, answer: "tre | mbëdhjetë",     hint: "Trrem buh they yet",    audio: "" },
+    { prompt: 14, answer: "katër | mbëdhjetë",  hint: "Kah ter buh they yet", audio: "" },
+    { prompt: 15, answer: "pesë | mbëdhjetë",   hint: "Pes buh they yet",     audio: "" },
+    { prompt: 16, answer: "gjashtë | mbëdhjetë",hint: "Jyosht buh they yet",  audio: "" },
+    { prompt: 17, answer: "shtatë | mbëdhjetë", hint: "Shtah t buh they yet", audio: "" },
+    { prompt: 18, answer: "tetë | mbëdhjetë",   hint: "Teh t buh they yet",   audio: "" },
+    { prompt: 19, answer: "nëntë | mbëdhjetë", hint: "Nuhn t buh they yet",  audio: "" }
   ]
 };
 (window.LB_LESSONS = window.LB_LESSONS || []).push({ id: "sq/lesson-2", title: "Albanian Numbers: 11–19" });

@@ -73,9 +73,14 @@ h1 { font-size: 1.25rem; font-weight: 700; margin: 0 0 14px; }
 /* Active-recall instruction shown on the prompt side of each card. */
 .recall { color: var(--accent2); font-size: 1rem; font-weight: 600; margin-bottom: 14px; }
 
-.number { font-size: clamp(7rem, 32vw, 11rem); line-height: 1; font-weight: 800; }
+/* max-width + overflow-wrap are overflow guards for the big-number cards:
+   they cap width to the card and let an over-long token wrap instead of
+   bleeding past the edge. Short cards (lessons 1-4) never hit the cap, so
+   their look is unchanged. The per-card font-size shrink is applied inline
+   by engine.js (promptFontSize / wordFontSize) by string length. */
+.number { font-size: clamp(7rem, 32vw, 11rem); line-height: 1; font-weight: 800; max-width: 100%; overflow-wrap: anywhere; }
 
-.word { font-size: clamp(3rem, 14vw, 5rem); line-height: 1.05; font-weight: 800; color: var(--accent); margin-top: 16px; }
+.word { font-size: clamp(3rem, 14vw, 5rem); line-height: 1.05; font-weight: 800; color: var(--accent); margin-top: 16px; max-width: 100%; overflow-wrap: anywhere; }
 
 /* Stacked multi-part answer lines (lessons 2 and 6). Each <br>-separated
    line just wraps naturally; matches the original word-line look. */
