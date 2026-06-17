@@ -170,10 +170,12 @@
 
       wordEl.hidden = true;
       pronEl.hidden = true;
-      labelEl.textContent = "What is this number in Albanian?";
+      // Prompt text removed (issue-remove-card-prompt-text): nothing renders
+      // above the number on any lesson. Keep elements present but empty/hidden.
+      labelEl.textContent = "";
       if (recallEl) {
-        recallEl.textContent = current.recallPrompt || recallPrompt;
-        recallEl.hidden = false;
+        recallEl.textContent = "";
+        recallEl.hidden = true;
       }
 
       // Ticket B: back to prompt phase — reset toggle state + label.
