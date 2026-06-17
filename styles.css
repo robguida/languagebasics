@@ -90,7 +90,7 @@ h1 { font-size: 1.25rem; font-weight: 700; margin: 0 0 14px; }
 
 @keyframes shrink { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 
-.controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+.controls { display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 16px; }
 
 button {
   border: 0;

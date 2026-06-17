@@ -32,7 +32,7 @@ function makeDomShim() {
   const elements = {};
   const ids = [
     "number", "word", "pronunciation", "label",
-    "recall", "bar", "nextBtn", "showBtn", "title",
+    "recall", "bar", "toggleBtn", "title",
   ];
   for (const id of ids) {
     elements[id] = {
