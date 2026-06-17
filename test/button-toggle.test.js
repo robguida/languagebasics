@@ -281,3 +281,49 @@ test("label removal via timer: auto-reveal also blanks the answer-side label", (
   assert.equal(elements.label.textContent, "",
     "timer-driven reveal must also blank the answer-side label");
 });
+
+/* issue-remove-card-prompt-text: NO instructional prompt text renders above
+ * the number on any lesson card. nextCard() sets #label to "" and keeps
+ * #recall empty + hidden in the prompt phase (previously it wrote
+ * "What is this number in Albanian?" / "Say it out loud, then reveal.").
+ * These guard the prompt-phase contract so a regression that re-adds prompt
+ * copy above the number is caught. */
+test("prompt phase: fresh card shows NO prompt text above the number (#label blank)", () => {
+  const { sandbox, elements } = makeDomShim();
+  const engine = loadEngine(sandbox);
+  engine.start(cleanLesson()); // nextCard() runs on start -> prompt phase
+
+  assert.equal(elements.label.textContent, "",
+    "no instructional prompt text may render above the number");
+  assert.notEqual(elements.label.textContent, "What is this number in Albanian?",
+    "the old question prompt must be gone");
+});
+
+test("prompt phase: #recall stays empty and hidden on a fresh card", () => {
+  const { sandbox, elements } = makeDomShim();
+  const engine = loadEngine(sandbox);
+  engine.start(cleanLesson());
+
+  assert.equal(elements.recall.textContent, "",
+    "#recall must be empty in the prompt phase");
+  assert.equal(elements.recall.hidden, true,
+    "#recall must stay hidden in the prompt phase");
+  assert.notEqual(elements.recall.textContent, "Say it out loud, then reveal.",
+    "the old recall prompt must be gone");
+});
+
+test("advance to next card re-asserts the no-prompt-text contract", () => {
+  const { sandbox, elements, clickToggle } = makeDomShim();
+  const engine = loadEngine(sandbox);
+  engine.start(cleanLesson());
+
+  clickToggle(); // reveal
+  clickToggle(); // nextCard() -> fresh prompt phase
+
+  assert.equal(elements.label.textContent, "",
+    "advancing to a new card must keep #label blank (no prompt text)");
+  assert.equal(elements.recall.textContent, "",
+    "advancing to a new card must keep #recall empty");
+  assert.equal(elements.recall.hidden, true,
+    "advancing to a new card must keep #recall hidden");
+});
