@@ -27,5 +27,9 @@ package-lock.json
 *.log
 *.tmp
 
+# === Personal docs / Word lockfiles (keep Rob's source docs out of the repo) ===
+*.docx
+~$*
+
 # NOTE: bengusa_web/ is intentionally NOT ignored. It is out of scope for
 # edits but should remain tracked/visible if/when it is added.
