@@ -104,8 +104,7 @@
     var labelEl = document.getElementById("label");
     var recallEl = document.getElementById("recall");
     var barEl = document.getElementById("bar");
-    var nextBtn = document.getElementById("nextBtn");
-    var showBtn = document.getElementById("showBtn");
+    var toggleBtn = document.getElementById("toggleBtn");
     var titleEl = document.getElementById("title");
 
     if (lesson && lesson.title && titleEl) {
@@ -124,6 +123,10 @@
     var current = null;
     var timer = null;
     var lastPrompt = null;
+    // Ticket B: single-toggle state. false = prompt phase ("Reveal it"),
+    // true = revealed phase ("Next Card"). Set by reveal (manual or timer)
+    // and by nextCard (reset).
+    var revealed = false;
 
     function randomCard() {
       var card;
@@ -146,10 +149,14 @@
       if (!current) return;
       wordEl.hidden = false;
       pronEl.hidden = (current.hint === "");
-      labelEl.textContent = "Albanian spelling:";
+      labelEl.textContent = "";
       if (recallEl) recallEl.hidden = true;
       clearTimeout(timer);
       barEl.style.animationPlayState = "paused";
+      // Ticket B: reveal owns the relabel so the timer-expiry auto-reveal
+      // flips the toggle button to "Next Card" too, not just a manual click.
+      revealed = true;
+      if (toggleBtn) toggleBtn.textContent = "Next Card";
     }
 
     function nextCard() {
@@ -169,18 +176,34 @@
         recallEl.hidden = false;
       }
 
+      // Ticket B: back to prompt phase — reset toggle state + label.
+      revealed = false;
+      if (toggleBtn) toggleBtn.textContent = "Reveal it";
+
       clearTimeout(timer);
       resetBar();
       timer = setTimeout(showAnswer, revealMs);
     }
 
-    nextBtn.addEventListener("click", nextCard);
-    showBtn.addEventListener("click", showAnswer);
-    document.addEventListener("keydown", function (event) {
-      if (event.key === " " || event.key === "Enter") {
-        event.preventDefault();
+    // Ticket B: one action that does whatever the current phase calls for —
+    // reveal if still in the prompt phase, else advance to the next card.
+    function toggle() {
+      if (revealed) {
+        nextCard();
+      } else {
         showAnswer();
       }
+    }
+
+    if (toggleBtn) toggleBtn.addEventListener("click", toggle);
+    document.addEventListener("keydown", function (event) {
+      // Space/Enter mirror the single button: reveal, then next.
+      if (event.key === " " || event.key === "Enter") {
+        event.preventDefault();
+        toggle();
+      }
+      // "n" retained as a power-user shortcut to force the next card
+      // regardless of phase (skip without revealing).
       if (event.key.toLowerCase() === "n") nextCard();
     });
 
