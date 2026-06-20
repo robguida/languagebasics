@@ -122,13 +122,19 @@ function resolvedSecondsFrom(elements) {
 test("LBPrefs: loads and exposes the public surface", () => {
   const { LBPrefs } = loadPrefs();
   assert.ok(LBPrefs, "window.LBPrefs must be defined after load");
-  for (const fn of ["getRevealMs", "getOrder", "setRevealMs", "setOrder", "setLesson", "getLesson", "clampSeconds"]) {
+  for (const fn of ["getRevealMs", "getOrder", "setRevealMs", "setOrder", "setLesson", "getLesson", "clampSeconds", "getQuizCount", "setQuizCount"]) {
     assert.equal(typeof LBPrefs[fn], "function", `${fn} must be a function`);
   }
   assert.equal(LBPrefs.MIN_SECONDS, 1, "MIN_SECONDS must be 1");
   assert.equal(LBPrefs.MAX_SECONDS, 20, "MAX_SECONDS must be 20");
   assert.equal(LBPrefs.DEFAULTS.revealMs, 5000, "default revealMs must be 5000 (5s)");
   assert.equal(LBPrefs.DEFAULTS.order, "random", "default order must be 'random'");
+  assert.equal(LBPrefs.DEFAULTS.quizCount, 10, "default quizCount must be 10");
+  // Compare element-wise (not deepStrictEqual): QUIZ_COUNTS is constructed inside
+  // the vm sandbox, so its Array prototype is the sandbox realm's, which trips
+  // deepStrictEqual's cross-realm prototype check. The VALUES are what matter.
+  assert.equal(Array.from(LBPrefs.QUIZ_COUNTS).join(","), "5,10,20",
+    "QUIZ_COUNTS must be the offered choices [5,10,20]");
 });
 
 /* --------------------------- 1. round-trip + isolation --------------------- */
@@ -321,6 +327,109 @@ test("units: clampSeconds operates in SECONDS, getRevealMs returns MS (boundary 
   assert.equal(LBPrefs.getRevealMs("sq/lesson-1"), 20000, "20s persists as 20000ms");
 });
 
+/* --------------------------- 5. quizCount (LB-14 GLOBAL pref) ------------- */
+/* quizCount is a NEW global (top-level lb.prefs) field added in LB-14. Unlike the
+ * per-lesson getters it always returns a usable value (default 10, never null).
+ * Only 5/10/20 are valid; anything else falls back to the default on read and is
+ * rejected (returns false, no write) on set. The setLesson change that preserves
+ * a stored quizCount is guarded by the coexistence round-trips below. */
+
+test("quizCount: default is 10 when nothing is stored", () => {
+  const { LBPrefs } = loadPrefs();
+  assert.equal(LBPrefs.getQuizCount(), 10, "no stored quizCount -> the 10 default");
+});
+
+test("quizCount round-trip: setQuizCount persists and getQuizCount returns it", () => {
+  const { LBPrefs } = loadPrefs();
+  assert.equal(LBPrefs.setQuizCount(20), true, "valid set should reach localStorage (true)");
+  assert.equal(LBPrefs.getQuizCount(), 20, "getQuizCount returns the stored value");
+  assert.equal(LBPrefs.setQuizCount(5), true, "can change to another valid choice");
+  assert.equal(LBPrefs.getQuizCount(), 5, "getQuizCount returns the updated value");
+});
+
+test("quizCount: every offered choice (5/10/20) is accepted and round-trips", () => {
+  for (const n of [5, 10, 20]) {
+    const { LBPrefs } = loadPrefs();
+    assert.equal(LBPrefs.setQuizCount(n), true, `${n} is a valid choice -> accepted`);
+    assert.equal(LBPrefs.getQuizCount(), n, `${n} round-trips`);
+  }
+});
+
+test("quizCount: out-of-range / not-an-offered-choice values are rejected on set", () => {
+  const { LBPrefs } = loadPrefs();
+  for (const bad of [0, 1, 4, 6, 15, 25, 100, -10]) {
+    assert.equal(LBPrefs.setQuizCount(bad), false, `${bad} is not in [5,10,20] -> set rejected (false)`);
+  }
+  // None of the rejected writes should have changed the stored value: still default.
+  assert.equal(LBPrefs.getQuizCount(), 10, "after only-rejected sets, getQuizCount stays at the 10 default");
+});
+
+test("quizCount: non-numeric set is rejected (false), value stays default", () => {
+  const { LBPrefs } = loadPrefs();
+  for (const bad of ["ten", "abc", NaN, undefined, null, {}, []]) {
+    assert.equal(LBPrefs.setQuizCount(bad), false, `non-numeric ${String(bad)} -> set rejected`);
+  }
+  assert.equal(LBPrefs.getQuizCount(), 10, "rejected non-numeric sets leave the default intact");
+});
+
+test("quizCount: a rejected set does NOT overwrite a previously valid value", () => {
+  const { LBPrefs } = loadPrefs();
+  assert.equal(LBPrefs.setQuizCount(20), true, "store a valid 20 first");
+  assert.equal(LBPrefs.setQuizCount(7), false, "7 is invalid -> rejected");
+  assert.equal(LBPrefs.getQuizCount(), 20, "the previously stored 20 survives the rejected write");
+});
+
+test("quizCount: a stored invalid/garbage value falls back to the default on read", () => {
+  const { LBPrefs, LBStore } = loadPrefs();
+  // Plant a garbage quizCount directly through LBStore, bypassing setQuizCount's
+  // own validation, then confirm the getter rejects it back to the default.
+  LBStore.set("lb.prefs", { quizCount: 7, lessons: {} });
+  assert.equal(LBPrefs.getQuizCount(), 10, "stored 7 (not an offered choice) -> default 10 on read");
+  LBStore.set("lb.prefs", { quizCount: "abc", lessons: {} });
+  assert.equal(LBPrefs.getQuizCount(), 10, "stored non-numeric -> default 10 on read");
+});
+
+/* --- CRITICAL: setLesson <-> quizCount coexistence (guards the LB-14 setLesson
+ * change so a per-lesson write never drops the global quizCount, and vice versa) */
+
+test("coexistence: setQuizCount does NOT wipe an existing per-lesson lessons map", () => {
+  const { LBPrefs } = loadPrefs();
+  LBPrefs.setRevealMs("sq/lesson-1", 8000);
+  LBPrefs.setOrder("sq/lesson-1", "leitner");
+  LBPrefs.setQuizCount(20); // global write AFTER per-lesson writes
+
+  assert.equal(LBPrefs.getQuizCount(), 20, "global quizCount stored");
+  assert.equal(LBPrefs.getRevealMs("sq/lesson-1"), 8000, "per-lesson revealMs SURVIVES the global write");
+  assert.equal(LBPrefs.getOrder("sq/lesson-1"), "leitner", "per-lesson order SURVIVES the global write");
+});
+
+test("coexistence: setLesson (revealMs/order) does NOT wipe the global quizCount", () => {
+  const { LBPrefs } = loadPrefs();
+  LBPrefs.setQuizCount(5); // global write FIRST
+  LBPrefs.setRevealMs("sq/lesson-2", 12000); // per-lesson write AFTER
+  LBPrefs.setOrder("sq/lesson-2", "random");
+
+  assert.equal(LBPrefs.getRevealMs("sq/lesson-2"), 12000, "per-lesson revealMs stored");
+  assert.equal(LBPrefs.getOrder("sq/lesson-2"), "random", "per-lesson order stored");
+  assert.equal(LBPrefs.getQuizCount(), 5,
+    "global quizCount SURVIVES the per-lesson write (guards the setLesson preserve-quizCount fix)");
+});
+
+test("coexistence: full interleaved round-trip — both survive repeated writes to each other", () => {
+  const { LBPrefs } = loadPrefs();
+  LBPrefs.setQuizCount(10);
+  LBPrefs.setRevealMs("sq/lesson-1", 3000);
+  LBPrefs.setQuizCount(20);                       // change global again
+  LBPrefs.setOrder("sq/lesson-1", "leitner");     // touch lesson again
+  LBPrefs.setRevealMs("sq/lesson-4", 7000);       // a second lesson
+  LBPrefs.setQuizCount(5);                         // change global a third time
+
+  assert.equal(LBPrefs.getQuizCount(), 5, "final global quizCount is the last valid write (5)");
+  assert.equal(LBPrefs.getRevealMs("sq/lesson-1"), 3000, "lesson-1 revealMs intact through it all");
+  assert.equal(LBPrefs.getOrder("sq/lesson-1"), "leitner", "lesson-1 order intact through it all");
+  assert.equal(LBPrefs.getRevealMs("sq/lesson-4"), 7000, "lesson-4 revealMs intact through it all");
+});
+
 /* --------------------------- no-store degradation ------------------------- */
 
 test("no LBStore: every getter returns null and setters are no-ops (engine env)", () => {
@@ -329,6 +438,9 @@ test("no LBStore: every getter returns null and setters are no-ops (engine env)"
   assert.equal(LBPrefs.getOrder("sq/lesson-1"), null, "no store -> getOrder null");
   assert.equal(LBPrefs.setRevealMs("sq/lesson-1", 8000), false, "no store -> setRevealMs returns false");
   assert.equal(LBPrefs.getRevealMs("sq/lesson-1"), null, "no store -> nothing persisted, still null");
+  // quizCount degrades gracefully too: set is a no-op (false), get returns the default.
+  assert.equal(LBPrefs.setQuizCount(20), false, "no store -> setQuizCount returns false");
+  assert.equal(LBPrefs.getQuizCount(), 10, "no store -> getQuizCount returns the 10 default");
 });
 
 test("blocked storage (throwOnSet): setRevealMs returns false but does not throw", () => {

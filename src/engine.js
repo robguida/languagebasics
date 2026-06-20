@@ -387,8 +387,13 @@
       }
     }
 
-    if (toggleBtn) toggleBtn.addEventListener("click", toggle);
-    document.addEventListener("keydown", function (event) {
+    // LB-14: name the study handlers so the session can be cleanly torn down
+    // when test mode takes over the card region (no stacked listeners on a
+    // study<->test switch). Behavior is byte-identical to before: the same
+    // click + keydown logic, just held in named functions instead of inline
+    // anonymous ones. stopStudySession() (below) detaches them.
+    function onToggleClick() { toggle(); }
+    function onStudyKeydown(event) {
       // Space/Enter mirror the single button: reveal, then next.
       if (event.key === " " || event.key === "Enter") {
         event.preventDefault();
@@ -397,26 +402,67 @@
       // "n" retained as a power-user shortcut to force the next card
       // regardless of phase (skip without revealing).
       if (event.key.toLowerCase() === "n") nextCard();
-    });
+    }
+
+    if (toggleBtn) toggleBtn.addEventListener("click", onToggleClick);
+    document.addEventListener("keydown", onStudyKeydown);
+
+    // LB-14: register this study session's teardown so a switch into test mode
+    // can stop the timer + remove the listeners before test mode reuses the same
+    // card region. Guarded so the engine unit-test sandboxes (no removeEventListener
+    // on the document shim is fine; we feature-detect) never throw.
+    activeStudyTeardown = function () {
+      try { clearTimeout(timer); } catch (err) { /* ignore */ }
+      if (toggleBtn && typeof toggleBtn.removeEventListener === "function") {
+        toggleBtn.removeEventListener("click", onToggleClick);
+      }
+      if (typeof document.removeEventListener === "function") {
+        document.removeEventListener("keydown", onStudyKeydown);
+      }
+    };
 
     nextCard();
   }
 
+  // LB-14: the teardown for the currently-running study session, set by start().
+  // null when no study session is active (e.g. while test mode owns the region).
+  var activeStudyTeardown = null;
+
+  /* LB-14: stop the active study session (timer + listeners) so test mode can
+   * take over the shared card region without double-handling input. No-op when
+   * no study session is active. Never throws. */
+  function stopStudySession() {
+    if (typeof activeStudyTeardown === "function") {
+      try { activeStudyTeardown(); } catch (err) { /* ignore */ }
+    }
+    activeStudyTeardown = null;
+  }
+
   /* ===================================================================== *
-   * LB-11: GAME / TEST MODE                                                *
+   * LB-14: TEST MODE (in-place, reuses the flashcard region)               *
    *                                                                        *
-   * Self-rated, scored quiz over the currently selected lesson's deck.     *
-   * Study mode (start() above) is left COMPLETELY untouched — game mode    *
-   * runs in its own overlay with its own DOM, so the existing card flow    *
-   * and the existing tests are byte-identical.                             *
+   * Self-rated, scored quiz over the CURRENT lesson's deck. There is no    *
+   * separate overlay or end screen anymore (LB-11's gameModal was removed  *
+   * in LB-14). Test mode is driven by a switch on the flashcard screen:    *
+   * the bootstrap calls LBEngine.startTest(lesson, N) when the switch is   *
+   * turned ON and LBEngine.start(lesson) when it is turned OFF.            *
+   *                                                                        *
+   * startTest() reuses the SAME #number / #word / #pronunciation region as *
+   * study, swapping the single "Reveal it" button for two buttons          *
+   * ("Got it" / "Missed it"). Study mode (start() above) is untouched and  *
+   * byte-identical — the engine unit tests provide no LBStore/LBGame/etc., *
+   * so all the test-mode wiring below is guarded and never fires there.    *
    *                                                                        *
    * Per-card flow:                                                         *
-   *   show number -> user recalls -> user taps "Got it" / "Missed it"      *
-   *   (the commit) -> THEN reveal the Albanian word + pronunciation so the *
-   *   user can check -> tap "Next" -> next card -> end screen.             *
+   *   show number -> user recalls -> taps "Got it" / "Missed it" (commit   *
+   *   via handleSelfRate) -> THEN reveal the Albanian word + pronunciation *
+   *   so the user can check -> "Next Card" -> next card.                   *
+   * After N cards: a one-line result is shown IN the card region with      *
+   *   "Study" (switch off) and "Test again" actions.                       *
    *                                                                        *
    * All scoring math is pure and lives in window.LBGame (game.js); this    *
-   * code only feeds inputs in and renders what comes back.                 *
+   * code only feeds inputs in and renders what comes back. handleSelfRate  *
+   * (below) is the shared commit hook reused verbatim from LB-11/LB-12.    *
    * ===================================================================== */
 
   /* The single shared self-rate hook (LB-11/LB-12 seam).
@@ -480,69 +526,108 @@
     return evt;
   }
 
-  function startGame(lesson, requestedCount) {
+  // LB-14: the teardown for the currently-running test session (timer + the
+  // test-mode keydown listener), set by startTest(). null when no test session
+  // is active. stopTestSession() runs it before study mode resumes.
+  var activeTestTeardown = null;
+
+  /* LB-14: stop the active test session (its keydown listener) so study mode can
+   * take back the shared card region without double-handling input. No-op when no
+   * test session is active. Never throws. */
+  function stopTestSession() {
+    if (typeof activeTestTeardown === "function") {
+      try { activeTestTeardown(); } catch (err) { /* ignore */ }
+    }
+    activeTestTeardown = null;
+  }
+
+  /* startTest(lesson, requestedCount) — run an N-card self-rated test on the
+   * CURRENT lesson, reusing the SAME flashcard region as study mode.
+   *
+   * The bootstrap calls this when the "Test mode" switch is turned ON; turning it
+   * OFF calls start(lesson) to return to normal study. Test mode:
+   *   - replaces the single "Reveal it" button with "Got it" / "Missed it",
+   *   - on either tap: commits via the shared handleSelfRate hook (records
+   *     gotIt + responseMs -> LBLeitner.recordResult + LBMastery.record), THEN
+   *     reveals the Albanian word + pronunciation so the user can check,
+   *   - "Next Card" advances; after N cards a one-line result reuses the card
+   *     region with "Study" (switch off) and "Test again" actions.
+   *
+   * N comes from the GLOBAL quizCount pref (passed in by the bootstrap). The pool
+   * is built by the pure LBGame.buildPool, respecting the lesson's order pref via
+   * the deck the engine passes (the deck order is irrelevant — buildPool shuffles;
+   * Leitner weighting is applied per-card by surfacing order, which v1 test mode
+   * keeps simple: a shuffled N-card pool from the lesson deck).
+   *
+   * GUARDED: requires the static test-mode markup AND window.LBGame. The engine
+   * unit-test sandboxes have neither, so this returns early and never affects the
+   * existing study tests. */
+  function startTest(lesson, requestedCount) {
+    // Ensure no study session is still listening on the shared region/keys.
+    stopStudySession();
+    // Restart cleanly if a prior test session was active.
+    stopTestSession();
+
     var lessonId = (lesson && lesson.id) ? String(lesson.id) : "";
-    // Game mode is self-paced (no reveal timer) — the user commits a self-rate
-    // before the answer shows, so resolvedRevealMs is intentionally not used.
     var deck = buildDeck(lesson);
 
-    // ----- DOM handles (all guarded; absent markup degrades, never throws) ---
-    var modal = document.getElementById("gameModal");
-    var playView = document.getElementById("gamePlay");
-    var endView = document.getElementById("gameEnd");
-    var progressEl = document.getElementById("gameProgress");
-    var numberEl = document.getElementById("gameNumber");
-    var wordEl = document.getElementById("gameWord");
-    var pronEl = document.getElementById("gamePron");
-    var rateEl = document.getElementById("gameRate");
-    var gotBtn = document.getElementById("gameGotBtn");
-    var missedBtn = document.getElementById("gameMissedBtn");
-    var nextWrap = document.getElementById("gameNextWrap");
-    var nextBtn = document.getElementById("gameNextBtn");
-    var quitBtn = document.getElementById("gameQuitBtn");
-    var endCloseBtn = document.getElementById("gameEndClose");
-    var scoreEl = document.getElementById("gameScore");
-    // LB-12: end-screen mastery readout (level + locked comment for this lesson).
-    var masteryWrap = document.getElementById("gameMasteryWrap");
-    var masteryLevelEl = document.getElementById("gameMasteryLevel");
-    var masteryCommentEl = document.getElementById("gameMasteryComment");
-    var reviewWrap = document.getElementById("gameReviewWrap");
-    var reviewList = document.getElementById("gameReviewList");
-    var playAgainBtn = document.getElementById("gamePlayAgainBtn");
-    var backBtn = document.getElementById("gameBackToStudyBtn");
+    // ----- shared card-region DOM (reused from study) + test controls --------
+    var numberEl = document.getElementById("number");
+    var wordEl = document.getElementById("word");
+    var pronEl = document.getElementById("pronunciation");
+    var labelEl = document.getElementById("label");
+    var recallEl = document.getElementById("recall");
+    var barWrap = (typeof document.querySelector === "function")
+      ? document.querySelector(".timer") : null;
+    var cardEl = (typeof document.querySelector === "function")
+      ? document.querySelector(".card") : null;
+    var studyControls = document.getElementById("studyControls");
+    var testControls = document.getElementById("testControls");
+    var rateRow = document.getElementById("testRate");
+    var gotBtn = document.getElementById("testGotBtn");
+    var missedBtn = document.getElementById("testMissedBtn");
+    var nextWrap = document.getElementById("testNextWrap");
+    var nextBtn = document.getElementById("testNextBtn");
+    var progressEl = document.getElementById("testProgress");
+    var resultRow = document.getElementById("testResult");
 
-    if (!modal || !numberEl) {
-      console.warn("[engine] game markup missing; cannot start game", lesson);
+    // Test mode REQUIRES its static markup + the pure game module. Without
+    // either (engine unit-test sandboxes), bail without touching study state.
+    if (!numberEl || !gotBtn || !missedBtn || !nextBtn ||
+        typeof window === "undefined" || !window.LBGame ||
+        typeof window.LBGame.buildPool !== "function") {
+      console.warn("[engine] test-mode markup or LBGame missing; cannot start test");
       return;
     }
 
-    // Build the game pool via the pure module (shuffle + clamp to count).
-    var pool;
-    if (typeof window !== "undefined" && window.LBGame &&
-        typeof window.LBGame.buildPool === "function") {
-      pool = window.LBGame.buildPool(deck, requestedCount);
-    } else {
-      pool = deck.slice(); // defensive: play the whole deck if game.js is absent
-    }
+    function setHidden(el, hidden) { if (el) el.hidden = hidden; }
 
+    // Build the N-card pool via the pure module (shuffle + clamp to count).
+    var pool = window.LBGame.buildPool(deck, requestedCount);
     if (!pool.length) {
-      console.warn("[engine] no cards available for game", lesson);
+      console.warn("[engine] no cards available for test", lesson);
       return;
     }
 
     var idx = 0;            // index into pool
     var events = [];        // self-rate events, one per played card
     var cardShownAt = null; // when the current card was shown
-    var lastFocused = null; // restore focus on close
 
-    function setHidden(el, hidden) { if (el) el.hidden = hidden; }
+    // ----- enter test mode: swap study controls for the test controls -------
+    setHidden(studyControls, true);
+    setHidden(testControls, false);
+    setHidden(resultRow, true);
+    // The reveal timer + its bar do not belong to test mode (the user commits a
+    // self-rate before the answer shows). Hide the timer bar while testing.
+    setHidden(barWrap, true);
+    if (labelEl) labelEl.textContent = "";
 
     function showCard() {
       var card = pool[idx];
 
-      // Progress readout (announced via aria-live on the element).
       if (progressEl) {
         progressEl.textContent = "Card " + (idx + 1) + " of " + pool.length;
+        progressEl.hidden = false;
       }
 
       // Prompt (reuse the same font auto-shrink ladder as study mode).
@@ -550,41 +635,44 @@
       numberEl.textContent = card.prompt;
 
       // Answer prepared but hidden until the self-rate commits.
-      if (wordEl) {
-        wordEl.style.fontSize = wordFontSize(card.answer);
-        wordEl.innerHTML = renderAnswer(card.answer);
-        wordEl.hidden = true;
-      }
-      if (pronEl) {
-        pronEl.textContent = card.hint;
-        pronEl.hidden = true;
-      }
+      wordEl.style.fontSize = wordFontSize(card.answer);
+      wordEl.innerHTML = renderAnswer(card.answer);
+      wordEl.hidden = true;
+      pronEl.textContent = card.hint;
+      pronEl.hidden = true;
+      if (recallEl) { recallEl.textContent = ""; recallEl.hidden = true; }
 
-      // Recall phase: self-rate visible, reveal/next hidden.
-      setHidden(rateEl, false);
+      // Recall phase: Got it / Missed it visible, Next hidden.
+      setHidden(rateRow, false);
       setHidden(nextWrap, true);
+
+      // LB-9 a11y parity: answer hidden again — describe the region.
+      setAttr(cardEl, "aria-label",
+        "Answer hidden. Rate yourself, then the Albanian word and pronunciation show.");
 
       // Stamp when the card was shown — drives responseMs in the self-rate hook.
       cardShownAt = nowTs();
 
-      // Move focus to the primary self-rate action for keyboard users.
-      if (gotBtn && typeof gotBtn.focus === "function") gotBtn.focus();
+      if (typeof gotBtn.focus === "function") gotBtn.focus();
     }
 
     function revealAnswer() {
       var card = pool[idx];
-      if (wordEl) wordEl.hidden = false;
-      if (pronEl) pronEl.hidden = (card.hint === "");
-      // Reveal phase: self-rate hidden, Next visible.
-      setHidden(rateEl, true);
+      wordEl.hidden = false;
+      pronEl.hidden = (card.hint === "");
+      // Reveal phase: rate buttons hidden, Next visible.
+      setHidden(rateRow, true);
       setHidden(nextWrap, false);
-      if (nextBtn && typeof nextBtn.focus === "function") nextBtn.focus();
+      // LB-9 a11y: clear the "answer hidden" label so the aria-live region does
+      // not talk over the freshly-revealed word/pronunciation.
+      removeAttr(cardEl, "aria-label");
+      if (typeof nextBtn.focus === "function") nextBtn.focus();
     }
 
     function rate(gotIt) {
       var card = pool[idx];
-      // The single shared hook: builds the event, wires Leitner (guarded),
-      // returns the event. LB-12 extends this same hook (see handleSelfRate).
+      // The single shared hook: builds the event, wires Leitner + Mastery
+      // (guarded), returns the event. Same hook study/LB-11 used.
       var evt = handleSelfRate(lessonId, card, gotIt, cardShownAt);
       events.push(evt);
       // Commit happens BEFORE the reveal — now show the answer to verify.
@@ -594,171 +682,97 @@
     function advance() {
       idx++;
       if (idx >= pool.length) {
-        showEnd();
+        showResult();
       } else {
         showCard();
       }
     }
 
-    function renderReview(prompts) {
-      if (!reviewList) return;
-      reviewList.innerHTML = "";
-      for (var i = 0; i < prompts.length; i++) {
-        if (typeof document.createElement === "function") {
-          var li = document.createElement("li");
-          li.textContent = prompts[i];
-          reviewList.appendChild(li);
-        }
-      }
-    }
-
-    /* LB-12: render this lesson's speed-tiered mastery on the end screen — the
-     * rolled-up level and its locked comment string. Guarded: with no LBMastery
-     * (engine unit tests) or no markup, it simply stays hidden and never throws.
-     * The lesson's level is the SLOWEST best-level among its cards; the lesson is
-     * "mastered" (Level 1) only when every card is at Level 1. If every lesson is
-     * mastered overall, show the celebration line instead. */
-    function renderMastery() {
-      if (!masteryWrap) return;
-      if (typeof window === "undefined" || !window.LBMastery ||
-          typeof window.LBMastery.getLessonLevel !== "function") {
-        setHidden(masteryWrap, true);
-        return;
-      }
-      var M = window.LBMastery;
-      var level = M.getLessonLevel(lessonId, deck); // 1..5 or M.NONE
-      var levelText, comment;
-
-      // Celebrate overall mastery only when EVERY lesson is mastered. The active
-      // lesson is judged from its live deck; the others (cards not loaded) from
-      // stored Level-1 counts vs their known card counts.
-      var overall = false;
-      try { overall = isOverallMastered(); } catch (err) { overall = false; }
-
-      if (overall) {
-        levelText = "All lessons mastered!";
-        comment = (typeof M.overallComment === "function")
-          ? M.overallComment() : "";
-      } else if (level === M.NONE) {
-        levelText = "Mastery: not yet — keep practicing.";
-        comment = (typeof M.commentFor === "function") ? M.commentFor(M.NONE) : "";
-      } else if (level === M.BEST_LEVEL) {
-        levelText = "Lesson mastered — Level 1!";
-        comment = (typeof M.commentFor === "function") ? M.commentFor(level) : "";
-      } else {
-        levelText = "Mastery level: " + level + " of 5";
-        comment = (typeof M.commentFor === "function") ? M.commentFor(level) : "";
-      }
-
-      if (masteryLevelEl) masteryLevelEl.textContent = levelText;
-      if (masteryCommentEl) masteryCommentEl.textContent = comment;
-      setHidden(masteryWrap, false);
-    }
-
-    /* True only when EVERY lesson in the LB_LESSONS registry is fully mastered.
-     * One lesson at a time is loaded, so:
-     *   - the ACTIVE lesson is judged from its live deck (isLessonMastered),
-     *   - every OTHER lesson from its stored Level-1 count vs its known card
-     *     count (lessonMasteredByCount, using the registry's `count`).
-     * Returns false if the registry is empty or any lesson lacks a usable count
-     * (we never falsely celebrate). Never throws. */
-    function isOverallMastered() {
-      var M = window.LBMastery;
-      var registry = (typeof window !== "undefined" && Array.isArray(window.LB_LESSONS))
-        ? window.LB_LESSONS : [];
-      if (!registry.length) return false;
-      for (var i = 0; i < registry.length; i++) {
-        var entry = registry[i];
-        if (!entry || !entry.id) return false;
-        if (entry.id === lessonId) {
-          if (!M.isLessonMastered(lessonId, deck)) return false;
-        } else {
-          var count = (typeof entry.count === "number") ? entry.count : 0;
-          if (!M.lessonMasteredByCount(entry.id, count)) return false;
-        }
-      }
-      return true;
-    }
-
-    function showEnd() {
-      var summary = (typeof window !== "undefined" && window.LBGame &&
-          typeof window.LBGame.summarize === "function")
+    /* Show the one-line result IN the card region (no overlay). Reuses #number
+     * for the headline and #word for the mastery hint, then offers Study / Test
+     * again via the test-controls row. */
+    function showResult() {
+      var summary = (typeof window.LBGame.summarize === "function")
         ? window.LBGame.summarize(events)
         : { total: events.length, gotIt: 0, percent: 0, review: [] };
 
-      if (scoreEl) {
-        scoreEl.textContent = "You got " + summary.gotIt + " of " +
-          summary.total + " (" + summary.percent + "%)";
-      }
+      // Headline result line, sized down to fit the card (it is text, not a
+      // big number) — reuse #number as the result area.
+      numberEl.style.fontSize = "1.6rem";
+      numberEl.textContent = "Quiz done — " + summary.gotIt + "/" +
+        summary.total + " (" + summary.percent + "%)";
 
-      // LB-12: show this lesson's speed-tiered mastery level + locked comment.
-      renderMastery();
+      wordEl.style.fontSize = "1.1rem";
+      wordEl.innerHTML = "Mastery updated above.";
+      wordEl.hidden = false;
+      pronEl.textContent = "";
+      pronEl.hidden = true;
+      if (progressEl) progressEl.hidden = true;
 
-      if (summary.review.length) {
-        renderReview(summary.review);
-        setHidden(reviewWrap, false);
-      } else {
-        setHidden(reviewWrap, true);
-      }
+      // Swap the rate/next rows for the result actions (Study / Test again).
+      setHidden(rateRow, true);
+      setHidden(nextWrap, true);
+      setHidden(resultRow, false);
 
-      setHidden(playView, true);
-      setHidden(endView, false);
-
-      // Move focus to the score so it is announced + the end screen is reachable.
-      if (scoreEl && typeof scoreEl.focus === "function") {
-        // scoreEl is not natively focusable; set tabindex defensively.
-        setAttr(scoreEl, "tabindex", "-1");
-        scoreEl.focus();
-      }
+      setAttr(cardEl, "aria-label", "");
+      var studyBtn = document.getElementById("testResultStudyBtn");
+      if (studyBtn && typeof studyBtn.focus === "function") studyBtn.focus();
     }
 
-    function open() {
-      lastFocused = (typeof document !== "undefined") ? document.activeElement : null;
-      // Reset to the play view (in case a prior game left the end view showing).
-      setHidden(endView, true);
-      setHidden(playView, false);
-      if (modal.classList && typeof modal.classList.add === "function") {
-        modal.classList.add("open");
-      }
-      document.addEventListener("keydown", onKeydown, true);
-      showCard();
-    }
-
-    function close() {
-      if (modal.classList && typeof modal.classList.remove === "function") {
-        modal.classList.remove("open");
-      }
-      document.removeEventListener("keydown", onKeydown, true);
-      if (lastFocused && typeof lastFocused.focus === "function") {
-        lastFocused.focus();
-      }
-    }
-
-    function restart() {
-      // Re-run the whole game with a freshly built pool + count.
-      close();
-      startGame(lesson, requestedCount);
-    }
-
-    function onKeydown(event) {
-      if (event.key === "Escape" || event.key === "Esc") {
+    // ----- keyboard: Enter/Space mirror the active phase action --------------
+    function onTestKeydown(event) {
+      var k = event.key;
+      // Only intercept the action keys; never fight typing elsewhere.
+      if (k !== " " && k !== "Enter") return;
+      // Rate phase: do not hijack — the user must pick Got it / Missed it
+      // explicitly. Reveal phase: Enter/Space advances (mirrors "Next Card").
+      if (rateRow && rateRow.hidden === false) return;
+      if (nextWrap && nextWrap.hidden === false) {
         event.preventDefault();
-        close();
+        advance();
       }
     }
 
-    // ----- wire controls (idempotent per startGame instance) -----
-    if (gotBtn) gotBtn.onclick = function () { rate(true); };
-    if (missedBtn) missedBtn.onclick = function () { rate(false); };
-    if (nextBtn) nextBtn.onclick = advance;
-    if (quitBtn) quitBtn.onclick = close;
-    if (endCloseBtn) endCloseBtn.onclick = close;
-    if (backBtn) backBtn.onclick = close;
-    if (playAgainBtn) playAgainBtn.onclick = restart;
+    // ----- wire controls (re-assigned per startTest; .onclick is idempotent) -
+    gotBtn.onclick = function () { rate(true); };
+    missedBtn.onclick = function () { rate(false); };
+    nextBtn.onclick = advance;
 
-    open();
+    document.addEventListener("keydown", onTestKeydown);
+
+    // Register teardown so a switch back to study removes the listener.
+    activeTestTeardown = function () {
+      if (typeof document.removeEventListener === "function") {
+        document.removeEventListener("keydown", onTestKeydown);
+      }
+    };
+
+    showCard();
   }
 
-  // Public surface.
-  window.LBEngine = { start: start, startGame: startGame, DEFAULTS: DEFAULTS };
+  /* LB-14: leave test mode and resume normal study. Restores the study controls
+   * + timer bar and re-runs start() on the lesson (a fresh study session, which
+   * re-registers study's own listeners). Guarded for the no-markup case. */
+  function endTest(lesson) {
+    stopTestSession();
+    var studyControls = document.getElementById("studyControls");
+    var testControls = document.getElementById("testControls");
+    var resultRow = document.getElementById("testResult");
+    var barWrap = (typeof document.querySelector === "function")
+      ? document.querySelector(".timer") : null;
+    if (studyControls) studyControls.hidden = false;
+    if (testControls) testControls.hidden = true;
+    if (resultRow) resultRow.hidden = true;
+    if (barWrap) barWrap.hidden = false;
+    start(lesson);
+  }
+
+  // Public surface. startGame removed in LB-14 (the overlay quiz is gone);
+  // startTest/endTest drive the in-place, switch-controlled test mode.
+  window.LBEngine = {
+    start: start,
+    startTest: startTest,
+    endTest: endTest,
+    DEFAULTS: DEFAULTS
+  };
 })();

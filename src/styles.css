@@ -22,7 +22,40 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 18px;
+  /* LB-14: extra top padding clears the fixed header bar so the card column
+     never slides under it. The bar is ~52px tall; 70px leaves a little breathing
+     room above the title. */
+  padding: 70px 18px 18px;
+}
+
+/* ---- LB-14: fixed top header bar ---- */
+/* A single horizontal line pinned to the top: streak (left), overall mastery
+   (middle), hamburger (right). Calm, low-emphasis, matching the app's style. */
+.app-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  min-height: 52px;
+  background: rgba(15, 23, 42, .85);
+  backdrop-filter: blur(6px);
+}
+.header-streak {
+  font-size: .9rem;
+  font-weight: 700;
+  color: #ffffff;
+  white-space: nowrap;
+}
+.header-mastery {
+  flex: 1;
+  text-align: center;
+  font-size: .85rem;
+  color: #cbd5e1;
 }
 
 .app { width: min(480px, 100%); text-align: center; }
@@ -113,16 +146,15 @@ button.secondary { background: #475569; }
 .hint { color: #cbd5e1; font-size: .95rem; margin-top: 12px; }
 
 /* ---- Settings: hamburger button ---- */
-/* Sits at the top-right of the card column. Calm, low-emphasis: a quiet
-   translucent control that doesn't compete with the flashcard. */
+/* LB-14: lives in the fixed header bar (right-aligned via the flex layout).
+   Calm, low-emphasis: a quiet translucent control that doesn't compete with
+   the flashcard. */
 .app { position: relative; }
 
 .hamburger {
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 44px;
-  height: 44px;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
   padding: 0;
   display: inline-flex;
   align-items: center;
@@ -246,171 +278,58 @@ button.secondary { background: #475569; }
   line-height: 1.35;
 }
 
-/* ---- Mastery readout (LB-12) ---- */
-/* At-a-glance, below the lesson picker: this lesson's level + the overall
-   "X of N lessons mastered". Plain text, low-emphasis — no bars/badges (that
-   polish is deferred). Two stacked lines so it reads cleanly on narrow screens. */
+/* ---- Mastery readout (LB-12 / LB-14) ---- */
+/* Near the lesson picker: ONLY "This lesson" now (the overall line moved to the
+   header bar in LB-14). Plain text, low-emphasis — no bars/badges. */
 .mastery-readout {
   margin: 0 0 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
   font-size: .9rem;
   line-height: 1.35;
 }
 .mastery-readout-lesson { font-weight: 700; color: #ffffff; }
-.mastery-readout-overall { color: #cbd5e1; }
 
-/* ---- Daily-practice streak readout (LB-13) ---- */
-/* A quiet line below the lesson picker: "N days in a row" + a small "today"
-   goal marker. Calm and low-emphasis, matching the mastery readout above —
-   plain text, no badges, no loss/nagging cues. Two stacked lines so it reads
-   cleanly on narrow screens. */
-.streak-readout {
-  margin: 0 0 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  font-size: .9rem;
-  line-height: 1.35;
-}
-.streak-readout-count { font-weight: 700; color: #ffffff; }
-.streak-readout-goal { color: #cbd5e1; }
+/* ---- LB-14: test-mode card region ---- */
+/* "Card N of M" progress, shown inside the card only during a test. */
+.test-progress { color: var(--muted); font-size: .9rem; margin-bottom: 10px; }
 
-/* ---- Game end: mastery level + comment (LB-12) ---- */
-/* Sits between the score and the review list on the end screen. */
-.game-mastery { margin: 0 0 16px; }
-.game-mastery-level {
-  font-size: 1.1rem;
-  font-weight: 800;
-  color: var(--accent2);
-  margin: 0 0 6px;
-}
-.game-mastery-comment {
-  font-size: .95rem;
-  color: var(--text);
-  margin: 0;
-  line-height: 1.4;
-}
+/* ---- LB-14: test-mode controls ---- */
+/* The test controls replace the single study toggle while test mode is on.
+   They live in the same .controls slot under the card. */
+.test-controls { gap: 12px; }
 
-/* ---- Game / Quiz launcher (LB-11) ---- */
-/* Sits below the study card. Calm, low-emphasis surface so it invites a quiz
-   without competing with the flashcard above it. */
-.game-launch {
-  margin-top: 22px;
-  padding: 16px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, .08);
-  text-align: left;
-}
-.game-launch-title { font-size: 1.05rem; font-weight: 700; margin: 0 0 4px; }
-.game-launch-help { color: #cbd5e1; font-size: .9rem; margin: 0 0 12px; line-height: 1.35; }
-
-.game-launch-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.game-count {
-  display: inline-flex;
-  align-items: center;
-  gap: 16px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-.game-launch-row button { background: var(--accent2); }
-
-/* ---- Game mode overlay (LB-11) ---- */
-/* Hidden by default; engine.js adds .open to show it. Same scrim + centered
-   panel idiom as the settings modal so the app feels consistent. */
-.game-modal {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  padding: 18px;
-  background: rgba(15, 23, 42, .8);
-}
-.game-modal.open { display: flex; }
-
-.game-panel {
-  width: min(480px, 100%);
-  max-height: 92vh;
-  overflow-y: auto;
-  background: var(--card);
-  color: var(--text);
-  border-radius: 24px;
-  padding: 22px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, .45);
-  text-align: center;
-}
-
-.game-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-.game-heading { font-size: 1.2rem; font-weight: 700; margin: 0; }
-
-.game-quit {
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  font-size: 1.4rem;
-  line-height: 1;
-  color: var(--text);
-  background: #e2e8f0;
-  border-radius: 10px;
-}
-.game-quit:hover { background: #cbd5e1; }
-
-.game-progress { color: var(--muted); font-size: .9rem; margin: 0 0 12px; }
-
-/* The quiz card surface reuses the .number / .word / .pronunciation sizing
-   from study mode so a number looks identical in both modes. */
-.game-card {
-  min-height: 220px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  margin-bottom: 16px;
-}
-.game-answer { width: 100%; }
-
-/* Self-rate buttons. Two clear, equal-weight choices committed before reveal. */
-.game-rate {
+/* Got it / Missed it: two clear, equal-weight choices committed before reveal. */
+.test-rate {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
-.game-got { background: var(--accent2); }
-.game-missed { background: #b91c1c; }
+.test-got { background: var(--accent2); }
+.test-missed { background: #b91c1c; }
 
-.game-next-wrap { margin-top: 4px; }
-.game-next-wrap button { width: 100%; }
+.test-next-wrap button { width: 100%; }
 
-/* ---- Game end screen (LB-11) ---- */
-.game-score { font-size: 1.5rem; font-weight: 800; margin: 14px 0 16px; outline: none; }
-
-.game-review { text-align: left; margin-bottom: 18px; }
-.game-review-title { font-size: 1rem; font-weight: 700; margin: 0 0 8px; }
-.game-review-list {
-  margin: 0;
-  padding-left: 1.2rem;
-  color: var(--text);
-  font-weight: 600;
-  line-height: 1.6;
+/* The in-card result actions: Study / Test again. */
+.test-result {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
 }
 
-.game-end-actions {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 10px;
+/* ---- LB-14: test-mode switch ---- */
+/* Sits just under the controls. Calm, low-emphasis; a clearly-labeled toggle to
+   turn answer recording (test mode) on and off. */
+.test-switch { margin-top: 14px; }
+.switch-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: .9rem;
+  font-weight: 600;
+  color: #cbd5e1;
+  cursor: pointer;
+}
+.switch-input {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
 }

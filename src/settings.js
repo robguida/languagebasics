@@ -40,6 +40,8 @@
     var timerValue = document.getElementById("revealSecondsValue");
     var orderRandom = document.getElementById("orderRandom");
     var orderLeitner = document.getElementById("orderLeitner");
+    // LB-14: GLOBAL quiz-count radios (5/10/20, default 10). Not per-lesson.
+    var quizCountRadios = document.querySelectorAll('input[name="quizCount"]');
 
     // If the static modal markup is absent for any reason, degrade silently
     // rather than throw — the flashcards still work without settings.
@@ -66,6 +68,16 @@
       if (order == null) order = defaults.order;
       if (orderRandom) orderRandom.checked = (order === "random");
       if (orderLeitner) orderLeitner.checked = (order === "leitner");
+
+      // LB-14: seed the GLOBAL quiz-count radios from the stored pref (or the
+      // 10-default). getQuizCount always returns a usable value, never null.
+      var quizCount = (prefs && prefs.getQuizCount)
+        ? prefs.getQuizCount()
+        : (defaults.quizCount || 10);
+      for (var qi = 0; qi < quizCountRadios.length; qi++) {
+        var qr = quizCountRadios[qi];
+        qr.checked = (Number(qr.value) === quizCount);
+      }
     }
 
     // ----- persistence wiring -----
@@ -85,6 +97,21 @@
       if (prefs && prefs.setOrder) prefs.setOrder(lessonId, order);
     }
 
+    // LB-14: persist the GLOBAL quiz count (one of 5/10/20). Applies to all
+    // lessons; test mode reads it for whatever lesson is active.
+    function persistQuizCount() {
+      var chosen = null;
+      for (var qi = 0; qi < quizCountRadios.length; qi++) {
+        if (quizCountRadios[qi].checked) {
+          chosen = Number(quizCountRadios[qi].value);
+          break;
+        }
+      }
+      if (chosen != null && prefs && prefs.setQuizCount) {
+        prefs.setQuizCount(chosen);
+      }
+    }
+
     if (timerInput) {
       // input -> live value readout; change -> persist (covers slider + number)
       timerInput.addEventListener("input", function () {
@@ -94,6 +121,9 @@
     }
     if (orderRandom) orderRandom.addEventListener("change", persistOrder);
     if (orderLeitner) orderLeitner.addEventListener("change", persistOrder);
+    for (var qri = 0; qri < quizCountRadios.length; qri++) {
+      quizCountRadios[qri].addEventListener("change", persistQuizCount);
+    }
 
     // ----- focus trap -----
     var FOCUSABLE = [
