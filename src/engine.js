@@ -443,7 +443,18 @@
       console.warn("[engine] leitner recordResult failed; continuing", err);
     }
 
-    // LB-12 SEAM: a guarded LBMastery.record(lessonId, evt) call goes here.
+    // LB-12 SEAM: feed the event to speed-tiered mastery. Guarded — only when
+    // LBMastery is present (engine unit-test sandboxes have none, so this never
+    // fires there and LB-11 behavior is byte-identical). record() never throws,
+    // but guard the call site too so the game runs fine when mastery.js is absent.
+    try {
+      if (typeof window !== "undefined" && window.LBMastery &&
+          typeof window.LBMastery.record === "function" && lessonId) {
+        window.LBMastery.record(lessonId, evt);
+      }
+    } catch (err) {
+      console.warn("[engine] mastery record failed; continuing", err);
+    }
 
     return evt;
   }
@@ -470,6 +481,10 @@
     var quitBtn = document.getElementById("gameQuitBtn");
     var endCloseBtn = document.getElementById("gameEndClose");
     var scoreEl = document.getElementById("gameScore");
+    // LB-12: end-screen mastery readout (level + locked comment for this lesson).
+    var masteryWrap = document.getElementById("gameMasteryWrap");
+    var masteryLevelEl = document.getElementById("gameMasteryLevel");
+    var masteryCommentEl = document.getElementById("gameMasteryComment");
     var reviewWrap = document.getElementById("gameReviewWrap");
     var reviewList = document.getElementById("gameReviewList");
     var playAgainBtn = document.getElementById("gamePlayAgainBtn");
@@ -576,6 +591,74 @@
       }
     }
 
+    /* LB-12: render this lesson's speed-tiered mastery on the end screen — the
+     * rolled-up level and its locked comment string. Guarded: with no LBMastery
+     * (engine unit tests) or no markup, it simply stays hidden and never throws.
+     * The lesson's level is the SLOWEST best-level among its cards; the lesson is
+     * "mastered" (Level 1) only when every card is at Level 1. If every lesson is
+     * mastered overall, show the celebration line instead. */
+    function renderMastery() {
+      if (!masteryWrap) return;
+      if (typeof window === "undefined" || !window.LBMastery ||
+          typeof window.LBMastery.getLessonLevel !== "function") {
+        setHidden(masteryWrap, true);
+        return;
+      }
+      var M = window.LBMastery;
+      var level = M.getLessonLevel(lessonId, deck); // 1..5 or M.NONE
+      var levelText, comment;
+
+      // Celebrate overall mastery only when EVERY lesson is mastered. The active
+      // lesson is judged from its live deck; the others (cards not loaded) from
+      // stored Level-1 counts vs their known card counts.
+      var overall = false;
+      try { overall = isOverallMastered(); } catch (err) { overall = false; }
+
+      if (overall) {
+        levelText = "All lessons mastered!";
+        comment = (typeof M.overallComment === "function")
+          ? M.overallComment() : "";
+      } else if (level === M.NONE) {
+        levelText = "Mastery: not yet — keep practicing.";
+        comment = (typeof M.commentFor === "function") ? M.commentFor(M.NONE) : "";
+      } else if (level === M.BEST_LEVEL) {
+        levelText = "Lesson mastered — Level 1!";
+        comment = (typeof M.commentFor === "function") ? M.commentFor(level) : "";
+      } else {
+        levelText = "Mastery level: " + level + " of 5";
+        comment = (typeof M.commentFor === "function") ? M.commentFor(level) : "";
+      }
+
+      if (masteryLevelEl) masteryLevelEl.textContent = levelText;
+      if (masteryCommentEl) masteryCommentEl.textContent = comment;
+      setHidden(masteryWrap, false);
+    }
+
+    /* True only when EVERY lesson in the LB_LESSONS registry is fully mastered.
+     * One lesson at a time is loaded, so:
+     *   - the ACTIVE lesson is judged from its live deck (isLessonMastered),
+     *   - every OTHER lesson from its stored Level-1 count vs its known card
+     *     count (lessonMasteredByCount, using the registry's `count`).
+     * Returns false if the registry is empty or any lesson lacks a usable count
+     * (we never falsely celebrate). Never throws. */
+    function isOverallMastered() {
+      var M = window.LBMastery;
+      var registry = (typeof window !== "undefined" && Array.isArray(window.LB_LESSONS))
+        ? window.LB_LESSONS : [];
+      if (!registry.length) return false;
+      for (var i = 0; i < registry.length; i++) {
+        var entry = registry[i];
+        if (!entry || !entry.id) return false;
+        if (entry.id === lessonId) {
+          if (!M.isLessonMastered(lessonId, deck)) return false;
+        } else {
+          var count = (typeof entry.count === "number") ? entry.count : 0;
+          if (!M.lessonMasteredByCount(entry.id, count)) return false;
+        }
+      }
+      return true;
+    }
+
     function showEnd() {
       var summary = (typeof window !== "undefined" && window.LBGame &&
           typeof window.LBGame.summarize === "function")
@@ -586,6 +669,9 @@
         scoreEl.textContent = "You got " + summary.gotIt + " of " +
           summary.total + " (" + summary.percent + "%)";
       }
+
+      // LB-12: show this lesson's speed-tiered mastery level + locked comment.
+      renderMastery();
 
       if (summary.review.length) {
         renderReview(summary.review);
