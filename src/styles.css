@@ -245,3 +245,125 @@ button.secondary { background: #475569; }
   color: var(--muted);
   line-height: 1.35;
 }
+
+/* ---- Game / Quiz launcher (LB-11) ---- */
+/* Sits below the study card. Calm, low-emphasis surface so it invites a quiz
+   without competing with the flashcard above it. */
+.game-launch {
+  margin-top: 22px;
+  padding: 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .08);
+  text-align: left;
+}
+.game-launch-title { font-size: 1.05rem; font-weight: 700; margin: 0 0 4px; }
+.game-launch-help { color: #cbd5e1; font-size: .9rem; margin: 0 0 12px; line-height: 1.35; }
+
+.game-launch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.game-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.game-launch-row button { background: var(--accent2); }
+
+/* ---- Game mode overlay (LB-11) ---- */
+/* Hidden by default; engine.js adds .open to show it. Same scrim + centered
+   panel idiom as the settings modal so the app feels consistent. */
+.game-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(15, 23, 42, .8);
+}
+.game-modal.open { display: flex; }
+
+.game-panel {
+  width: min(480px, 100%);
+  max-height: 92vh;
+  overflow-y: auto;
+  background: var(--card);
+  color: var(--text);
+  border-radius: 24px;
+  padding: 22px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .45);
+  text-align: center;
+}
+
+.game-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.game-heading { font-size: 1.2rem; font-weight: 700; margin: 0; }
+
+.game-quit {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  font-size: 1.4rem;
+  line-height: 1;
+  color: var(--text);
+  background: #e2e8f0;
+  border-radius: 10px;
+}
+.game-quit:hover { background: #cbd5e1; }
+
+.game-progress { color: var(--muted); font-size: .9rem; margin: 0 0 12px; }
+
+/* The quiz card surface reuses the .number / .word / .pronunciation sizing
+   from study mode so a number looks identical in both modes. */
+.game-card {
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.game-answer { width: 100%; }
+
+/* Self-rate buttons. Two clear, equal-weight choices committed before reveal. */
+.game-rate {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.game-got { background: var(--accent2); }
+.game-missed { background: #b91c1c; }
+
+.game-next-wrap { margin-top: 4px; }
+.game-next-wrap button { width: 100%; }
+
+/* ---- Game end screen (LB-11) ---- */
+.game-score { font-size: 1.5rem; font-weight: 800; margin: 14px 0 16px; outline: none; }
+
+.game-review { text-align: left; margin-bottom: 18px; }
+.game-review-title { font-size: 1rem; font-weight: 700; margin: 0 0 8px; }
+.game-review-list {
+  margin: 0;
+  padding-left: 1.2rem;
+  color: var(--text);
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.game-end-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}

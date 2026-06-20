@@ -381,6 +381,277 @@
     nextCard();
   }
 
+  /* ===================================================================== *
+   * LB-11: GAME / TEST MODE                                                *
+   *                                                                        *
+   * Self-rated, scored quiz over the currently selected lesson's deck.     *
+   * Study mode (start() above) is left COMPLETELY untouched — game mode    *
+   * runs in its own overlay with its own DOM, so the existing card flow    *
+   * and the existing tests are byte-identical.                             *
+   *                                                                        *
+   * Per-card flow:                                                         *
+   *   show number -> user recalls -> user taps "Got it" / "Missed it"      *
+   *   (the commit) -> THEN reveal the Albanian word + pronunciation so the *
+   *   user can check -> tap "Next" -> next card -> end screen.             *
+   *                                                                        *
+   * All scoring math is pure and lives in window.LBGame (game.js); this    *
+   * code only feeds inputs in and renders what comes back.                 *
+   * ===================================================================== */
+
+  /* The single shared self-rate hook (LB-11/LB-12 seam).
+   *
+   * Builds the canonical event { card, gotIt, responseMs } via LBGame, wires
+   * the result into LBLeitner (guarded — only when present), and returns the
+   * event so the game flow can record it for scoring.
+   *
+   * LB-12 extends THIS function: add a guarded LBMastery.record(lessonId, evt)
+   * here using evt.responseMs for speed-tiered mastery. The event shape and the
+   * call site already carry everything LB-12 needs — no rework required.
+   *
+   *   lessonId   : the active lesson id (for the Leitner card key).
+   *   card       : the card being rated (the engine's normalized card object).
+   *   gotIt      : true = "Got it", false = "Missed it".
+   *   cardShownAt: the timestamp captured when this card was shown (nowTs()).
+   */
+  function handleSelfRate(lessonId, card, gotIt, cardShownAt) {
+    var responseMs = 0;
+    var shown = (typeof cardShownAt === "number") ? cardShownAt : null;
+    if (shown != null) {
+      var diff = nowTs() - shown;
+      if (isFinite(diff) && diff >= 0) responseMs = diff;
+    }
+
+    // Canonical event via the pure mapping (single source of truth).
+    var evt;
+    if (typeof window !== "undefined" && window.LBGame &&
+        typeof window.LBGame.makeSelfRateEvent === "function") {
+      evt = window.LBGame.makeSelfRateEvent(card, gotIt, responseMs);
+    } else {
+      // Defensive fallback if game.js failed to load — keep the same shape.
+      evt = { card: card, gotIt: gotIt === true, responseMs: responseMs };
+    }
+
+    // Wire Leitner (completes LB-10's loop). Guarded: only when LBLeitner is
+    // present. recordResult never throws, but guard the call site too so the
+    // game runs fine when leitner.js is absent.
+    try {
+      if (typeof window !== "undefined" && window.LBLeitner &&
+          typeof window.LBLeitner.recordResult === "function" && lessonId) {
+        window.LBLeitner.recordResult(lessonId, card, evt.gotIt);
+      }
+    } catch (err) {
+      console.warn("[engine] leitner recordResult failed; continuing", err);
+    }
+
+    // LB-12 SEAM: a guarded LBMastery.record(lessonId, evt) call goes here.
+
+    return evt;
+  }
+
+  function startGame(lesson, requestedCount) {
+    var lessonId = (lesson && lesson.id) ? String(lesson.id) : "";
+    // Game mode is self-paced (no reveal timer) — the user commits a self-rate
+    // before the answer shows, so resolvedRevealMs is intentionally not used.
+    var deck = buildDeck(lesson);
+
+    // ----- DOM handles (all guarded; absent markup degrades, never throws) ---
+    var modal = document.getElementById("gameModal");
+    var playView = document.getElementById("gamePlay");
+    var endView = document.getElementById("gameEnd");
+    var progressEl = document.getElementById("gameProgress");
+    var numberEl = document.getElementById("gameNumber");
+    var wordEl = document.getElementById("gameWord");
+    var pronEl = document.getElementById("gamePron");
+    var rateEl = document.getElementById("gameRate");
+    var gotBtn = document.getElementById("gameGotBtn");
+    var missedBtn = document.getElementById("gameMissedBtn");
+    var nextWrap = document.getElementById("gameNextWrap");
+    var nextBtn = document.getElementById("gameNextBtn");
+    var quitBtn = document.getElementById("gameQuitBtn");
+    var endCloseBtn = document.getElementById("gameEndClose");
+    var scoreEl = document.getElementById("gameScore");
+    var reviewWrap = document.getElementById("gameReviewWrap");
+    var reviewList = document.getElementById("gameReviewList");
+    var playAgainBtn = document.getElementById("gamePlayAgainBtn");
+    var backBtn = document.getElementById("gameBackToStudyBtn");
+
+    if (!modal || !numberEl) {
+      console.warn("[engine] game markup missing; cannot start game", lesson);
+      return;
+    }
+
+    // Build the game pool via the pure module (shuffle + clamp to count).
+    var pool;
+    if (typeof window !== "undefined" && window.LBGame &&
+        typeof window.LBGame.buildPool === "function") {
+      pool = window.LBGame.buildPool(deck, requestedCount);
+    } else {
+      pool = deck.slice(); // defensive: play the whole deck if game.js is absent
+    }
+
+    if (!pool.length) {
+      console.warn("[engine] no cards available for game", lesson);
+      return;
+    }
+
+    var idx = 0;            // index into pool
+    var events = [];        // self-rate events, one per played card
+    var cardShownAt = null; // when the current card was shown
+    var lastFocused = null; // restore focus on close
+
+    function setHidden(el, hidden) { if (el) el.hidden = hidden; }
+
+    function showCard() {
+      var card = pool[idx];
+
+      // Progress readout (announced via aria-live on the element).
+      if (progressEl) {
+        progressEl.textContent = "Card " + (idx + 1) + " of " + pool.length;
+      }
+
+      // Prompt (reuse the same font auto-shrink ladder as study mode).
+      numberEl.style.fontSize = promptFontSize(card.prompt);
+      numberEl.textContent = card.prompt;
+
+      // Answer prepared but hidden until the self-rate commits.
+      if (wordEl) {
+        wordEl.style.fontSize = wordFontSize(card.answer);
+        wordEl.innerHTML = renderAnswer(card.answer);
+        wordEl.hidden = true;
+      }
+      if (pronEl) {
+        pronEl.textContent = card.hint;
+        pronEl.hidden = true;
+      }
+
+      // Recall phase: self-rate visible, reveal/next hidden.
+      setHidden(rateEl, false);
+      setHidden(nextWrap, true);
+
+      // Stamp when the card was shown — drives responseMs in the self-rate hook.
+      cardShownAt = nowTs();
+
+      // Move focus to the primary self-rate action for keyboard users.
+      if (gotBtn && typeof gotBtn.focus === "function") gotBtn.focus();
+    }
+
+    function revealAnswer() {
+      var card = pool[idx];
+      if (wordEl) wordEl.hidden = false;
+      if (pronEl) pronEl.hidden = (card.hint === "");
+      // Reveal phase: self-rate hidden, Next visible.
+      setHidden(rateEl, true);
+      setHidden(nextWrap, false);
+      if (nextBtn && typeof nextBtn.focus === "function") nextBtn.focus();
+    }
+
+    function rate(gotIt) {
+      var card = pool[idx];
+      // The single shared hook: builds the event, wires Leitner (guarded),
+      // returns the event. LB-12 extends this same hook (see handleSelfRate).
+      var evt = handleSelfRate(lessonId, card, gotIt, cardShownAt);
+      events.push(evt);
+      // Commit happens BEFORE the reveal — now show the answer to verify.
+      revealAnswer();
+    }
+
+    function advance() {
+      idx++;
+      if (idx >= pool.length) {
+        showEnd();
+      } else {
+        showCard();
+      }
+    }
+
+    function renderReview(prompts) {
+      if (!reviewList) return;
+      reviewList.innerHTML = "";
+      for (var i = 0; i < prompts.length; i++) {
+        if (typeof document.createElement === "function") {
+          var li = document.createElement("li");
+          li.textContent = prompts[i];
+          reviewList.appendChild(li);
+        }
+      }
+    }
+
+    function showEnd() {
+      var summary = (typeof window !== "undefined" && window.LBGame &&
+          typeof window.LBGame.summarize === "function")
+        ? window.LBGame.summarize(events)
+        : { total: events.length, gotIt: 0, percent: 0, review: [] };
+
+      if (scoreEl) {
+        scoreEl.textContent = "You got " + summary.gotIt + " of " +
+          summary.total + " (" + summary.percent + "%)";
+      }
+
+      if (summary.review.length) {
+        renderReview(summary.review);
+        setHidden(reviewWrap, false);
+      } else {
+        setHidden(reviewWrap, true);
+      }
+
+      setHidden(playView, true);
+      setHidden(endView, false);
+
+      // Move focus to the score so it is announced + the end screen is reachable.
+      if (scoreEl && typeof scoreEl.focus === "function") {
+        // scoreEl is not natively focusable; set tabindex defensively.
+        setAttr(scoreEl, "tabindex", "-1");
+        scoreEl.focus();
+      }
+    }
+
+    function open() {
+      lastFocused = (typeof document !== "undefined") ? document.activeElement : null;
+      // Reset to the play view (in case a prior game left the end view showing).
+      setHidden(endView, true);
+      setHidden(playView, false);
+      if (modal.classList && typeof modal.classList.add === "function") {
+        modal.classList.add("open");
+      }
+      document.addEventListener("keydown", onKeydown, true);
+      showCard();
+    }
+
+    function close() {
+      if (modal.classList && typeof modal.classList.remove === "function") {
+        modal.classList.remove("open");
+      }
+      document.removeEventListener("keydown", onKeydown, true);
+      if (lastFocused && typeof lastFocused.focus === "function") {
+        lastFocused.focus();
+      }
+    }
+
+    function restart() {
+      // Re-run the whole game with a freshly built pool + count.
+      close();
+      startGame(lesson, requestedCount);
+    }
+
+    function onKeydown(event) {
+      if (event.key === "Escape" || event.key === "Esc") {
+        event.preventDefault();
+        close();
+      }
+    }
+
+    // ----- wire controls (idempotent per startGame instance) -----
+    if (gotBtn) gotBtn.onclick = function () { rate(true); };
+    if (missedBtn) missedBtn.onclick = function () { rate(false); };
+    if (nextBtn) nextBtn.onclick = advance;
+    if (quitBtn) quitBtn.onclick = close;
+    if (endCloseBtn) endCloseBtn.onclick = close;
+    if (backBtn) backBtn.onclick = close;
+    if (playAgainBtn) playAgainBtn.onclick = restart;
+
+    open();
+  }
+
   // Public surface.
-  window.LBEngine = { start: start, DEFAULTS: DEFAULTS };
+  window.LBEngine = { start: start, startGame: startGame, DEFAULTS: DEFAULTS };
 })();
