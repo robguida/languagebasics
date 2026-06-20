@@ -9,11 +9,16 @@
  * Stored shape under lb.prefs:
  *   {
  *     v: 1,                                  // stamped by LBStore, not us
+ *     quizCount: 10,                         // GLOBAL: # of questions per quiz
  *     lessons: {
  *       "sq/lesson-1": { revealMs: 5000, order: "random" },
  *       "sq/lesson-6": { revealMs: 10000, order: "leitner" }
  *     }
  *   }
+ *
+ * NOTE: quizCount is a GLOBAL preference (one value for all lessons), not a
+ * per-lesson field. It lives at the top level of lb.prefs alongside `lessons`.
+ * Test mode uses it as the N-card count for whatever lesson is active.
  *
  * Units: revealMs is stored in MILLISECONDS (matches the engine + lesson data).
  * The UI shows/edits seconds and converts at the boundary — not here.
@@ -34,11 +39,16 @@
   // the real fallback. The modal reads these to seed its controls.
   var DEFAULTS = {
     revealMs: 5000,     // 5s
-    order: "random"     // "random" | "leitner"
+    order: "random",    // "random" | "leitner"
+    quizCount: 10       // GLOBAL: default # of questions for quizzes
   };
 
   var MIN_SECONDS = 1;
   var MAX_SECONDS = 20;
+
+  // The fixed quiz-count choices the settings UI offers (mirrors LBGame's
+  // COUNT_CHOICES). Stored here so prefs validation has one source of truth.
+  var QUIZ_COUNTS = [5, 10, 20];
 
   /* Is LBStore present this session? A missing store (e.g. the engine unit
    * tests, or store.js not loaded) means "no overrides" — every getter returns
@@ -107,8 +117,11 @@
     }
 
     all.lessons[lessonId] = entry;
-    // LBStore stamps v:VERSION itself; pass the lessons map through.
-    return window.LBStore.set(STORE_KEY, { lessons: all.lessons });
+    // LBStore stamps v:VERSION itself; pass the lessons map through. Preserve the
+    // GLOBAL quizCount field if one is stored so a per-lesson write never drops it.
+    var out = { lessons: all.lessons };
+    if (all.quizCount != null) out.quizCount = all.quizCount;
+    return window.LBStore.set(STORE_KEY, out);
   }
 
   function setRevealMs(lessonId, ms) {
@@ -117,6 +130,31 @@
 
   function setOrder(lessonId, order) {
     return setLesson(lessonId, { order: order });
+  }
+
+  /* getQuizCount() -> the GLOBAL quiz question count (one of QUIZ_COUNTS), or
+   * the default (10) when nothing valid is stored. Unlike the per-lesson getters
+   * this returns a usable value (never null) because the count always has a
+   * sensible default and is not a per-lesson "no override" signal. Never throws. */
+  function getQuizCount() {
+    var all = readAll();
+    var n = Number(all.quizCount);
+    if (!isFinite(n) || QUIZ_COUNTS.indexOf(Math.floor(n)) === -1) {
+      return DEFAULTS.quizCount;
+    }
+    return Math.floor(n);
+  }
+
+  /* setQuizCount(count) -> persist the GLOBAL quiz count. Only the offered
+   * choices (QUIZ_COUNTS) are accepted; anything else is ignored (returns false).
+   * Preserves the existing lessons map. No-op without LBStore. Never throws. */
+  function setQuizCount(count) {
+    if (!hasStore()) return false;
+    var n = Math.floor(Number(count));
+    if (!isFinite(n) || QUIZ_COUNTS.indexOf(n) === -1) return false;
+    var all = readAll();
+    // LBStore stamps v:VERSION itself; pass quizCount + the lessons map through.
+    return window.LBStore.set(STORE_KEY, { quizCount: n, lessons: all.lessons });
   }
 
   // Seconds <-> ms helpers + clamping for the UI boundary.
@@ -133,12 +171,15 @@
     getOrder: getOrder,
     setRevealMs: setRevealMs,
     setOrder: setOrder,
+    getQuizCount: getQuizCount,
+    setQuizCount: setQuizCount,
     setLesson: setLesson,
     getLesson: getLesson,
     clampSeconds: clampSeconds,
     DEFAULTS: DEFAULTS,
     MIN_SECONDS: MIN_SECONDS,
     MAX_SECONDS: MAX_SECONDS,
+    QUIZ_COUNTS: QUIZ_COUNTS,
     STORE_KEY: STORE_KEY
   };
 })();
