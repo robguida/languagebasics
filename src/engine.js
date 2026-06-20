@@ -113,10 +113,50 @@
     return out;
   }
 
+  /* LB-9 seam: the per-lesson reveal-timer override.
+   *
+   * Resolution order for the reveal duration:
+   *   1. A user-set per-lesson override stored under lb.prefs (LBPrefs), if any.
+   *   2. The lesson's hardcoded revealMs.
+   *   3. The engine default (5000ms).
+   *
+   * CRITICAL: when LBPrefs is absent (engine unit tests, store.js not loaded)
+   * OR there is no stored value for this lesson, resolvedRevealMs returns null
+   * and we fall straight through to the lesson/default value — byte-identical to
+   * the pre-LB-9 behavior. This is what keeps the existing 42 tests green: the
+   * test sandboxes provide no window.LBStore, so this path is never taken there.
+   */
+  function resolvedRevealMs(lesson) {
+    try {
+      if (lesson && lesson.id && typeof window !== "undefined" &&
+          window.LBPrefs && typeof window.LBPrefs.getRevealMs === "function") {
+        var override = window.LBPrefs.getRevealMs(lesson.id);
+        if (typeof override === "number" && override > 0) return override;
+      }
+    } catch (err) {
+      // Any failure reading prefs => no override, fall back. Never abort start.
+      console.warn("[engine] reveal-timer pref read failed; using lesson default", err);
+    }
+    return null;
+  }
+
+  /* LB-9 a11y: set/clear an attribute, guarded so the engine unit-test DOM
+   * shim (which stubs only id/style/hidden/textContent/innerHTML) never throws
+   * when the helpers are absent. A real browser element always has them. */
+  function setAttr(el, name, value) {
+    if (el && typeof el.setAttribute === "function") el.setAttribute(name, value);
+  }
+  function removeAttr(el, name) {
+    if (el && typeof el.removeAttribute === "function") el.removeAttribute(name);
+  }
+
   function start(lesson) {
-    var revealMs = (lesson && typeof lesson.revealMs === "number" && lesson.revealMs > 0)
-      ? lesson.revealMs
-      : DEFAULTS.revealMs;
+    var override = resolvedRevealMs(lesson);
+    var revealMs = (override != null)
+      ? override
+      : ((lesson && typeof lesson.revealMs === "number" && lesson.revealMs > 0)
+        ? lesson.revealMs
+        : DEFAULTS.revealMs);
     var recallPrompt = (lesson && lesson.recallPrompt)
       ? String(lesson.recallPrompt)
       : DEFAULTS.recallPrompt;
@@ -131,6 +171,12 @@
     var barEl = document.getElementById("bar");
     var toggleBtn = document.getElementById("toggleBtn");
     var titleEl = document.getElementById("title");
+    // LB-9 a11y: the answer region (.card, holds #word/#pronunciation, keeps its
+    // aria-live="polite"). Guarded — the engine unit-test DOM shim only stubs
+    // getElementById, so a missing querySelector must not throw.
+    var cardEl = (typeof document.querySelector === "function")
+      ? document.querySelector(".card")
+      : null;
 
     if (lesson && lesson.title && titleEl) {
       titleEl.textContent = lesson.title;
@@ -181,7 +227,16 @@
       // Ticket B: reveal owns the relabel so the timer-expiry auto-reveal
       // flips the toggle button to "Next Card" too, not just a manual click.
       revealed = true;
-      if (toggleBtn) toggleBtn.textContent = "Next Card";
+      if (toggleBtn) {
+        toggleBtn.textContent = "Next Card";
+        // LB-9 a11y (Robby strings): the button now advances; relabel it. No
+        // aria-pressed — the button does two different jobs, swapping the
+        // aria-label is the correct pattern.
+        setAttr(toggleBtn, "aria-label", "Go to the next card");
+      }
+      // LB-9 a11y: clear the "answer hidden" label so the aria-live region does
+      // not talk over the freshly-revealed word/pronunciation.
+      removeAttr(cardEl, "aria-label");
     }
 
     function nextCard() {
@@ -206,7 +261,15 @@
 
       // Ticket B: back to prompt phase — reset toggle state + label.
       revealed = false;
-      if (toggleBtn) toggleBtn.textContent = "Reveal it";
+      if (toggleBtn) {
+        toggleBtn.textContent = "Reveal it";
+        // LB-9 a11y (Robby strings): prompt phase — the button reveals.
+        setAttr(toggleBtn, "aria-label", "Reveal the Albanian word");
+      }
+      // LB-9 a11y: answer is hidden again — describe the region for the
+      // aria-live announcement.
+      setAttr(cardEl, "aria-label",
+        "Answer hidden. Press Reveal to show the Albanian word and pronunciation.");
 
       clearTimeout(timer);
       resetBar();
