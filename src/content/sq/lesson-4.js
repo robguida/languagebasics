@@ -5,7 +5,7 @@
  * is corrected to "20–99". Card content is unchanged. */
 window.LB_LESSON = {
   id: "sq/lesson-4",
-  title: "Albanian Numbers: 20–99",
+  title: "Albanian Tosk Numbers: 20–99",
   revealMs: 5000,
   cards: [
     { prompt: 20, answer: "njëzet",              hint: "Nyuh zet", audio: "" },
@@ -90,4 +90,4 @@ window.LB_LESSON = {
     { prompt: 99, answer: "nëntëdhjetë e nëntë", hint: "Nuhn t they yet eh Nuhn t", audio: "" }
   ]
 };
-(window.LB_LESSONS = window.LB_LESSONS || []).push({ id: "sq/lesson-4", title: "Albanian Numbers: 20–99" });
+(window.LB_LESSONS = window.LB_LESSONS || []).push({ id: "sq/lesson-4", title: "Albanian Tosk Numbers: 20–99" });

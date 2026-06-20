@@ -2,7 +2,7 @@
  * Ported AS-IS from albanian_numbers_lesson_3_tens_20-90.html. */
 window.LB_LESSON = {
   id: "sq/lesson-3",
-  title: "Albanian Numbers: 20–90",
+  title: "Albanian Tosk Numbers: 20–90",
   revealMs: 5000,
   cards: [
     { prompt: 20, answer: "njëzet",        hint: "Nyuh zet",       audio: "" },
@@ -15,4 +15,4 @@ window.LB_LESSON = {
     { prompt: 90, answer: "nëntëdhjetë",  hint: "Nuhn t they yet",audio: "" }
   ]
 };
-(window.LB_LESSONS = window.LB_LESSONS || []).push({ id: "sq/lesson-3", title: "Albanian Numbers: 20–90" });
+(window.LB_LESSONS = window.LB_LESSONS || []).push({ id: "sq/lesson-3", title: "Albanian Tosk Numbers: 20–90" });

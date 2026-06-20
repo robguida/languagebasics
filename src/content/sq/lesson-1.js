@@ -4,7 +4,7 @@
  * {prompt, answer, hint, audio} schema. audio is a reserved future slot. */
 window.LB_LESSON = {
   id: "sq/lesson-1",
-  title: "Albanian Numbers: 0–10",
+  title: "Albanian Tosk Numbers: 0–10",
   revealMs: 5000,
   cards: [
     { prompt: 0,  answer: "zero",    hint: "Zeh rō",   audio: "" },
@@ -20,4 +20,4 @@ window.LB_LESSON = {
     { prompt: 10, answer: "dhjetë",  hint: "They yet", audio: "" }
   ]
 };
-(window.LB_LESSONS = window.LB_LESSONS || []).push({ id: "sq/lesson-1", title: "Albanian Numbers: 0–10" });
+(window.LB_LESSONS = window.LB_LESSONS || []).push({ id: "sq/lesson-1", title: "Albanian Tosk Numbers: 0–10" });

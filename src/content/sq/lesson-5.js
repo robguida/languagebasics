@@ -8,7 +8,7 @@
  * {prompt, answer, hint, audio}. */
 window.LB_LESSON = {
   id: "sq/lesson-5",
-  title: "Albanian Big Number Roots",
+  title: "Albanian Tosk Big Number Roots",
   revealMs: 5000,
   cards: [
     /* Hundreds 100–900 — …qind (one word) */
@@ -82,4 +82,4 @@ window.LB_LESSON = {
     { prompt: "100,000", answer: "njëqind mijë",  hint: "Nyuh chind me yeh", audio: "" }
   ]
 };
-(window.LB_LESSONS = window.LB_LESSONS || []).push({ id: "sq/lesson-5", title: "Albanian Big Number Roots" });
+(window.LB_LESSONS = window.LB_LESSONS || []).push({ id: "sq/lesson-5", title: "Albanian Tosk Big Number Roots" });

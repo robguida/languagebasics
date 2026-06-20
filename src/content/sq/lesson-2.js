@@ -5,7 +5,7 @@
  * reproduces the original stacked word-line layout. */
 window.LB_LESSON = {
   id: "sq/lesson-2",
-  title: "Albanian Numbers: 11–19",
+  title: "Albanian Tosk Numbers: 11–19",
   revealMs: 5000,
   cards: [
     { prompt: 11, answer: "një | mbëdhjetë",    hint: "Nyuhm buh they yet",     audio: "" },
@@ -19,4 +19,4 @@ window.LB_LESSON = {
     { prompt: 19, answer: "nëntë | mbëdhjetë", hint: "Nuhn t buh they yet",  audio: "" }
   ]
 };
-(window.LB_LESSONS = window.LB_LESSONS || []).push({ id: "sq/lesson-2", title: "Albanian Numbers: 11–19" });
+(window.LB_LESSONS = window.LB_LESSONS || []).push({ id: "sq/lesson-2", title: "Albanian Tosk Numbers: 11–19" });
