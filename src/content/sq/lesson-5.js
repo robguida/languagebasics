@@ -1,6 +1,6 @@
 /* sq / lesson-5 — Albanian Big Numbers (roots × multipliers 1–9)
  * Expanded from the original 8 root cards to the full 56-card set per
- * docs/alan-CD-dataset-review.md (APPROVED — FINAL, Rob 2026-06-17):
+ * the approved Albanian number dataset review (FINAL, Rob 2026-06-17):
  *   6 roots (hundreds, thousands, millions, billions, trillions,
  *   quadrillions) × 9 multipliers = 54, PLUS the 2 kept standalone cards
  *   10,000 (dhjetë mijë) and 100,000 (njëqind mijë) = 56 total.

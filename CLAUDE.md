@@ -145,7 +145,7 @@ No backend, no server-side build. Static files only.
 
 `docs/` holds **concept/source material, not served to the site**:
 - `Albanian.md` — language/source notes.
-- `alan-CD-dataset-review.md` — dataset review notes.
+- the Albanian dataset review notes (gitignored, reference only).
 - `ConceptFiles/` — the original standalone lesson HTML files the app was ported from.
 
 These are reference/history. They never deploy.
