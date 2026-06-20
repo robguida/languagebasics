@@ -150,6 +150,53 @@
     if (el && typeof el.removeAttribute === "function") el.removeAttribute(name);
   }
 
+  /* LB-10 seam: which card-order source should drive nextCard for this lesson?
+   *
+   * Resolution:
+   *   - "leitner"  ONLY when the lesson's order pref (via LBPrefs) is exactly
+   *     "leitner" AND LBLeitner is present. Then the engine asks LBLeitner for
+   *     the next card.
+   *   - "random"   for "random", no pref, no LBPrefs, or no LBLeitner — the
+   *     EXISTING random behavior, byte-identical to pre-LB-10.
+   *
+   * CRITICAL: the engine unit-test sandboxes provide no window.LBPrefs and no
+   * window.LBLeitner, so this always returns "random" there and the original
+   * randomCard() path runs unchanged — that is what keeps the existing tests
+   * green. Any failure reading the pref also falls through to "random".
+   */
+  function resolvedOrderSource(lesson) {
+    try {
+      if (lesson && lesson.id && typeof window !== "undefined" &&
+          window.LBPrefs && typeof window.LBPrefs.getOrder === "function" &&
+          window.LBLeitner && typeof window.LBLeitner.nextCard === "function") {
+        if (window.LBPrefs.getOrder(lesson.id) === "leitner") return "leitner";
+      }
+    } catch (err) {
+      // Any failure reading the order pref => random. Never abort start.
+      console.warn("[engine] card-order pref read failed; using random", err);
+    }
+    return "random";
+  }
+
+  /* LB-10/LB-11 seam: timestamp when a card is shown. LB-11/LB-12 will read it
+   * for response-time scoring; nothing consumes it yet. performance.now() when
+   * available (sub-ms monotonic), else Date.now(). Guarded so the engine
+   * unit-test sandbox (which has neither global) never throws. */
+  function nowTs() {
+    try {
+      if (typeof performance !== "undefined" &&
+          typeof performance.now === "function") {
+        return performance.now();
+      }
+    } catch (err) { /* fall through */ }
+    try {
+      if (typeof Date !== "undefined" && typeof Date.now === "function") {
+        return Date.now();
+      }
+    } catch (err) { /* fall through */ }
+    return 0;
+  }
+
   function start(lesson) {
     var override = resolvedRevealMs(lesson);
     var revealMs = (override != null)
@@ -194,10 +241,17 @@
     var current = null;
     var timer = null;
     var lastPrompt = null;
+    // LB-10/LB-11: when the current card was shown. Captured in nextCard();
+    // nothing consumes it yet (response-time scoring lands in LB-11/LB-12).
+    var cardShownAt = null;
     // Ticket B: single-toggle state. false = prompt phase ("Reveal it"),
     // true = revealed phase ("Next Card"). Set by reveal (manual or timer)
     // and by nextCard (reset).
     var revealed = false;
+
+    // LB-10: decide the card-order source for this lesson ONCE at start.
+    // "leitner" => ask LBLeitner; anything else => the original random path.
+    var orderSource = resolvedOrderSource(lesson);
 
     function randomCard() {
       var card;
@@ -206,6 +260,29 @@
       } while (deck.length > 1 && card.prompt === lastPrompt);
       lastPrompt = card.prompt;
       return card;
+    }
+
+    /* LB-10 order provider: pick the next card from the resolved source.
+     *
+     * - "leitner": LBLeitner.nextCard(lessonId, deck, current) does the
+     *   Leitner-weighted pick AND the no-repeat-twice guard (it excludes the
+     *   current card). We still keep lastPrompt in sync so a later switch back
+     *   to the random path keeps its guard meaningful. If LBLeitner returns
+     *   nothing (defensive), fall back to randomCard().
+     * - anything else: randomCard() — byte-identical to the pre-LB-10 path. */
+    function pickNextCard() {
+      if (orderSource === "leitner") {
+        try {
+          var picked = window.LBLeitner.nextCard(lesson.id, deck, current);
+          if (picked) {
+            lastPrompt = picked.prompt;
+            return picked;
+          }
+        } catch (err) {
+          console.warn("[engine] leitner pick failed; using random", err);
+        }
+      }
+      return randomCard();
     }
 
     function resetBar() {
@@ -240,7 +317,10 @@
     }
 
     function nextCard() {
-      current = randomCard();
+      current = pickNextCard();
+      // LB-10/LB-11: stamp when this card was shown (for response-time scoring
+      // in a later ticket). Nothing reads it yet.
+      cardShownAt = nowTs();
 
       numberEl.style.fontSize = promptFontSize(current.prompt);
       numberEl.textContent = current.prompt;
