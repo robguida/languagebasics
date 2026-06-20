@@ -30,6 +30,15 @@
       </select>
     </div>
 
+    <!-- LB-12: at-a-glance mastery readout. Shows THIS lesson's current level
+         and the overall "X of N lessons mastered" state. Populated by the inline
+         bootstrap below; aria-live so updates are announced. Simple text/level —
+         no bars/badges (that polish is deferred). -->
+    <div id="masteryReadout" class="mastery-readout" aria-live="polite" hidden>
+      <span id="masteryLesson" class="mastery-readout-lesson"></span>
+      <span id="masteryOverall" class="mastery-readout-overall"></span>
+    </div>
+
     <section class="card" aria-live="polite"
              aria-label="Answer hidden. Press Reveal to show the Albanian word and pronunciation.">
       <div class="label" id="label"></div>
@@ -133,6 +142,13 @@
         <!-- aria-live="assertive" so the score is announced when the end screen
              appears (it replaces the play view). -->
         <p id="gameScore" class="game-score" aria-live="assertive"></p>
+        <!-- LB-12: speed-tiered mastery readout for this lesson, shown after a
+             game. aria-live so the level + comment are announced when the end
+             screen appears (consistent with LB-9/LB-11 a11y). -->
+        <div id="gameMasteryWrap" class="game-mastery" aria-live="polite" hidden>
+          <p id="gameMasteryLevel" class="game-mastery-level"></p>
+          <p id="gameMasteryComment" class="game-mastery-comment"></p>
+        </div>
         <div id="gameReviewWrap" class="game-review" hidden>
           <h3 class="game-review-title">Review these</h3>
           <ul id="gameReviewList" class="game-review-list"></ul>
@@ -255,6 +271,7 @@
   <script src="prefs.js"></script>
   <script src="leitner.js"></script>
   <script src="game.js"></script>
+  <script src="mastery.js"></script>
   <script src="engine.js"></script>
   <script src="settings.js"></script>
   <script>
@@ -267,6 +284,68 @@
           engine: !!window.LBEngine, lesson: !!window.LB_LESSON
         });
       }
+
+      // LB-12: known per-lesson card counts (same source of truth as the test
+      // suite's EXPECTED map). Attached to each LB_LESSONS registry entry so the
+      // mastery rollup can judge overall mastery across lessons whose card data
+      // isn't loaded (the app loads one lesson at a time). Keep in sync if a
+      // lesson's card count changes.
+      var LESSON_COUNTS = {
+        "sq/lesson-1": 11, "sq/lesson-2": 9, "sq/lesson-3": 8,
+        "sq/lesson-4": 80, "sq/lesson-5": 56, "sq/lesson-6": 6
+      };
+      if (Array.isArray(window.LB_LESSONS)) {
+        for (var li = 0; li < window.LB_LESSONS.length; li++) {
+          var le = window.LB_LESSONS[li];
+          if (le && le.id && LESSON_COUNTS[le.id] != null) {
+            le.count = LESSON_COUNTS[le.id];
+          }
+        }
+      }
+
+      // LB-12: populate the at-a-glance mastery readout (this lesson's level +
+      // overall "X of N lessons mastered"). Guarded — degrades silently without
+      // LBMastery or the markup. Reflects state at page load; a just-finished
+      // game updates the end-screen readout, and the next load reflects it here.
+      (function renderMasteryReadout() {
+        var wrap = document.getElementById("masteryReadout");
+        var lessonEl = document.getElementById("masteryLesson");
+        var overallEl = document.getElementById("masteryOverall");
+        if (!wrap || !window.LBMastery || !window.LB_LESSON) return;
+        var M = window.LBMastery;
+        var id = window.LB_LESSON.id;
+        var cards = Array.isArray(window.LB_LESSON.cards) ? window.LB_LESSON.cards : [];
+        var level = M.getLessonLevel(id, cards);
+        var lessonText;
+        if (level === M.NONE) {
+          lessonText = "This lesson: not yet rated";
+        } else if (level === M.BEST_LEVEL) {
+          lessonText = "This lesson: mastered (Level 1)";
+        } else {
+          lessonText = "This lesson: Level " + level + " of 5";
+        }
+
+        var total = Array.isArray(window.LB_LESSONS) ? window.LB_LESSONS.length : 0;
+        var mastered = 0, allMastered = total > 0;
+        for (var i = 0; i < total; i++) {
+          var entry = window.LB_LESSONS[i];
+          if (!entry || !entry.id) { allMastered = false; continue; }
+          var isM;
+          if (entry.id === id) {
+            isM = M.isLessonMastered(id, cards);
+          } else {
+            isM = M.lessonMasteredByCount(entry.id, entry.count || 0);
+          }
+          if (isM) mastered++; else allMastered = false;
+        }
+        var overallText = allMastered
+          ? ("All " + total + " lessons mastered — you OWN them!")
+          : (mastered + " of " + total + " lessons mastered");
+
+        if (lessonEl) lessonEl.textContent = lessonText;
+        if (overallEl) overallEl.textContent = overallText;
+        wrap.hidden = false;
+      })();
 
       // LB-11: wire the Quiz / Game mode launcher. Reads the chosen card count
       // from the radio group and hands the active lesson to the engine. Study

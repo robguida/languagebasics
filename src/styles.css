@@ -246,6 +246,37 @@ button.secondary { background: #475569; }
   line-height: 1.35;
 }
 
+/* ---- Mastery readout (LB-12) ---- */
+/* At-a-glance, below the lesson picker: this lesson's level + the overall
+   "X of N lessons mastered". Plain text, low-emphasis — no bars/badges (that
+   polish is deferred). Two stacked lines so it reads cleanly on narrow screens. */
+.mastery-readout {
+  margin: 0 0 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: .9rem;
+  line-height: 1.35;
+}
+.mastery-readout-lesson { font-weight: 700; color: #ffffff; }
+.mastery-readout-overall { color: #cbd5e1; }
+
+/* ---- Game end: mastery level + comment (LB-12) ---- */
+/* Sits between the score and the review list on the end screen. */
+.game-mastery { margin: 0 0 16px; }
+.game-mastery-level {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--accent2);
+  margin: 0 0 6px;
+}
+.game-mastery-comment {
+  font-size: .95rem;
+  color: var(--text);
+  margin: 0;
+  line-height: 1.4;
+}
+
 /* ---- Game / Quiz launcher (LB-11) ---- */
 /* Sits below the study card. Calm, low-emphasis surface so it invites a quiz
    without competing with the flashcard above it. */
