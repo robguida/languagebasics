@@ -20,7 +20,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { loadLesson } = require("./helpers/load-lesson.js");
 
-// Expected card counts per lesson (from Freddy's data shape + verified data).
+// Expected card counts per lesson (from the lesson data shape + verified data).
 const EXPECTED = {
   "lesson-1.js": { count: 11, id: "sq/lesson-1", revealMs: 5000 },
   "lesson-2.js": { count: 9, id: "sq/lesson-2", revealMs: 5000 },

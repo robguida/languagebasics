@@ -30,6 +30,8 @@ package-lock.json
 # === Personal docs / Word lockfiles (keep Rob's source docs out of the repo) ===
 *.docx
 ~$*
+# Linguistics dataset review notes — reference only, never ship (contains working notes)
+docs/alan-*.md
 
 # NOTE: bengusa_web/ is intentionally NOT ignored. It is out of scope for
 # edits but should remain tracked/visible if/when it is added.

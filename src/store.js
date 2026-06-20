@@ -12,7 +12,7 @@
  *   lb.mastery  -> per-card mastery / self-rating data
  *   lb.streak   -> streak counters
  *
- * Design notes (locked with Archie):
+ * Design notes:
  *  - VERSIONING: every stored object carries "v": 1. On read, a missing or
  *    mismatched version => return the fallback (we don't trust a shape we
  *    can't vouch for). A real migrator is a future concern; this is just the
