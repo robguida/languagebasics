@@ -39,6 +39,16 @@
       <span id="masteryOverall" class="mastery-readout-overall"></span>
     </div>
 
+    <!-- LB-13: calm daily-practice streak. A quiet "N days in a row" line plus a
+         tiny "Today: done / not yet" goal marker. NO nagging, NO loss warnings —
+         a 0/none state simply invites the user to start. Populated by the inline
+         bootstrap below; aria-live so updates are announced (consistent with the
+         mastery readout above). -->
+    <div id="streakReadout" class="streak-readout" aria-live="polite" hidden>
+      <span id="streakCount" class="streak-readout-count"></span>
+      <span id="streakGoal" class="streak-readout-goal"></span>
+    </div>
+
     <section class="card" aria-live="polite"
              aria-label="Answer hidden. Press Reveal to show the Albanian word and pronunciation.">
       <div class="label" id="label"></div>
@@ -272,6 +282,7 @@
   <script src="leitner.js"></script>
   <script src="game.js"></script>
   <script src="mastery.js"></script>
+  <script src="streak.js"></script>
   <script src="engine.js"></script>
   <script src="settings.js"></script>
   <script>
@@ -344,6 +355,34 @@
 
         if (lessonEl) lessonEl.textContent = lessonText;
         if (overallEl) overallEl.textContent = overallText;
+        wrap.hidden = false;
+      })();
+
+      // LB-13: populate the calm daily-practice streak readout. The engine's
+      // start() above already called LBStreak.markActive() for today, so by now
+      // today counts and getState() reflects the live run. Guarded — degrades
+      // silently without LBStreak or the markup. Calm tone only: a 0/none state
+      // invites starting; there are no loss warnings anywhere.
+      (function renderStreakReadout() {
+        var wrap = document.getElementById("streakReadout");
+        var countEl = document.getElementById("streakCount");
+        var goalEl = document.getElementById("streakGoal");
+        if (!wrap || !window.LBStreak ||
+            typeof window.LBStreak.getState !== "function") return;
+        var s = window.LBStreak.getState();
+        var n = s.current;
+        var countText;
+        if (n <= 0) {
+          countText = "Start a streak today!";
+        } else if (n === 1) {
+          countText = "🔥 1-day streak";
+        } else {
+          countText = "🔥 " + n + "-day streak";
+        }
+        var goalText = s.goalMetToday ? "Today: done ✓" : "Today: not yet";
+
+        if (countEl) countEl.textContent = countText;
+        if (goalEl) goalEl.textContent = goalText;
         wrap.hidden = false;
       })();
 

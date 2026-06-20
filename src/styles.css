@@ -261,6 +261,22 @@ button.secondary { background: #475569; }
 .mastery-readout-lesson { font-weight: 700; color: #ffffff; }
 .mastery-readout-overall { color: #cbd5e1; }
 
+/* ---- Daily-practice streak readout (LB-13) ---- */
+/* A quiet line below the lesson picker: "N days in a row" + a small "today"
+   goal marker. Calm and low-emphasis, matching the mastery readout above —
+   plain text, no badges, no loss/nagging cues. Two stacked lines so it reads
+   cleanly on narrow screens. */
+.streak-readout {
+  margin: 0 0 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: .9rem;
+  line-height: 1.35;
+}
+.streak-readout-count { font-weight: 700; color: #ffffff; }
+.streak-readout-goal { color: #cbd5e1; }
+
 /* ---- Game end: mastery level + comment (LB-12) ---- */
 /* Sits between the score and the review list on the end screen. */
 .game-mastery { margin: 0 0 16px; }

@@ -197,7 +197,28 @@
     return 0;
   }
 
+  /* LB-13 seam: mark today as "practiced" when a study session starts (opening/
+   * using a lesson counts). Guarded — only when LBStreak is present. The engine
+   * unit-test sandboxes provide no window.LBStreak, so this never fires there and
+   * the existing tests are byte-identical. markActive never throws, but guard the
+   * call site too so the engine runs fine when streak.js is absent. */
+  function markStreakActive() {
+    try {
+      if (typeof window !== "undefined" && window.LBStreak &&
+          typeof window.LBStreak.markActive === "function") {
+        window.LBStreak.markActive();
+      }
+    } catch (err) {
+      // A streak update must never affect starting the lesson. Swallow + continue.
+      console.warn("[engine] streak markActive failed; continuing", err);
+    }
+  }
+
   function start(lesson) {
+    // LB-13: studying a lesson counts as practicing today (guarded; no-op when
+    // streak.js / LBStore is absent, e.g. the engine unit-test sandbox).
+    markStreakActive();
+
     var override = resolvedRevealMs(lesson);
     var revealMs = (override != null)
       ? override
