@@ -46,7 +46,106 @@
     </div>
 
     <div class="hint">Say the number out loud, then reveal. After the timer, the Albanian word appears.</div>
+
+    <!-- Game mode launcher (LB-11). Study is the default; this starts a scored,
+         self-rated quiz over this lesson's cards. Pick how many, then Start. -->
+    <section class="game-launch" aria-labelledby="gameLaunchTitle">
+      <h2 id="gameLaunchTitle" class="game-launch-title">Quiz / Game mode</h2>
+      <p class="game-launch-help">
+        Recall each number, rate yourself, then check the answer. Get a score at
+        the end.
+      </p>
+      <div class="game-launch-row">
+        <fieldset class="game-count">
+          <legend class="visually-hidden">How many cards</legend>
+          <label class="radio">
+            <input type="radio" name="gameCount" value="5" checked />
+            <span>5</span>
+          </label>
+          <label class="radio">
+            <input type="radio" name="gameCount" value="10" />
+            <span>10</span>
+          </label>
+          <label class="radio">
+            <input type="radio" name="gameCount" value="20" />
+            <span>20</span>
+          </label>
+        </fieldset>
+        <button id="startGameBtn" type="button">Start Quiz</button>
+      </div>
+    </section>
   </main>
+
+  <!-- Game mode overlay (LB-11): STATIC markup, hidden by default. engine.js
+       toggles the `.open` class to show/hide it (NEVER document.write). It owns
+       its own prompt, self-rate buttons, reveal, and end screen so Study mode's
+       card flow is left completely untouched. -->
+  <div id="gameModal" class="game-modal" role="dialog" aria-modal="true"
+       aria-labelledby="gamePlayHeading" tabindex="-1">
+    <div class="game-panel">
+      <!-- Play view: prompt -> self-rate -> reveal -> next. -->
+      <div id="gamePlay" class="game-play">
+        <div class="game-head">
+          <h2 id="gamePlayHeading" class="game-heading">Quiz</h2>
+          <button id="gameQuitBtn" class="game-quit" type="button"
+                  aria-label="Quit the quiz and return to study">&times;</button>
+        </div>
+
+        <p id="gameProgress" class="game-progress" aria-live="polite">Card 1 of 5</p>
+
+        <div class="game-card">
+          <div id="gameNumber" class="number"></div>
+          <!-- Answer region, revealed AFTER the self-rate. aria-live so the
+               reveal is announced once it appears. -->
+          <div class="game-answer" aria-live="polite">
+            <div id="gameWord" class="word" hidden></div>
+            <div id="gamePron" class="pronunciation" hidden></div>
+          </div>
+        </div>
+
+        <!-- Self-rate buttons: shown in the recall phase, committed BEFORE the
+             answer is revealed. -->
+        <div id="gameRate" class="game-rate">
+          <button id="gameMissedBtn" class="game-missed" type="button"
+                  aria-label="I missed it — I did not recall this number">
+            Missed it
+          </button>
+          <button id="gameGotBtn" class="game-got" type="button"
+                  aria-label="I got it — I recalled this number">
+            Got it
+          </button>
+        </div>
+
+        <!-- Continue button: shown in the reveal phase (after the self-rate),
+             advances to the next card. -->
+        <div id="gameNextWrap" class="game-next-wrap" hidden>
+          <button id="gameNextBtn" type="button">Next</button>
+        </div>
+      </div>
+
+      <!-- End view: score + review list + actions. -->
+      <div id="gameEnd" class="game-end" hidden>
+        <div class="game-head">
+          <h2 id="gameEndHeading" class="game-heading">Results</h2>
+          <button id="gameEndClose" class="game-quit" type="button"
+                  aria-label="Close results and return to study">&times;</button>
+        </div>
+        <!-- aria-live="assertive" so the score is announced when the end screen
+             appears (it replaces the play view). -->
+        <p id="gameScore" class="game-score" aria-live="assertive"></p>
+        <div id="gameReviewWrap" class="game-review" hidden>
+          <h3 class="game-review-title">Review these</h3>
+          <ul id="gameReviewList" class="game-review-list"></ul>
+        </div>
+        <div class="game-end-actions">
+          <button id="gamePlayAgainBtn" type="button">Play again</button>
+          <button id="gameBackToStudyBtn" class="secondary" type="button">
+            Back to study
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Settings modal: STATIC markup, hidden by default. settings.js toggles the
        .open class to show/hide it (NEVER document.write — that would wipe the
@@ -155,6 +254,7 @@
   <script src="store.js"></script>
   <script src="prefs.js"></script>
   <script src="leitner.js"></script>
+  <script src="game.js"></script>
   <script src="engine.js"></script>
   <script src="settings.js"></script>
   <script>
@@ -165,6 +265,21 @@
       } else {
         console.warn("[index] engine or lesson data missing", {
           engine: !!window.LBEngine, lesson: !!window.LB_LESSON
+        });
+      }
+
+      // LB-11: wire the Quiz / Game mode launcher. Reads the chosen card count
+      // from the radio group and hands the active lesson to the engine. Study
+      // mode keeps running underneath; the game opens in its own overlay.
+      var startGameBtn = document.getElementById("startGameBtn");
+      if (startGameBtn && window.LBEngine &&
+          typeof window.LBEngine.startGame === "function") {
+        startGameBtn.addEventListener("click", function () {
+          if (!window.LB_LESSON) return;
+          var count = 5;
+          var checked = document.querySelector('input[name="gameCount"]:checked');
+          if (checked) count = Number(checked.value) || 5;
+          window.LBEngine.startGame(window.LB_LESSON, count);
         });
       }
     });
