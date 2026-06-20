@@ -6,7 +6,7 @@
  * window.LBStore (LB-8) for the `lb.prefs` namespace. The settings modal
  * writes through it; the engine reads through it at deck/card build.
  *
- * Stored shape under lb.prefs (Archie's sketch):
+ * Stored shape under lb.prefs:
  *   {
  *     v: 1,                                  // stamped by LBStore, not us
  *     lessons: {

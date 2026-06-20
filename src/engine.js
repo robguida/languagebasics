@@ -11,7 +11,7 @@
  *     cards: [ { prompt, answer, hint, audio }, ... ]
  *   }
  *
- * Generic card schema (Tommy can validate against this):
+ * Generic card schema (the test suite validates against this):
  *   prompt  : string|number  required  -> the number shown first
  *   answer  : string         required  -> the Albanian word(s); " | " => line break
  *   hint    : string         optional  -> pronunciation (may be "")
@@ -25,7 +25,7 @@
 
   var DEFAULTS = {
     revealMs: 5000,
-    // Placeholder copy. Robby drops final microcopy in here (or per-card via
+    // Placeholder copy. Final microcopy goes here (or per-card via
     // card.recallPrompt) WITHOUT touching this engine.
     recallPrompt: "Say it out loud, then reveal."
   };
@@ -229,7 +229,7 @@
       revealed = true;
       if (toggleBtn) {
         toggleBtn.textContent = "Next Card";
-        // LB-9 a11y (Robby strings): the button now advances; relabel it. No
+        // LB-9 a11y: the button now advances; relabel it. No
         // aria-pressed — the button does two different jobs, swapping the
         // aria-label is the correct pattern.
         setAttr(toggleBtn, "aria-label", "Go to the next card");
@@ -263,7 +263,7 @@
       revealed = false;
       if (toggleBtn) {
         toggleBtn.textContent = "Reveal it";
-        // LB-9 a11y (Robby strings): prompt phase — the button reveals.
+        // LB-9 a11y: prompt phase — the button reveals.
         setAttr(toggleBtn, "aria-label", "Reveal the Albanian word");
       }
       // LB-9 a11y: answer is hidden again — describe the region for the
