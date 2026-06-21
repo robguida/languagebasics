@@ -439,24 +439,30 @@
   }
 
   /* ===================================================================== *
-   * LB-14: TEST MODE (in-place, reuses the flashcard region)               *
+   * LB-15: TEST MODE (in-place, single button, the TIMER is the signal)    *
    *                                                                        *
-   * Self-rated, scored quiz over the CURRENT lesson's deck. There is no    *
-   * separate overlay or end screen anymore (LB-11's gameModal was removed  *
-   * in LB-14). Test mode is driven by a switch on the flashcard screen:    *
-   * the bootstrap calls LBEngine.startTest(lesson, N) when the switch is   *
-   * turned ON and LBEngine.start(lesson) when it is turned OFF.            *
+   * Self-rated, scored quiz over the CURRENT lesson's deck. Driven by a    *
+   * switch on the flashcard screen: the bootstrap calls                     *
+   * LBEngine.startTest(lesson, N) when the switch is turned ON and          *
+   * LBEngine.start(lesson) when it is turned OFF.                          *
    *                                                                        *
-   * startTest() reuses the SAME #number / #word / #pronunciation region as *
-   * study, swapping the single "Reveal it" button for two buttons          *
-   * ("Got it" / "Missed it"). Study mode (start() above) is untouched and  *
+   * LB-15 simplifies LB-14: there are NO "Got it" / "Missed it" buttons.   *
+   * Test mode reuses the SAME single "Reveal it / Next Card" button as     *
+   * study, and the per-lesson reveal TIMER (resolvedRevealMs) is the       *
+   * scoring signal. Study mode (start() above) is untouched and            *
    * byte-identical — the engine unit tests provide no LBStore/LBGame/etc., *
    * so all the test-mode wiring below is guarded and never fires there.    *
    *                                                                        *
    * Per-card flow:                                                         *
-   *   show number -> user recalls -> taps "Got it" / "Missed it" (commit   *
-   *   via handleSelfRate) -> THEN reveal the Albanian word + pronunciation *
-   *   so the user can check -> "Next Card" -> next card.                   *
+   *   show number + run the visible timer -> the user recalls.            *
+   *     - click "Reveal it" BEFORE the timer hits 0  => they KNEW it:      *
+   *       handleSelfRate(gotIt=true, responseMs=now-shown). The timer is   *
+   *       cancelled so it cannot also fire for this card.                  *
+   *     - the timer reaches 0 and the card auto-reveals => they MISSED it: *
+   *       handleSelfRate(gotIt=false).                                     *
+   *   Either way ONE self-rate per card (a per-card guard ensures the      *
+   *   manual-click path and the timer-expiry path can never both commit).  *
+   *   After the reveal the button reads "Next Card" and advances.          *
    * After N cards: a one-line result is shown IN the card region with      *
    *   "Study" (switch off) and "Test again" actions.                       *
    *                                                                        *
@@ -526,14 +532,16 @@
     return evt;
   }
 
-  // LB-14: the teardown for the currently-running test session (timer + the
-  // test-mode keydown listener), set by startTest(). null when no test session
-  // is active. stopTestSession() runs it before study mode resumes.
+  // LB-15: the teardown for the currently-running test session (its reveal
+  // timer + the toggle-button click handler + the test-mode keydown listener),
+  // set by startTest(). null when no test session is active. stopTestSession()
+  // runs it before study mode resumes.
   var activeTestTeardown = null;
 
-  /* LB-14: stop the active test session (its keydown listener) so study mode can
-   * take back the shared card region without double-handling input. No-op when no
-   * test session is active. Never throws. */
+  /* LB-15: stop the active test session (its timer + click/keydown listeners) so
+   * study mode can take back the shared card region without double-handling input
+   * or leaving a stray timer running. No-op when no test session is active. Never
+   * throws. */
   function stopTestSession() {
     if (typeof activeTestTeardown === "function") {
       try { activeTestTeardown(); } catch (err) { /* ignore */ }
@@ -542,25 +550,30 @@
   }
 
   /* startTest(lesson, requestedCount) — run an N-card self-rated test on the
-   * CURRENT lesson, reusing the SAME flashcard region as study mode.
+   * CURRENT lesson, reusing the SAME flashcard region AND the SAME single
+   * "Reveal it / Next Card" button as study mode.
    *
    * The bootstrap calls this when the "Test mode" switch is turned ON; turning it
-   * OFF calls start(lesson) to return to normal study. Test mode:
-   *   - replaces the single "Reveal it" button with "Got it" / "Missed it",
-   *   - on either tap: commits via the shared handleSelfRate hook (records
-   *     gotIt + responseMs -> LBLeitner.recordResult + LBMastery.record), THEN
-   *     reveals the Albanian word + pronunciation so the user can check,
-   *   - "Next Card" advances; after N cards a one-line result reuses the card
-   *     region with "Study" (switch off) and "Test again" actions.
+   * OFF calls start(lesson) to return to normal study. LB-15 test mode:
+   *   - uses the ONE study button (#toggleBtn) and the per-lesson reveal TIMER,
+   *   - the timer is the scoring signal:
+   *       * click "Reveal it" BEFORE the timer hits 0  => gotIt = true, with
+   *         responseMs = now - cardShownAt (so faster = better mastery level);
+   *         the timer is cancelled so it cannot also fire for this card,
+   *       * the timer reaches 0 (auto-reveal)          => gotIt = false (miss,
+   *         which drives the mastery decay),
+   *   - either path commits via the shared handleSelfRate hook (records
+   *     gotIt + responseMs -> LBLeitner.recordResult + LBMastery.record),
+   *   - a per-card "rated" guard ensures EXACTLY one self-rate per card — the
+   *     manual-click path and the timer-expiry path can never both commit,
+   *   - the button then reads "Next Card" and advances; after N cards a one-line
+   *     result reuses the card region with "Study" (switch off) / "Test again".
    *
    * N comes from the GLOBAL quizCount pref (passed in by the bootstrap). The pool
-   * is built by the pure LBGame.buildPool, respecting the lesson's order pref via
-   * the deck the engine passes (the deck order is irrelevant — buildPool shuffles;
-   * Leitner weighting is applied per-card by surfacing order, which v1 test mode
-   * keeps simple: a shuffled N-card pool from the lesson deck).
+   * is built by the pure LBGame.buildPool (shuffle + clamp to count).
    *
-   * GUARDED: requires the static test-mode markup AND window.LBGame. The engine
-   * unit-test sandboxes have neither, so this returns early and never affects the
+   * GUARDED: requires the static markup (#toggleBtn) AND window.LBGame. The engine
+   * unit-test sandboxes have no LBGame, so this returns early and never affects the
    * existing study tests. */
   function startTest(lesson, requestedCount) {
     // Ensure no study session is still listening on the shared region/keys.
@@ -571,29 +584,36 @@
     var lessonId = (lesson && lesson.id) ? String(lesson.id) : "";
     var deck = buildDeck(lesson);
 
+    // ----- reveal duration (same resolution order as study mode) -------------
+    var override = resolvedRevealMs(lesson);
+    var revealMs = (override != null)
+      ? override
+      : ((lesson && typeof lesson.revealMs === "number" && lesson.revealMs > 0)
+        ? lesson.revealMs
+        : DEFAULTS.revealMs);
+
     // ----- shared card-region DOM (reused from study) + test controls --------
     var numberEl = document.getElementById("number");
     var wordEl = document.getElementById("word");
     var pronEl = document.getElementById("pronunciation");
     var labelEl = document.getElementById("label");
     var recallEl = document.getElementById("recall");
+    var barEl = document.getElementById("bar");
     var barWrap = (typeof document.querySelector === "function")
       ? document.querySelector(".timer") : null;
     var cardEl = (typeof document.querySelector === "function")
       ? document.querySelector(".card") : null;
     var studyControls = document.getElementById("studyControls");
     var testControls = document.getElementById("testControls");
-    var rateRow = document.getElementById("testRate");
-    var gotBtn = document.getElementById("testGotBtn");
-    var missedBtn = document.getElementById("testMissedBtn");
+    var toggleBtn = document.getElementById("toggleBtn");
     var nextWrap = document.getElementById("testNextWrap");
-    var nextBtn = document.getElementById("testNextBtn");
     var progressEl = document.getElementById("testProgress");
     var resultRow = document.getElementById("testResult");
 
-    // Test mode REQUIRES its static markup + the pure game module. Without
-    // either (engine unit-test sandboxes), bail without touching study state.
-    if (!numberEl || !gotBtn || !missedBtn || !nextBtn ||
+    // Test mode REQUIRES the single study button + the pure game module. Without
+    // either (engine unit-test sandboxes have no LBGame), bail without touching
+    // study state.
+    if (!numberEl || !toggleBtn ||
         typeof window === "undefined" || !window.LBGame ||
         typeof window.LBGame.buildPool !== "function") {
       console.warn("[engine] test-mode markup or LBGame missing; cannot start test");
@@ -609,21 +629,36 @@
       return;
     }
 
-    var idx = 0;            // index into pool
-    var events = [];        // self-rate events, one per played card
-    var cardShownAt = null; // when the current card was shown
+    var idx = 0;             // index into pool
+    var events = [];         // self-rate events, one per played card
+    var cardShownAt = null;  // when the current card was shown
+    var timer = null;        // the per-card reveal timeout (the miss signal)
+    var rated = false;       // one-self-rate-per-card guard (click vs timeout)
+    var revealed = false;    // false = prompt phase ("Reveal it"), true = revealed
 
-    // ----- enter test mode: swap study controls for the test controls -------
-    setHidden(studyControls, true);
+    // ----- enter test mode: swap study controls for the test result row, but
+    // keep the SAME #toggleBtn (reused) and SHOW the timer bar (it is the miss
+    // signal in LB-15). studyControls hosts #toggleBtn, so it stays visible.
+    setHidden(studyControls, false);
     setHidden(testControls, false);
+    setHidden(nextWrap, true);     // the old test "Next" button is unused now
     setHidden(resultRow, true);
-    // The reveal timer + its bar do not belong to test mode (the user commits a
-    // self-rate before the answer shows). Hide the timer bar while testing.
-    setHidden(barWrap, true);
+    setHidden(barWrap, false);     // LB-15: the timer IS visible during a test
     if (labelEl) labelEl.textContent = "";
+
+    function resetBar() {
+      if (!barEl) return;
+      // Drive the CSS bar duration from revealMs so it matches the timeout.
+      barEl.style.animation = "none";
+      void barEl.offsetWidth; // force reflow so the animation restarts
+      barEl.style.animationPlayState = "running";
+      barEl.style.animation = "shrink " + (revealMs / 1000) + "s linear forwards";
+    }
 
     function showCard() {
       var card = pool[idx];
+      rated = false;
+      revealed = false;
 
       if (progressEl) {
         progressEl.textContent = "Card " + (idx + 1) + " of " + pool.length;
@@ -634,7 +669,7 @@
       numberEl.style.fontSize = promptFontSize(card.prompt);
       numberEl.textContent = card.prompt;
 
-      // Answer prepared but hidden until the self-rate commits.
+      // Answer prepared but hidden until reveal.
       wordEl.style.fontSize = wordFontSize(card.answer);
       wordEl.innerHTML = renderAnswer(card.answer);
       wordEl.hidden = true;
@@ -642,42 +677,61 @@
       pronEl.hidden = true;
       if (recallEl) { recallEl.textContent = ""; recallEl.hidden = true; }
 
-      // Recall phase: Got it / Missed it visible, Next hidden.
-      setHidden(rateRow, false);
-      setHidden(nextWrap, true);
+      // Prompt phase: the single button reveals.
+      if (toggleBtn) {
+        toggleBtn.textContent = "Reveal it";
+        setAttr(toggleBtn, "aria-label", "Reveal the Albanian word");
+      }
 
       // LB-9 a11y parity: answer hidden again — describe the region.
       setAttr(cardEl, "aria-label",
-        "Answer hidden. Rate yourself, then the Albanian word and pronunciation show.");
+        "Answer hidden. Reveal before the timer runs out to mark it known.");
 
       // Stamp when the card was shown — drives responseMs in the self-rate hook.
       cardShownAt = nowTs();
 
-      if (typeof gotBtn.focus === "function") gotBtn.focus();
+      // Start the visible reveal timer; expiry = miss (auto-reveal, gotIt false).
+      clearTimeout(timer);
+      resetBar();
+      timer = setTimeout(onTimeout, revealMs);
+
+      if (typeof toggleBtn.focus === "function") toggleBtn.focus();
     }
 
-    function revealAnswer() {
+    /* Commit exactly one self-rate for the current card, then reveal. The
+     * `rated` guard makes this idempotent per card: whichever of the manual
+     * click or the timer expiry happens first wins; the other is a no-op. */
+    function commitAndReveal(gotIt) {
+      if (rated) return;
+      rated = true;
+      // Cancel the timer so a manual reveal can't also fire the timeout miss.
+      clearTimeout(timer);
+      if (barEl) barEl.style.animationPlayState = "paused";
+
       var card = pool[idx];
+      // The single shared hook: builds the event, wires Leitner + Mastery
+      // (guarded), returns the event. Same hook study/LB-11/LB-14 used.
+      var evt = handleSelfRate(lessonId, card, gotIt, cardShownAt);
+      events.push(evt);
+
+      // Reveal the answer so the user can check, and flip the button to advance.
+      revealed = true;
       wordEl.hidden = false;
       pronEl.hidden = (card.hint === "");
-      // Reveal phase: rate buttons hidden, Next visible.
-      setHidden(rateRow, true);
-      setHidden(nextWrap, false);
+      if (toggleBtn) {
+        toggleBtn.textContent = "Next Card";
+        setAttr(toggleBtn, "aria-label", "Go to the next card");
+      }
       // LB-9 a11y: clear the "answer hidden" label so the aria-live region does
       // not talk over the freshly-revealed word/pronunciation.
       removeAttr(cardEl, "aria-label");
-      if (typeof nextBtn.focus === "function") nextBtn.focus();
+      if (toggleBtn && typeof toggleBtn.focus === "function") toggleBtn.focus();
     }
 
-    function rate(gotIt) {
-      var card = pool[idx];
-      // The single shared hook: builds the event, wires Leitner + Mastery
-      // (guarded), returns the event. Same hook study/LB-11 used.
-      var evt = handleSelfRate(lessonId, card, gotIt, cardShownAt);
-      events.push(evt);
-      // Commit happens BEFORE the reveal — now show the answer to verify.
-      revealAnswer();
-    }
+    // Manual reveal BEFORE the timer => they knew it (gotIt true, with speed).
+    function onManualReveal() { commitAndReveal(true); }
+    // Timer reached 0 => they missed it (gotIt false; drives mastery decay).
+    function onTimeout() { commitAndReveal(false); }
 
     function advance() {
       idx++;
@@ -688,10 +742,24 @@
       }
     }
 
+    // The single button: reveal (manual = got it) while in prompt phase, else
+    // advance to the next card — mirrors study mode's toggle shape.
+    function toggle() {
+      if (revealed) {
+        advance();
+      } else {
+        onManualReveal();
+      }
+    }
+
     /* Show the one-line result IN the card region (no overlay). Reuses #number
      * for the headline and #word for the mastery hint, then offers Study / Test
-     * again via the test-controls row. */
+     * again via the test-result row. The single button is hidden here so only
+     * the explicit Study / Test again actions remain. */
     function showResult() {
+      clearTimeout(timer);
+      if (barWrap) barWrap.hidden = true; // no live card -> hide the timer bar
+
       var summary = (typeof window.LBGame.summarize === "function")
         ? window.LBGame.summarize(events)
         : { total: events.length, gotIt: 0, percent: 0, review: [] };
@@ -709,9 +777,8 @@
       pronEl.hidden = true;
       if (progressEl) progressEl.hidden = true;
 
-      // Swap the rate/next rows for the result actions (Study / Test again).
-      setHidden(rateRow, true);
-      setHidden(nextWrap, true);
+      // Hide the single button + show the result actions (Study / Test again).
+      setHidden(studyControls, true);
       setHidden(resultRow, false);
 
       setAttr(cardEl, "aria-label", "");
@@ -719,29 +786,27 @@
       if (studyBtn && typeof studyBtn.focus === "function") studyBtn.focus();
     }
 
-    // ----- keyboard: Enter/Space mirror the active phase action --------------
+    // ----- keyboard: Enter/Space mirror the single button --------------------
     function onTestKeydown(event) {
       var k = event.key;
       // Only intercept the action keys; never fight typing elsewhere.
       if (k !== " " && k !== "Enter") return;
-      // Rate phase: do not hijack — the user must pick Got it / Missed it
-      // explicitly. Reveal phase: Enter/Space advances (mirrors "Next Card").
-      if (rateRow && rateRow.hidden === false) return;
-      if (nextWrap && nextWrap.hidden === false) {
-        event.preventDefault();
-        advance();
-      }
+      // While the result row is showing there is no live card to act on.
+      if (resultRow && resultRow.hidden === false) return;
+      event.preventDefault();
+      toggle();
     }
 
-    // ----- wire controls (re-assigned per startTest; .onclick is idempotent) -
-    gotBtn.onclick = function () { rate(true); };
-    missedBtn.onclick = function () { rate(false); };
-    nextBtn.onclick = advance;
+    // ----- wire the single button (.onclick is idempotent across startTest) --
+    toggleBtn.onclick = toggle;
 
     document.addEventListener("keydown", onTestKeydown);
 
-    // Register teardown so a switch back to study removes the listener.
+    // Register teardown so a switch back to study stops the timer + removes the
+    // listener (and detaches the click handler the engine owns here).
     activeTestTeardown = function () {
+      try { clearTimeout(timer); } catch (err) { /* ignore */ }
+      if (toggleBtn) toggleBtn.onclick = null;
       if (typeof document.removeEventListener === "function") {
         document.removeEventListener("keydown", onTestKeydown);
       }
@@ -750,9 +815,10 @@
     showCard();
   }
 
-  /* LB-14: leave test mode and resume normal study. Restores the study controls
+  /* LB-15: leave test mode and resume normal study. Restores the study controls
    * + timer bar and re-runs start() on the lesson (a fresh study session, which
-   * re-registers study's own listeners). Guarded for the no-markup case. */
+   * re-registers study's own listeners and resets #toggleBtn). Guarded for the
+   * no-markup case. */
   function endTest(lesson) {
     stopTestSession();
     var studyControls = document.getElementById("studyControls");
