@@ -146,6 +146,65 @@
     };
   }
 
+  /* ----------------------------- TIME TOTALS (LB-16) ----------------------- *
+   * Pure time math for the result modal's "You used X.X of Y.Y possible" line.
+   * DOM-free and testable. The engine tracks the per-lesson timer (timerMs) and
+   * the per-card events during a session and passes them in here. Each event has
+   * a responseMs (LB-11's canonical event already carries it). A card that timed
+   * out has responseMs >= timerMs (the engine cancels the timer on a manual
+   * reveal, so a known card's responseMs is < timerMs); clamping each card to
+   * timerMs makes a timed-out card count the FULL timer and guarantees the used
+   * total can never exceed the possible total. */
+
+  /* coerceTimerMs(timerMs) -> a finite, non-negative timer in ms (0 if unusable).
+   * Never throws. */
+  function coerceTimerMs(timerMs) {
+    var t = Number(timerMs);
+    if (!isFinite(t) || t < 0) return 0;
+    return t;
+  }
+
+  /* timePossibleMs(count, timerMs) -> the MAX time the run could have used:
+   *   count questions * the per-lesson timer (ms). count is floored to a
+   *   non-negative integer; a bad count or timer yields 0. Pure; never throws.
+   *   E.g. timePossibleMs(5, 3000) === 15000. */
+  function timePossibleMs(count, timerMs) {
+    var n = Math.floor(Number(count));
+    if (!isFinite(n) || n <= 0) return 0;
+    var t = coerceTimerMs(timerMs);
+    return n * t;
+  }
+
+  /* perCardUsedMs(responseMs, timerMs) -> one card's contribution to the used
+   *   total: min(responseMs, timerMs). A manual (known) reveal counts its actual
+   *   responseMs; a timed-out card (responseMs >= timerMs, or unusable) counts
+   *   the FULL timer. Clamped so a single card never exceeds the timer. Pure;
+   *   never throws. */
+  function perCardUsedMs(responseMs, timerMs) {
+    var t = coerceTimerMs(timerMs);
+    var ms = Number(responseMs);
+    if (!isFinite(ms) || ms < 0) return t; // unusable response => count full timer
+    return ms < t ? ms : t;                // clamp to the timer (timeout = full)
+  }
+
+  /* timeUsedMs(events, timerMs) -> the SUM over the answered cards of each card's
+   *   perCardUsedMs(event.responseMs, timerMs). Bad/missing events contribute the
+   *   full timer (they still consumed a card slot). Pure; never throws. The total
+   *   can never exceed timePossibleMs(events.length, timerMs) because every card
+   *   is clamped to timerMs.
+   *   E.g. 5 events all answered in 1000ms with a 3000ms timer => 5000ms used. */
+  function timeUsedMs(events, timerMs) {
+    var list = Array.isArray(events) ? events : [];
+    var t = coerceTimerMs(timerMs);
+    var total = 0;
+    for (var i = 0; i < list.length; i++) {
+      var e = list[i];
+      var resp = (e && typeof e === "object") ? e.responseMs : NaN;
+      total += perCardUsedMs(resp, t);
+    }
+    return total;
+  }
+
   // Public surface.
   window.LBGame = {
     COUNT_CHOICES: COUNT_CHOICES,
@@ -156,6 +215,9 @@
     scorePercent: scorePercent,
     countGotIt: countGotIt,
     reviewList: reviewList,
-    summarize: summarize
+    summarize: summarize,
+    timePossibleMs: timePossibleMs,
+    perCardUsedMs: perCardUsedMs,
+    timeUsedMs: timeUsedMs
   };
 })();

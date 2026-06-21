@@ -65,20 +65,15 @@
       <button id="toggleBtn">Reveal it</button>
     </div>
 
-    <!-- LB-15: test-mode controls (switch ON). The Got it / Missed it buttons
-         are gone — test mode reuses the SAME single #toggleBtn above and the
-         TIMER is the scoring signal (reveal before 0 = got it; timeout = miss).
-         Only the after-the-session result row lives here now: Study / Test
-         again. (#testNextWrap kept hidden for markup stability; unused in LB-15.) -->
+    <!-- LB-15/LB-16: test-mode controls (switch ON). The Got it / Missed it
+         buttons are gone — test mode reuses the SAME single #toggleBtn above and
+         the TIMER is the scoring signal (reveal before 0 = got it; timeout =
+         miss). LB-16 removed the in-card Study / Test-again result row; the end
+         result is now a modal (#resultModal) with a single Close action.
+         (#testNextWrap kept hidden for markup stability; unused since LB-15.) -->
     <div class="controls test-controls" id="testControls" hidden>
       <div class="test-next-wrap" id="testNextWrap" hidden>
         <button id="testNextBtn" type="button">Next Card</button>
-      </div>
-      <div class="test-result" id="testResult" hidden>
-        <button id="testResultStudyBtn" type="button">Study</button>
-        <button id="testResultAgainBtn" class="secondary" type="button">
-          Test again
-        </button>
       </div>
     </div>
 
@@ -182,6 +177,34 @@
     </div>
   </div>
 
+  <!-- LB-16: test-result modal. STATIC markup, hidden by default (same pattern
+       as the settings modal). The engine fills #resultScore / #resultTime /
+       #resultMastery and toggles the .open class to show it after an N-card test.
+       Dismiss is a SINGLE way out: the Close button (plus Esc and backdrop-click,
+       wired in the engine). On dismiss the engine turns test mode OFF (endTest)
+       and returns to normal study. No Study / Test-again buttons. -->
+  <div id="resultModal" class="modal" role="dialog" aria-modal="true"
+       aria-labelledby="resultTitle" tabindex="-1">
+    <div class="modal-panel">
+      <div class="modal-head">
+        <h2 id="resultTitle" class="modal-title">Test complete</h2>
+        <button id="resultClose" class="modal-close" type="button"
+                aria-label="Close results">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="result-block">
+          <div id="resultScore" class="result-score"></div>
+          <div id="resultTime" class="result-time"></div>
+          <div id="resultMastery" class="result-mastery"></div>
+        </div>
+        <div class="result-actions">
+          <button id="resultCloseBtn" type="button">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
     /* Lesson selection — file:// friendly, no fetch.
      *
@@ -281,11 +304,11 @@
         var level = M.getLessonLevel(id, cards);
         var lessonText;
         if (level === M.NONE) {
-          lessonText = "This lesson: not yet rated";
+          lessonText = "This lesson: not rated yet";
         } else if (level === M.BEST_LEVEL) {
-          lessonText = "This lesson: mastered (Level 1)";
+          lessonText = "This lesson: ⭐ Mastered";
         } else {
-          lessonText = "This lesson: Level " + level + " of 5";
+          lessonText = "This lesson: Level " + level + " of 5 (Level 1 = mastered)";
         }
 
         var total = Array.isArray(window.LB_LESSONS) ? window.LB_LESSONS.length : 0;
@@ -332,18 +355,17 @@
         countEl.textContent = countText;
       })();
 
-      // LB-14: wire the test-mode switch ON the flashcard screen.
+      // LB-14/LB-16: wire the test-mode switch ON the flashcard screen.
       //   OFF (default) -> normal study (already started above; nothing recorded).
       //   ON            -> a fresh N-card test on the CURRENT lesson, where N is
       //                    the GLOBAL quizCount pref (default 10). Answers ARE
       //                    recorded (handleSelfRate -> Leitner + Mastery).
-      // The in-card result row's Study / Test again buttons also drive the
-      // switch so the UI stays consistent.
+      // LB-16: the end result is a modal with a single Close action. When the
+      // modal is dismissed (Close / Esc / backdrop), the engine calls the
+      // onExit callback below, which flips the switch OFF and returns to study.
       (function wireTestSwitch() {
         var toggle = document.getElementById("testModeToggle");
         var studyHint = document.getElementById("studyHint");
-        var againBtn = document.getElementById("testResultAgainBtn");
-        var studyBtn = document.getElementById("testResultStudyBtn");
         if (!toggle || !window.LBEngine || !window.LB_LESSON) return;
 
         function quizCount() {
@@ -353,9 +375,16 @@
           return 10; // default when prefs are unavailable
         }
 
+        // Called by the engine when the result modal is dismissed: turn the
+        // switch OFF so the UI matches the engine returning to study mode.
+        function onExit() {
+          toggle.checked = false;
+          if (studyHint) studyHint.hidden = false;
+        }
+
         function enterTest() {
           if (typeof window.LBEngine.startTest === "function") {
-            window.LBEngine.startTest(window.LB_LESSON, quizCount());
+            window.LBEngine.startTest(window.LB_LESSON, quizCount(), onExit);
             if (studyHint) studyHint.hidden = true;
           }
         }
@@ -369,20 +398,6 @@
         toggle.addEventListener("change", function () {
           if (toggle.checked) enterTest(); else leaveTest();
         });
-
-        // Result row: "Test again" restarts a fresh test; "Study" flips the
-        // switch off and returns to normal study.
-        if (againBtn) {
-          againBtn.addEventListener("click", function () {
-            if (toggle.checked) enterTest();
-          });
-        }
-        if (studyBtn) {
-          studyBtn.addEventListener("click", function () {
-            toggle.checked = false;
-            leaveTest();
-          });
-        }
       })();
     });
   </script>

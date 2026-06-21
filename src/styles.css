@@ -288,24 +288,47 @@ button.secondary { background: #475569; }
 }
 .mastery-readout-lesson { font-weight: 700; color: #ffffff; }
 
+/* ---- LB-16: test-result modal ---- */
+/* Reuses .modal / .modal-panel / .modal-head / .modal-close (shared with the
+   settings modal) for the overlay + panel chrome, so it matches the app's calm
+   style and the header/toggle look. These rules style only the result body. */
+.result-block {
+  text-align: center;
+  margin-bottom: 20px;
+}
+.result-score {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+.result-time {
+  font-size: 1.05rem;
+  color: var(--text);
+  line-height: 1.4;
+}
+.result-time strong { color: var(--accent); }
+.result-mastery {
+  margin-top: 12px;
+  font-size: .85rem;
+  color: var(--muted);
+}
+/* The single Close action — full-width, primary, matches the card buttons. */
+.result-actions { display: grid; grid-template-columns: 1fr; }
+.result-actions button { width: 100%; }
+
 /* ---- LB-14: test-mode card region ---- */
 /* "Card N of M" progress, shown inside the card only during a test. */
 .test-progress { color: var(--muted); font-size: .9rem; margin-bottom: 10px; }
 
-/* ---- LB-15: test-mode controls ---- */
-/* In LB-15 test mode reuses the single study #toggleBtn (the timer is the
-   scoring signal), so the only thing the test-controls slot hosts now is the
-   after-the-session result row. */
+/* ---- LB-15/LB-16: test-mode controls ---- */
+/* Test mode reuses the single study #toggleBtn (the timer is the scoring
+   signal). LB-16 removed the in-card Study / Test-again result row; the end
+   result is now the #resultModal. The test-controls slot keeps only the unused
+   #testNextWrap (hidden, markup stability). */
 .test-controls { gap: 12px; }
 
 .test-next-wrap button { width: 100%; }
-
-/* The in-card result actions: Study / Test again. */
-.test-result {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
 
 /* ---- LB-15: test-mode switch (modern slider toggle) ---- */
 /* Sits just under the controls. A clean, calm pill-slider clearly labeled

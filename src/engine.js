@@ -575,11 +575,16 @@
    * GUARDED: requires the static markup (#toggleBtn) AND window.LBGame. The engine
    * unit-test sandboxes have no LBGame, so this returns early and never affects the
    * existing study tests. */
-  function startTest(lesson, requestedCount) {
+  function startTest(lesson, requestedCount, onExit) {
     // Ensure no study session is still listening on the shared region/keys.
     stopStudySession();
     // Restart cleanly if a prior test session was active.
     stopTestSession();
+
+    // LB-16: optional callback the bootstrap supplies so dismissing the result
+    // modal can flip the test switch OFF (kept out of the engine so the engine
+    // owns no switch-UI knowledge). Guarded everywhere it is called.
+    var exitCallback = (typeof onExit === "function") ? onExit : null;
 
     var lessonId = (lesson && lesson.id) ? String(lesson.id) : "";
     var deck = buildDeck(lesson);
@@ -608,7 +613,13 @@
     var toggleBtn = document.getElementById("toggleBtn");
     var nextWrap = document.getElementById("testNextWrap");
     var progressEl = document.getElementById("testProgress");
-    var resultRow = document.getElementById("testResult");
+    // LB-16: the test-result MODAL (replaces the in-card Study / Test-again row).
+    var resultModal = document.getElementById("resultModal");
+    var resultScoreEl = document.getElementById("resultScore");
+    var resultTimeEl = document.getElementById("resultTime");
+    var resultMasteryEl = document.getElementById("resultMastery");
+    var resultCloseX = document.getElementById("resultClose");
+    var resultCloseBtn = document.getElementById("resultCloseBtn");
 
     // Test mode REQUIRES the single study button + the pure game module. Without
     // either (engine unit-test sandboxes have no LBGame), bail without touching
@@ -642,7 +653,6 @@
     setHidden(studyControls, false);
     setHidden(testControls, false);
     setHidden(nextWrap, true);     // the old test "Next" button is unused now
-    setHidden(resultRow, true);
     setHidden(barWrap, false);     // LB-15: the timer IS visible during a test
     if (labelEl) labelEl.textContent = "";
 
@@ -752,38 +762,117 @@
       }
     }
 
-    /* Show the one-line result IN the card region (no overlay). Reuses #number
-     * for the headline and #word for the mastery hint, then offers Study / Test
-     * again via the test-result row. The single button is hidden here so only
-     * the explicit Study / Test again actions remain. */
+    /* LB-16: format a millisecond total as seconds with ONE decimal, e.g.
+     * 15000 -> "15.0", 5000 -> "5.0". Pure-ish (no DOM); kept inline because it
+     * is display formatting, not scoring math (the totals come from LBGame). */
+    function fmtSeconds(ms) {
+      var n = Number(ms);
+      if (!isFinite(n) || n < 0) n = 0;
+      return (n / 1000).toFixed(1);
+    }
+
+    // LB-16: whether the result modal is currently open (used by the keydown
+    // handler so action keys don't drive a card that is no longer live).
+    var resultOpen = false;
+
+    /* LB-16: dismiss the result modal — the SINGLE way out (Close button, Esc,
+     * or backdrop click all route here). Closes the modal, returns to normal
+     * study via endTest, and (guarded) flips the test switch OFF via onExit.
+     * Idempotent: a no-op once already dismissed. */
+    function dismissResult() {
+      if (!resultOpen) return;
+      resultOpen = false;
+      if (resultModal && resultModal.classList &&
+          typeof resultModal.classList.remove === "function") {
+        resultModal.classList.remove("open");
+      }
+      if (typeof document.removeEventListener === "function") {
+        document.removeEventListener("keydown", onResultKeydown, true);
+      }
+      // Return to normal study mode (re-runs start() on the lesson).
+      endTest(lesson);
+      // Flip the test switch OFF so the UI matches study mode resuming.
+      if (exitCallback) {
+        try { exitCallback(); } catch (err) { /* ignore */ }
+      }
+    }
+
+    /* LB-16: while the result modal is open, Esc dismisses it. */
+    function onResultKeydown(event) {
+      if (event.key === "Escape" || event.key === "Esc") {
+        event.preventDefault();
+        dismissResult();
+      }
+    }
+
+    /* LB-16: show the end-of-test result as a clean MODAL (role=dialog,
+     * aria-modal, Esc + backdrop-click + a single Close button). Renders the
+     * score AND the time summary. The single way to dismiss is Close/Esc/backdrop;
+     * dismissing turns test mode OFF and returns to study (see dismissResult).
+     *
+     * Falls back to a minimal in-card line ONLY if the modal markup is missing,
+     * so the engine never strands the user without a result. */
     function showResult() {
       clearTimeout(timer);
       if (barWrap) barWrap.hidden = true; // no live card -> hide the timer bar
+      if (progressEl) progressEl.hidden = true;
 
       var summary = (typeof window.LBGame.summarize === "function")
         ? window.LBGame.summarize(events)
         : { total: events.length, gotIt: 0, percent: 0, review: [] };
 
-      // Headline result line, sized down to fit the card (it is text, not a
-      // big number) — reuse #number as the result area.
-      numberEl.style.fontSize = "1.6rem";
-      numberEl.textContent = "Quiz done — " + summary.gotIt + "/" +
-        summary.total + " (" + summary.percent + "%)";
+      // ----- TIME totals via the pure LBGame functions (LB-16) -----
+      // possible = N questions * the per-lesson timer; used = sum of each card
+      // clamped to the timer (a timeout counts the full timer). The pure math
+      // guarantees used <= possible.
+      var possibleMs = (typeof window.LBGame.timePossibleMs === "function")
+        ? window.LBGame.timePossibleMs(summary.total, revealMs)
+        : summary.total * revealMs;
+      var usedMs = (typeof window.LBGame.timeUsedMs === "function")
+        ? window.LBGame.timeUsedMs(events, revealMs)
+        : 0;
 
-      wordEl.style.fontSize = "1.1rem";
-      wordEl.innerHTML = "Mastery updated above.";
-      wordEl.hidden = false;
-      pronEl.textContent = "";
-      pronEl.hidden = true;
-      if (progressEl) progressEl.hidden = true;
+      var scoreText = "You scored " + summary.gotIt + " of " + summary.total +
+        " (" + summary.percent + "%)";
+      var timeText = "You used " + fmtSeconds(usedMs) + " seconds of " +
+        fmtSeconds(possibleMs) + " possible";
 
-      // Hide the single button + show the result actions (Study / Test again).
-      setHidden(studyControls, true);
-      setHidden(resultRow, false);
+      // If the modal markup is missing (defensive), degrade to the card region.
+      if (!resultModal || !resultModal.classList ||
+          typeof resultModal.classList.add !== "function") {
+        numberEl.style.fontSize = "1.4rem";
+        numberEl.textContent = scoreText;
+        wordEl.style.fontSize = "1.0rem";
+        wordEl.textContent = timeText;
+        wordEl.hidden = false;
+        pronEl.hidden = true;
+        return;
+      }
 
-      setAttr(cardEl, "aria-label", "");
-      var studyBtn = document.getElementById("testResultStudyBtn");
-      if (studyBtn && typeof studyBtn.focus === "function") studyBtn.focus();
+      // ----- populate + open the modal -----
+      if (resultScoreEl) resultScoreEl.textContent = scoreText;
+      if (resultTimeEl) {
+        // Bold the two numbers per the spec wording without inline styles.
+        resultTimeEl.innerHTML = "You used <strong>" + fmtSeconds(usedMs) +
+          " seconds</strong> of <strong>" + fmtSeconds(possibleMs) +
+          " possible</strong>";
+      }
+      if (resultMasteryEl) {
+        resultMasteryEl.textContent = "Your mastery levels have been updated.";
+      }
+
+      resultModal.classList.add("open");
+      resultOpen = true;
+      if (typeof document.addEventListener === "function") {
+        document.addEventListener("keydown", onResultKeydown, true);
+      }
+
+      // Move focus into the dialog (the Close button).
+      if (resultCloseBtn && typeof resultCloseBtn.focus === "function") {
+        resultCloseBtn.focus();
+      } else if (typeof resultModal.focus === "function") {
+        resultModal.focus();
+      }
     }
 
     // ----- keyboard: Enter/Space mirror the single button --------------------
@@ -791,8 +880,8 @@
       var k = event.key;
       // Only intercept the action keys; never fight typing elsewhere.
       if (k !== " " && k !== "Enter") return;
-      // While the result row is showing there is no live card to act on.
-      if (resultRow && resultRow.hidden === false) return;
+      // While the result modal is open there is no live card to act on.
+      if (resultOpen) return;
       event.preventDefault();
       toggle();
     }
@@ -802,14 +891,37 @@
 
     document.addEventListener("keydown", onTestKeydown);
 
+    // LB-16: wire the result-modal dismissals — Close button (#resultClose X and
+    // #resultCloseBtn), plus a backdrop click (clicking the scrim outside the
+    // panel). .onclick is idempotent across startTest so a restart doesn't stack
+    // handlers. All three route through dismissResult (the single way out).
+    if (resultCloseX) resultCloseX.onclick = dismissResult;
+    if (resultCloseBtn) resultCloseBtn.onclick = dismissResult;
+    function onResultBackdrop(event) {
+      if (event.target === resultModal) dismissResult();
+    }
+    if (resultModal) resultModal.onclick = onResultBackdrop;
+
     // Register teardown so a switch back to study stops the timer + removes the
-    // listener (and detaches the click handler the engine owns here).
+    // listeners (and detaches the click handlers the engine owns here).
     activeTestTeardown = function () {
       try { clearTimeout(timer); } catch (err) { /* ignore */ }
       if (toggleBtn) toggleBtn.onclick = null;
       if (typeof document.removeEventListener === "function") {
         document.removeEventListener("keydown", onTestKeydown);
+        document.removeEventListener("keydown", onResultKeydown, true);
       }
+      // LB-16: detach the modal handlers + ensure the modal is closed.
+      if (resultCloseX) resultCloseX.onclick = null;
+      if (resultCloseBtn) resultCloseBtn.onclick = null;
+      if (resultModal) {
+        resultModal.onclick = null;
+        if (resultModal.classList &&
+            typeof resultModal.classList.remove === "function") {
+          resultModal.classList.remove("open");
+        }
+      }
+      resultOpen = false;
     };
 
     showCard();
@@ -823,12 +935,17 @@
     stopTestSession();
     var studyControls = document.getElementById("studyControls");
     var testControls = document.getElementById("testControls");
-    var resultRow = document.getElementById("testResult");
+    // LB-16: close the result modal if it is still open (the in-card result row
+    // was removed in LB-16; the modal is the only result surface now).
+    var resultModal = document.getElementById("resultModal");
     var barWrap = (typeof document.querySelector === "function")
       ? document.querySelector(".timer") : null;
     if (studyControls) studyControls.hidden = false;
     if (testControls) testControls.hidden = true;
-    if (resultRow) resultRow.hidden = true;
+    if (resultModal && resultModal.classList &&
+        typeof resultModal.classList.remove === "function") {
+      resultModal.classList.remove("open");
+    }
     if (barWrap) barWrap.hidden = false;
     start(lesson);
   }
