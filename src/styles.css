@@ -22,7 +22,40 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 18px;
+  /* LB-14: extra top padding clears the fixed header bar so the card column
+     never slides under it. The bar is ~52px tall; 70px leaves a little breathing
+     room above the title. */
+  padding: 70px 18px 18px;
+}
+
+/* ---- LB-14: fixed top header bar ---- */
+/* A single horizontal line pinned to the top: streak (left), overall mastery
+   (middle), hamburger (right). Calm, low-emphasis, matching the app's style. */
+.app-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  min-height: 52px;
+  background: rgba(15, 23, 42, .85);
+  backdrop-filter: blur(6px);
+}
+.header-streak {
+  font-size: .9rem;
+  font-weight: 700;
+  color: #ffffff;
+  white-space: nowrap;
+}
+.header-mastery {
+  flex: 1;
+  text-align: center;
+  font-size: .85rem;
+  color: #cbd5e1;
 }
 
 .app { width: min(480px, 100%); text-align: center; }
@@ -111,3 +144,260 @@ button {
 button.secondary { background: #475569; }
 
 .hint { color: #cbd5e1; font-size: .95rem; margin-top: 12px; }
+
+/* ---- Settings: hamburger button ---- */
+/* LB-14: lives in the fixed header bar (right-aligned via the flex layout).
+   Calm, low-emphasis: a quiet translucent control that doesn't compete with
+   the flashcard. */
+.app { position: relative; }
+
+.hamburger {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, .12);
+  border-radius: 12px;
+}
+.hamburger:hover { background: rgba(255, 255, 255, .2); }
+
+.hamburger-bars {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 20px;
+}
+.hamburger-bars span {
+  display: block;
+  height: 2px;
+  width: 100%;
+  background: #ffffff;
+  border-radius: 2px;
+}
+
+/* ---- Settings: modal overlay ---- */
+/* Hidden by default; settings.js adds .open to show it. A calm dark scrim over
+   the cards with a centered light panel that matches the .card surface. */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(15, 23, 42, .65);
+}
+.modal.open { display: flex; }
+
+.modal-panel {
+  width: min(420px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  background: var(--card);
+  color: var(--text);
+  border-radius: 20px;
+  padding: 22px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .4);
+  text-align: left;
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.modal-title { font-size: 1.2rem; font-weight: 700; margin: 0; }
+
+.modal-close {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  font-size: 1.4rem;
+  line-height: 1;
+  color: var(--text);
+  background: #e2e8f0;
+  border-radius: 10px;
+}
+.modal-close:hover { background: #cbd5e1; }
+
+/* Settings groups */
+.setting {
+  margin: 0 0 20px;
+  padding: 0;
+  border: 0;
+}
+.setting:last-child { margin-bottom: 0; }
+
+.setting-label {
+  display: block;
+  font-weight: 600;
+  font-size: .95rem;
+  color: var(--text);
+  margin-bottom: 8px;
+  padding: 0;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.setting-range { flex: 1; cursor: pointer; }
+
+.setting-value {
+  min-width: 2.2rem;
+  text-align: center;
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--accent);
+}
+
+.setting-radios { gap: 18px; }
+
+.radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: .95rem;
+  cursor: pointer;
+  color: var(--text);
+}
+.radio input { cursor: pointer; }
+
+.setting-help {
+  margin: 8px 0 0;
+  font-size: .82rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+/* ---- Mastery readout (LB-12 / LB-14) ---- */
+/* Near the lesson picker: ONLY "This lesson" now (the overall line moved to the
+   header bar in LB-14). Plain text, low-emphasis — no bars/badges. */
+.mastery-readout {
+  margin: 0 0 14px;
+  font-size: .9rem;
+  line-height: 1.35;
+}
+.mastery-readout-lesson { font-weight: 700; color: #ffffff; }
+
+/* ---- LB-16: test-result modal ---- */
+/* Reuses .modal / .modal-panel / .modal-head / .modal-close (shared with the
+   settings modal) for the overlay + panel chrome, so it matches the app's calm
+   style and the header/toggle look. These rules style only the result body. */
+.result-block {
+  text-align: center;
+  margin-bottom: 20px;
+}
+.result-score {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+.result-time {
+  font-size: 1.05rem;
+  color: var(--text);
+  line-height: 1.4;
+}
+.result-time strong { color: var(--accent); }
+.result-mastery {
+  margin-top: 12px;
+  font-size: .85rem;
+  color: var(--muted);
+}
+/* The single Close action — full-width, primary, matches the card buttons. */
+.result-actions { display: grid; grid-template-columns: 1fr; }
+.result-actions button { width: 100%; }
+
+/* ---- LB-14: test-mode card region ---- */
+/* "Card N of M" progress, shown inside the card only during a test. */
+.test-progress { color: var(--muted); font-size: .9rem; margin-bottom: 10px; }
+
+/* ---- LB-15/LB-16: test-mode controls ---- */
+/* Test mode reuses the single study #toggleBtn (the timer is the scoring
+   signal). LB-16 removed the in-card Study / Test-again result row; the end
+   result is now the #resultModal. The test-controls slot keeps only the unused
+   #testNextWrap (hidden, markup stability). */
+.test-controls { gap: 12px; }
+
+.test-next-wrap button { width: 100%; }
+
+/* ---- LB-15: test-mode switch (modern slider toggle) ---- */
+/* Sits just under the controls. A clean, calm pill-slider clearly labeled
+   "Test mode". The native checkbox is visually hidden (kept for a11y + the
+   label-for hit target); the .switch-track pill + .switch-thumb knob render the
+   toggle and animate on :checked. Colors match the app palette (accent2 = the
+   same green as the timer bar) so "on" reads as active without shouting. */
+.test-switch { margin-top: 16px; display: flex; justify-content: center; }
+
+.switch-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.switch-control {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+/* The real checkbox: hidden visually but still focusable + clickable. */
+.switch-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* The pill track. */
+.switch-track {
+  display: inline-block;
+  width: 46px;
+  height: 26px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, .22);
+  transition: background .2s ease;
+}
+
+/* The sliding knob. */
+.switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .35);
+  transition: transform .2s ease;
+}
+
+/* ON state: green track + knob slides right. */
+.switch-input:checked ~ .switch-track { background: var(--accent2); }
+.switch-input:checked ~ .switch-track .switch-thumb { transform: translateX(20px); }
+
+/* Keyboard focus ring on the visible track when the hidden input is focused. */
+.switch-input:focus-visible ~ .switch-track {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
+.switch-text {
+  font-size: .95rem;
+  font-weight: 700;
+  color: #cbd5e1;
+}

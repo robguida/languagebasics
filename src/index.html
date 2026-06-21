@@ -7,6 +7,23 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <!-- LB-14: fixed top header bar. A single horizontal line: streak (left),
+       overall mastery (middle), hamburger (right). The streak + overall-mastery
+       readouts moved here from the old near-the-picker location. aria-live so
+       screen readers hear streak/mastery updates. The hamburger moved up here
+       and still opens the settings modal. -->
+  <header id="appHeader" class="app-header">
+    <span id="streakCount" class="header-streak" aria-live="polite"></span>
+    <span id="masteryOverall" class="header-mastery" aria-live="polite"></span>
+    <button id="settingsBtn" class="hamburger" type="button"
+            aria-label="Open settings" aria-haspopup="dialog"
+            aria-controls="settingsModal" aria-expanded="false">
+      <span class="hamburger-bars" aria-hidden="true">
+        <span></span><span></span><span></span>
+      </span>
+    </button>
+  </header>
+
   <main class="app">
     <h1 id="title">Albanian Numbers</h1>
 
@@ -22,9 +39,19 @@
       </select>
     </div>
 
-    <section class="card" aria-live="polite">
+    <!-- LB-14: per-lesson mastery readout stays here near the picker/card. It
+         shows ONLY "This lesson" now — the overall "X of N lessons mastered" line
+         moved up to the header bar. aria-live so updates are announced. -->
+    <div id="masteryReadout" class="mastery-readout" aria-live="polite" hidden>
+      <span id="masteryLesson" class="mastery-readout-lesson"></span>
+    </div>
+
+    <section class="card" aria-live="polite"
+             aria-label="Answer hidden. Press Reveal to show the Albanian word and pronunciation.">
       <div class="label" id="label"></div>
       <div class="recall" id="recall"></div>
+      <!-- LB-14: test-mode progress ("Card N of M"), shown only during a test. -->
+      <div class="test-progress" id="testProgress" aria-live="polite" hidden></div>
       <div class="number" id="number">1</div>
       <div class="word" id="word" hidden></div>
       <div class="pronunciation" id="pronunciation" hidden></div>
@@ -32,12 +59,151 @@
 
     <div class="timer"><div class="bar" id="bar"></div></div>
 
-    <div class="controls">
+    <!-- Study controls (switch OFF, default): the single reveal/next toggle —
+         byte-identical to today's study flow. -->
+    <div class="controls" id="studyControls">
       <button id="toggleBtn">Reveal it</button>
     </div>
 
-    <div class="hint">Say the number out loud, then reveal. After the timer, the Albanian word appears.</div>
+    <!-- LB-15/LB-16: test-mode controls (switch ON). The Got it / Missed it
+         buttons are gone — test mode reuses the SAME single #toggleBtn above and
+         the TIMER is the scoring signal (reveal before 0 = got it; timeout =
+         miss). LB-16 removed the in-card Study / Test-again result row; the end
+         result is now a modal (#resultModal) with a single Close action.
+         (#testNextWrap kept hidden for markup stability; unused since LB-15.) -->
+    <div class="controls test-controls" id="testControls" hidden>
+      <div class="test-next-wrap" id="testNextWrap" hidden>
+        <button id="testNextBtn" type="button">Next Card</button>
+      </div>
+    </div>
+
+    <!-- LB-15: the test-mode switch lives ON the flashcard screen. OFF = normal
+         study (nothing recorded). ON = a scored N-card test on the current
+         lesson; reveal before the timer = "got it", timeout = "missed". Styled
+         as a modern slider toggle (.switch-track / .switch-thumb). -->
+    <div class="test-switch">
+      <label class="switch-label" for="testModeToggle">
+        <span class="switch-control">
+          <input type="checkbox" id="testModeToggle" class="switch-input" />
+          <span class="switch-track" aria-hidden="true">
+            <span class="switch-thumb"></span>
+          </span>
+        </span>
+        <span class="switch-text">Test mode</span>
+      </label>
+    </div>
+
+    <div class="hint" id="studyHint">Say the number out loud, then reveal. After the timer, the Albanian word appears.</div>
   </main>
+
+  <!-- Settings modal: STATIC markup, hidden by default. settings.js toggles the
+       .open class to show/hide it (NEVER document.write — that would wipe the
+       page). role=dialog + aria-modal + the accessible name "Settings" make it a
+       proper modal dialog for assistive tech. -->
+  <div id="settingsModal" class="modal" role="dialog" aria-modal="true"
+       aria-labelledby="settingsTitle" tabindex="-1">
+    <div class="modal-panel">
+      <div class="modal-head">
+        <h2 id="settingsTitle" class="modal-title">Settings</h2>
+        <button id="settingsClose" class="modal-close" type="button"
+                aria-label="Close settings">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Per-lesson reveal timer (1-20s, default 5s). Value is per lesson. -->
+        <div class="setting">
+          <label for="revealSeconds" class="setting-label">
+            Reveal timer (seconds)
+          </label>
+          <div class="setting-row">
+            <input id="revealSeconds" class="setting-range" type="range"
+                   min="1" max="20" step="1" value="5"
+                   aria-describedby="revealSecondsHelp" />
+            <output id="revealSecondsValue" class="setting-value"
+                    for="revealSeconds">5</output>
+          </div>
+          <p id="revealSecondsHelp" class="setting-help">
+            How long the number shows before the Albanian word reveals. Saved
+            for this lesson.
+          </p>
+        </div>
+
+        <!-- Card order: Random <-> Leitner. LB-9 only PERSISTS the choice;
+             Leitner ordering is wired in LB-10, so the helper text is honest. -->
+        <fieldset class="setting">
+          <legend class="setting-label">Card order</legend>
+          <div class="setting-row setting-radios">
+            <label class="radio">
+              <input id="orderRandom" type="radio" name="cardOrder"
+                     value="random" checked />
+              <span>Random</span>
+            </label>
+            <label class="radio">
+              <input id="orderLeitner" type="radio" name="cardOrder"
+                     value="leitner" />
+              <span>Leitner</span>
+            </label>
+          </div>
+          <p class="setting-help">
+            Leitner spaced-repetition ordering is coming soon. Your choice is
+            saved now; cards stay in random order until then.
+          </p>
+        </fieldset>
+
+        <!-- LB-14: GLOBAL number-of-questions-for-quizzes preference (5/10/20,
+             default 10). Stored at the top level of lb.prefs (not per lesson);
+             test mode uses it for whatever lesson is active. -->
+        <fieldset class="setting">
+          <legend class="setting-label">Number of questions for Quizzes</legend>
+          <div class="setting-row setting-radios">
+            <label class="radio">
+              <input type="radio" name="quizCount" value="5" />
+              <span>5</span>
+            </label>
+            <label class="radio">
+              <input type="radio" name="quizCount" value="10" checked />
+              <span>10</span>
+            </label>
+            <label class="radio">
+              <input type="radio" name="quizCount" value="20" />
+              <span>20</span>
+            </label>
+          </div>
+          <p class="setting-help">
+            How many cards a quiz (test mode) runs. Applies to every lesson.
+          </p>
+        </fieldset>
+      </div>
+    </div>
+  </div>
+
+  <!-- LB-16: test-result modal. STATIC markup, hidden by default (same pattern
+       as the settings modal). The engine fills #resultScore / #resultTime /
+       #resultMastery and toggles the .open class to show it after an N-card test.
+       Dismiss is a SINGLE way out: the Close button (plus Esc and backdrop-click,
+       wired in the engine). On dismiss the engine turns test mode OFF (endTest)
+       and returns to normal study. No Study / Test-again buttons. -->
+  <div id="resultModal" class="modal" role="dialog" aria-modal="true"
+       aria-labelledby="resultTitle" tabindex="-1">
+    <div class="modal-panel">
+      <div class="modal-head">
+        <h2 id="resultTitle" class="modal-title">Test complete</h2>
+        <button id="resultClose" class="modal-close" type="button"
+                aria-label="Close results">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="result-block">
+          <div id="resultScore" class="result-score"></div>
+          <div id="resultTime" class="result-time"></div>
+          <div id="resultMastery" class="result-mastery"></div>
+        </div>
+        <div class="result-actions">
+          <button id="resultCloseBtn" type="button">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script>
     /* Lesson selection — file:// friendly, no fetch.
@@ -86,7 +252,14 @@
     })();
   </script>
 
+  <script src="store.js"></script>
+  <script src="prefs.js"></script>
+  <script src="leitner.js"></script>
+  <script src="game.js"></script>
+  <script src="mastery.js"></script>
+  <script src="streak.js"></script>
   <script src="engine.js"></script>
+  <script src="settings.js"></script>
   <script>
     // Kick off once the data file + engine are both parsed.
     document.addEventListener("DOMContentLoaded", function () {
@@ -97,6 +270,135 @@
           engine: !!window.LBEngine, lesson: !!window.LB_LESSON
         });
       }
+
+      // LB-12: known per-lesson card counts (same source of truth as the test
+      // suite's EXPECTED map). Attached to each LB_LESSONS registry entry so the
+      // mastery rollup can judge overall mastery across lessons whose card data
+      // isn't loaded (the app loads one lesson at a time). Keep in sync if a
+      // lesson's card count changes.
+      var LESSON_COUNTS = {
+        "sq/lesson-1": 11, "sq/lesson-2": 9, "sq/lesson-3": 8,
+        "sq/lesson-4": 80, "sq/lesson-5": 56, "sq/lesson-6": 6
+      };
+      if (Array.isArray(window.LB_LESSONS)) {
+        for (var li = 0; li < window.LB_LESSONS.length; li++) {
+          var le = window.LB_LESSONS[li];
+          if (le && le.id && LESSON_COUNTS[le.id] != null) {
+            le.count = LESSON_COUNTS[le.id];
+          }
+        }
+      }
+
+      // LB-12/LB-14: populate the mastery readouts. The per-lesson "This lesson"
+      // line stays near the picker (#masteryLesson); the overall "X of N lessons
+      // mastered" line moved to the header bar (#masteryOverall). Guarded —
+      // degrades silently without LBMastery or the markup.
+      (function renderMasteryReadout() {
+        var wrap = document.getElementById("masteryReadout");
+        var lessonEl = document.getElementById("masteryLesson");
+        var overallEl = document.getElementById("masteryOverall");
+        if (!window.LBMastery || !window.LB_LESSON) return;
+        var M = window.LBMastery;
+        var id = window.LB_LESSON.id;
+        var cards = Array.isArray(window.LB_LESSON.cards) ? window.LB_LESSON.cards : [];
+        var level = M.getLessonLevel(id, cards);
+        var lessonText;
+        if (level === M.NONE) {
+          lessonText = "This lesson: not rated yet";
+        } else if (level === M.BEST_LEVEL) {
+          lessonText = "This lesson: ⭐ Mastered";
+        } else {
+          lessonText = "This lesson: Level " + level + " of 5 (Level 1 = mastered)";
+        }
+
+        var total = Array.isArray(window.LB_LESSONS) ? window.LB_LESSONS.length : 0;
+        var mastered = 0, allMastered = total > 0;
+        for (var i = 0; i < total; i++) {
+          var entry = window.LB_LESSONS[i];
+          if (!entry || !entry.id) { allMastered = false; continue; }
+          var isM;
+          if (entry.id === id) {
+            isM = M.isLessonMastered(id, cards);
+          } else {
+            isM = M.lessonMasteredByCount(entry.id, entry.count || 0);
+          }
+          if (isM) mastered++; else allMastered = false;
+        }
+        var overallText = allMastered
+          ? ("All " + total + " lessons mastered — you OWN them!")
+          : (mastered + " of " + total + " lessons mastered");
+
+        if (lessonEl) lessonEl.textContent = lessonText;
+        if (overallEl) overallEl.textContent = overallText;
+        if (wrap) wrap.hidden = false;
+      })();
+
+      // LB-13/LB-14: populate the daily-practice streak in the header bar. The
+      // engine's start() already called LBStreak.markActive() for today, so
+      // getState() reflects the live run. Guarded — degrades silently without
+      // LBStreak or the markup. Calm tone only: a 0/none state invites starting;
+      // the "Today: done / not yet" goal marker was removed in LB-14.
+      (function renderStreak() {
+        var countEl = document.getElementById("streakCount");
+        if (!countEl || !window.LBStreak ||
+            typeof window.LBStreak.getState !== "function") return;
+        var s = window.LBStreak.getState();
+        var n = s.current;
+        var countText;
+        if (n <= 0) {
+          countText = "Start a streak today!";
+        } else if (n === 1) {
+          countText = "🔥 1-day streak";
+        } else {
+          countText = "🔥 " + n + "-day streak";
+        }
+        countEl.textContent = countText;
+      })();
+
+      // LB-14/LB-16: wire the test-mode switch ON the flashcard screen.
+      //   OFF (default) -> normal study (already started above; nothing recorded).
+      //   ON            -> a fresh N-card test on the CURRENT lesson, where N is
+      //                    the GLOBAL quizCount pref (default 10). Answers ARE
+      //                    recorded (handleSelfRate -> Leitner + Mastery).
+      // LB-16: the end result is a modal with a single Close action. When the
+      // modal is dismissed (Close / Esc / backdrop), the engine calls the
+      // onExit callback below, which flips the switch OFF and returns to study.
+      (function wireTestSwitch() {
+        var toggle = document.getElementById("testModeToggle");
+        var studyHint = document.getElementById("studyHint");
+        if (!toggle || !window.LBEngine || !window.LB_LESSON) return;
+
+        function quizCount() {
+          if (window.LBPrefs && typeof window.LBPrefs.getQuizCount === "function") {
+            return window.LBPrefs.getQuizCount();
+          }
+          return 10; // default when prefs are unavailable
+        }
+
+        // Called by the engine when the result modal is dismissed: turn the
+        // switch OFF so the UI matches the engine returning to study mode.
+        function onExit() {
+          toggle.checked = false;
+          if (studyHint) studyHint.hidden = false;
+        }
+
+        function enterTest() {
+          if (typeof window.LBEngine.startTest === "function") {
+            window.LBEngine.startTest(window.LB_LESSON, quizCount(), onExit);
+            if (studyHint) studyHint.hidden = true;
+          }
+        }
+        function leaveTest() {
+          if (typeof window.LBEngine.endTest === "function") {
+            window.LBEngine.endTest(window.LB_LESSON);
+            if (studyHint) studyHint.hidden = false;
+          }
+        }
+
+        toggle.addEventListener("change", function () {
+          if (toggle.checked) enterTest(); else leaveTest();
+        });
+      })();
     });
   </script>
 </body>
