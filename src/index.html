@@ -65,20 +65,12 @@
       <button id="toggleBtn">Reveal it</button>
     </div>
 
-    <!-- LB-14: test-mode controls (switch ON). Hidden until test mode is on.
-         Got it / Missed it commit + reveal; Next Card advances; the result row
-         offers Study / Test again after the N-card session. -->
+    <!-- LB-15: test-mode controls (switch ON). The Got it / Missed it buttons
+         are gone — test mode reuses the SAME single #toggleBtn above and the
+         TIMER is the scoring signal (reveal before 0 = got it; timeout = miss).
+         Only the after-the-session result row lives here now: Study / Test
+         again. (#testNextWrap kept hidden for markup stability; unused in LB-15.) -->
     <div class="controls test-controls" id="testControls" hidden>
-      <div class="test-rate" id="testRate">
-        <button id="testMissedBtn" class="test-missed" type="button"
-                aria-label="Missed it — I did not recall this number">
-          Missed it
-        </button>
-        <button id="testGotBtn" class="test-got" type="button"
-                aria-label="Got it — I recalled this number">
-          Got it
-        </button>
-      </div>
       <div class="test-next-wrap" id="testNextWrap" hidden>
         <button id="testNextBtn" type="button">Next Card</button>
       </div>
@@ -90,13 +82,19 @@
       </div>
     </div>
 
-    <!-- LB-14: the test-mode switch lives ON the flashcard screen. OFF = normal
+    <!-- LB-15: the test-mode switch lives ON the flashcard screen. OFF = normal
          study (nothing recorded). ON = a scored N-card test on the current
-         lesson; answers are recorded. -->
+         lesson; reveal before the timer = "got it", timeout = "missed". Styled
+         as a modern slider toggle (.switch-track / .switch-thumb). -->
     <div class="test-switch">
       <label class="switch-label" for="testModeToggle">
-        <input type="checkbox" id="testModeToggle" class="switch-input" />
-        <span>Record my answers (test mode)</span>
+        <span class="switch-control">
+          <input type="checkbox" id="testModeToggle" class="switch-input" />
+          <span class="switch-track" aria-hidden="true">
+            <span class="switch-thumb"></span>
+          </span>
+        </span>
+        <span class="switch-text">Test mode</span>
       </label>
     </div>
 
