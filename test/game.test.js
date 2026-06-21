@@ -387,3 +387,152 @@ test("LBGame: makeSelfRateEvent output drives a fake recordResult with the right
   assert.equal(calls[0].gotIt, false, "strict-boolean gotIt forwarded (truthy -> false)");
   assert.equal(evt.responseMs, 1500, "responseMs carried for the LB-12 mastery seam");
 });
+
+/* ===================================================================== *
+ * LB-16: TIME TOTALS for the result modal / readout.                    *
+ * Pure time math: timePossibleMs / perCardUsedMs / timeUsedMs.          *
+ * Same loadGame() shim, no deps. The modal look/dismiss + the readout    *
+ * strings are DOM/display and are manual; only the math is unit-tested.  *
+ * ===================================================================== */
+
+// Build N self-rate-style events with the given responseMs values.
+function timeEvents(responseMsList) {
+  return responseMsList.map(function (ms) {
+    return { card: { prompt: 1 }, gotIt: true, responseMs: ms };
+  });
+}
+
+/* -------------------------- Rob's example exactly ------------------------ */
+
+test("LB-16 timePossibleMs: Rob's example -> 5 * 3000 === 15000", () => {
+  const G = loadGame();
+  assert.equal(G.timePossibleMs(5, 3000), 15000);
+});
+
+test("LB-16 timeUsedMs: five 1000ms answers under a 3000ms timer -> 5000ms", () => {
+  const G = loadGame();
+  const events = timeEvents([1000, 1000, 1000, 1000, 1000]);
+  assert.equal(G.timeUsedMs(events, 3000), 5000);
+});
+
+test("LB-16 perCardUsedMs: a timed-out card counts the full timer (3000)", () => {
+  const G = loadGame();
+  assert.equal(G.perCardUsedMs(3000, 3000), 3000, "responseMs === timer -> full timer");
+  assert.equal(G.perCardUsedMs(3200, 3000), 3000, "responseMs > timer -> clamped to timer");
+});
+
+/* ------------------------------- Clamping -------------------------------- */
+
+test("LB-16 perCardUsedMs: responseMs > timer is clamped to the timer", () => {
+  const G = loadGame();
+  assert.equal(G.perCardUsedMs(9999, 3000), 3000, "used never exceeds the timer");
+});
+
+test("LB-16 perCardUsedMs: responseMs < timer is the actual responseMs", () => {
+  const G = loadGame();
+  assert.equal(G.perCardUsedMs(800, 3000), 800);
+  assert.equal(G.perCardUsedMs(1, 3000), 1);
+});
+
+test("LB-16 perCardUsedMs: responseMs exactly equal to the timer returns the timer", () => {
+  const G = loadGame();
+  assert.equal(G.perCardUsedMs(3000, 3000), 3000, "exactly-equal -> timer (min picks timer)");
+});
+
+/* ------------------------ used <= possible invariant --------------------- */
+
+test("LB-16 invariant: timeUsedMs <= timePossibleMs for any mix of events", () => {
+  const G = loadGame();
+  const mixes = [
+    [800, 3000, 1500],            // hit, miss, hit
+    [0, 0, 0],                    // instant
+    [3000, 3000, 3000, 3000],     // all timeouts
+    [2999, 1, 3001, 4000],        // around the boundary + over
+    [500, 2500, 100, 3000, 2000], // realistic spread
+  ];
+  for (const list of mixes) {
+    const events = timeEvents(list);
+    const used = G.timeUsedMs(events, 3000);
+    const possible = G.timePossibleMs(events.length, 3000);
+    assert.ok(used <= possible,
+      "used (" + used + ") must be <= possible (" + possible + ") for " + JSON.stringify(list));
+  }
+});
+
+test("LB-16 invariant holds even when every event is malformed (each -> full timer)", () => {
+  const G = loadGame();
+  const events = [null, {}, { responseMs: NaN }, "bad"];
+  const used = G.timeUsedMs(events, 3000);
+  const possible = G.timePossibleMs(events.length, 3000);
+  assert.equal(used, 12000, "4 malformed events each count the full 3000ms timer");
+  assert.ok(used <= possible, "malformed events still respect used <= possible");
+});
+
+/* ---------------------- Bad input: never throws -------------------------- */
+
+test("LB-16 timePossibleMs: non-numeric / negative / NaN count -> 0", () => {
+  const G = loadGame();
+  assert.equal(G.timePossibleMs("abc", 3000), 0, "non-numeric count -> 0");
+  assert.equal(G.timePossibleMs(-5, 3000), 0, "negative count -> 0");
+  assert.equal(G.timePossibleMs(NaN, 3000), 0, "NaN count -> 0");
+  assert.equal(G.timePossibleMs(0, 3000), 0, "zero count -> 0");
+  assert.equal(G.timePossibleMs(Infinity, 3000), 0, "Infinity count -> 0");
+});
+
+test("LB-16 timePossibleMs: bad / negative / NaN timer -> 0", () => {
+  const G = loadGame();
+  assert.equal(G.timePossibleMs(5, "abc"), 0, "non-numeric timer -> 0 timer -> 0 total");
+  assert.equal(G.timePossibleMs(5, -3000), 0, "negative timer -> 0");
+  assert.equal(G.timePossibleMs(5, NaN), 0, "NaN timer -> 0");
+  assert.equal(G.timePossibleMs(5, Infinity), 0, "Infinity timer is finite-checked -> 0 timer -> 0 total");
+});
+
+test("LB-16 timePossibleMs: fractional count is floored", () => {
+  const G = loadGame();
+  assert.equal(G.timePossibleMs(5.9, 3000), 15000, "5.9 floors to 5 -> 15000");
+});
+
+test("LB-16 timeUsedMs: non-array or empty input -> 0 (no throw)", () => {
+  const G = loadGame();
+  assert.equal(G.timeUsedMs(null, 3000), 0);
+  assert.equal(G.timeUsedMs(undefined, 3000), 0);
+  assert.equal(G.timeUsedMs("nope", 3000), 0);
+  assert.equal(G.timeUsedMs([], 3000), 0, "no cards played -> 0 used");
+});
+
+test("LB-16 perCardUsedMs: NaN / undefined / negative responseMs counts the full timer", () => {
+  const G = loadGame();
+  assert.equal(G.perCardUsedMs(NaN, 3000), 3000, "NaN responseMs -> full timer");
+  assert.equal(G.perCardUsedMs(undefined, 3000), 3000, "undefined responseMs -> full timer");
+  assert.equal(G.perCardUsedMs(-100, 3000), 3000, "negative responseMs -> full timer");
+});
+
+test("LB-16 perCardUsedMs: unusable responseMs with an invalid timer -> 0 (timer coerces to 0)", () => {
+  const G = loadGame();
+  // coerceTimerMs(bad) === 0, and the unusable-response branch returns that timer.
+  assert.equal(G.perCardUsedMs(NaN, "bad"), 0, "no usable timer -> 0, not a throw");
+  assert.equal(G.perCardUsedMs(undefined, -5), 0, "negative timer coerces to 0");
+});
+
+test("LB-16 timeUsedMs: skips/handles malformed events without throwing", () => {
+  const G = loadGame();
+  // null, non-object, and missing/NaN responseMs each count the full timer (the
+  // card slot was still consumed). A good 1000ms card counts 1000.
+  const events = [
+    { responseMs: 1000 },  // good -> 1000
+    null,                  // bad  -> 3000
+    "string",              // bad  -> 3000
+    { responseMs: NaN },   // bad  -> 3000
+    { responseMs: 500 },   // good -> 500
+  ];
+  assert.equal(G.timeUsedMs(events, 3000), 1000 + 3000 + 3000 + 3000 + 500);
+});
+
+/* --------------------------- Mixed realistic case ------------------------ */
+
+test("LB-16 mixed realistic: 3 cards, timer 3000, [800, 3000(miss), 1500] -> used 5300, possible 9000", () => {
+  const G = loadGame();
+  const events = timeEvents([800, 3000, 1500]);
+  assert.equal(G.timeUsedMs(events, 3000), 5300, "800 + 3000 + 1500");
+  assert.equal(G.timePossibleMs(events.length, 3000), 9000, "3 * 3000");
+});
