@@ -28,6 +28,11 @@ const EXPECTED = {
   "lesson-4.js": { count: 80, id: "sq/lesson-4", revealMs: 5000 },
   "lesson-5.js": { count: 56, id: "sq/lesson-5", revealMs: 5000 },
   "lesson-6.js": { count: 6, id: "sq/lesson-6", revealMs: 10000 },
+  // LB-18 alphabet section: 3 group decks + 1 combined (rollup-excluded).
+  "alphabet-vowels.js": { count: 7, id: "sq/alphabet-vowels", revealMs: 5000 },
+  "alphabet-consonants.js": { count: 20, id: "sq/alphabet-consonants", revealMs: 5000 },
+  "alphabet-digraphs.js": { count: 9, id: "sq/alphabet-digraphs", revealMs: 5000 },
+  "alphabet-all.js": { count: 36, id: "sq/alphabet-all", revealMs: 5000 },
 };
 
 for (const [file, expected] of Object.entries(EXPECTED)) {

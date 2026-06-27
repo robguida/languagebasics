@@ -290,30 +290,59 @@
     return getLessonLevel(lessonId, cards) === BEST_LEVEL;
   }
 
-  /* getOverallMastered(allLessons) -> true only when every card across ALL
-   * lessons is at Level 1.
+  /* LB-18 SEAM B: rollup-skip predicate. A lesson registry entry can carry
+   * `rollup: false` to mean "do NOT count this deck in the overall mastery
+   * rollup" — used by the combined alphabet deck (sq/alphabet-all), whose 36
+   * cards already count once via the three group decks, so counting it again
+   * would double-count and inflate the denominator. Any entry WITHOUT an
+   * explicit rollup===false is counted (default-on, so the number decks and the
+   * 3 alphabet group decks all count). Pure; never throws. */
+  function isCountedLesson(entry) {
+    return !(entry && typeof entry === "object" && entry.rollup === false);
+  }
+
+  /* countCountedLessons(allLessons) -> the rollup DENOMINATOR: how many lessons
+   * count toward "X of N mastered", honoring the rollup-skip flag. index.html
+   * calls this so the skip decision lives here (pure, testable) instead of
+   * inline in the page. Never throws. */
+  function countCountedLessons(allLessons) {
+    if (!Array.isArray(allLessons)) return 0;
+    var n = 0;
+    for (var i = 0; i < allLessons.length; i++) {
+      if (isCountedLesson(allLessons[i])) n++;
+    }
+    return n;
+  }
+
+  /* getOverallMastered(allLessons) -> true only when every COUNTED card across
+   * all lessons is at Level 1.
    *
    * `allLessons` is an array of { id, cards } (the loaded lessons). Each entry
-   * needs its real card list so we can roll up per lesson. An empty/invalid list
-   * -> false (nothing to have mastered). Never throws. */
+   * needs its real card list so we can roll up per lesson. Entries flagged
+   * rollup:false are skipped (LB-18). An empty/invalid list -> false (nothing to
+   * have mastered). Never throws. */
   function getOverallMastered(allLessons) {
     if (!Array.isArray(allLessons) || allLessons.length === 0) return false;
+    var counted = 0;
     for (var i = 0; i < allLessons.length; i++) {
       var lesson = allLessons[i];
       if (!lesson || typeof lesson !== "object") return false;
+      if (!isCountedLesson(lesson)) continue; // skip the rollup-excluded deck
+      counted++;
       if (!isLessonMastered(lesson.id, lesson.cards)) return false;
     }
-    return true;
+    return counted > 0;
   }
 
-  /* countMasteredLessons(allLessons) -> how many lessons are fully mastered.
-   * Handy for the "X of N lessons mastered" readout. Never throws. */
+  /* countMasteredLessons(allLessons) -> how many COUNTED lessons are fully
+   * mastered. Handy for the "X of N lessons mastered" readout. Skips entries
+   * flagged rollup:false (LB-18). Never throws. */
   function countMasteredLessons(allLessons) {
     if (!Array.isArray(allLessons)) return 0;
     var n = 0;
     for (var i = 0; i < allLessons.length; i++) {
       var lesson = allLessons[i];
-      if (lesson && typeof lesson === "object" &&
+      if (lesson && typeof lesson === "object" && isCountedLesson(lesson) &&
           isLessonMastered(lesson.id, lesson.cards)) {
         n++;
       }
@@ -372,6 +401,8 @@
     isLessonMastered: isLessonMastered,
     getOverallMastered: getOverallMastered,
     countMasteredLessons: countMasteredLessons,
+    countCountedLessons: countCountedLessons,
+    isCountedLesson: isCountedLesson,
     countLessonL1Records: countLessonL1Records,
     lessonMasteredByCount: lessonMasteredByCount,
     commentFor: commentFor,

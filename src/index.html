@@ -25,7 +25,7 @@
   </header>
 
   <main class="app">
-    <h1 id="title">Albanian Numbers</h1>
+    <h1 id="title">Albanian Tosk Basics</h1>
 
     <div class="lesson-select">
       <label for="lessonPicker" class="visually-hidden">Choose a lesson</label>
@@ -36,6 +36,10 @@
         <option value="sq/lesson-4">Lesson 4 — Numbers 20–99</option>
         <option value="sq/lesson-5">Lesson 5 — Big Number Roots</option>
         <option value="sq/lesson-6">Lesson 6 — Number Builder</option>
+        <option value="sq/alphabet-vowels">Alphabet — Vowels</option>
+        <option value="sq/alphabet-consonants">Alphabet — Consonants</option>
+        <option value="sq/alphabet-digraphs">Alphabet — Digraphs</option>
+        <option value="sq/alphabet-all">Alphabet — Full (36)</option>
       </select>
     </div>
 
@@ -221,7 +225,10 @@
     (function () {
       var ALLOWED = {
         "sq/lesson-1": true, "sq/lesson-2": true, "sq/lesson-3": true,
-        "sq/lesson-4": true, "sq/lesson-5": true, "sq/lesson-6": true
+        "sq/lesson-4": true, "sq/lesson-5": true, "sq/lesson-6": true,
+        // LB-18 alphabet section: 3 group decks + 1 combined (rollup-excluded).
+        "sq/alphabet-vowels": true, "sq/alphabet-consonants": true,
+        "sq/alphabet-digraphs": true, "sq/alphabet-all": true
       };
       var DEFAULT_LESSON = "sq/lesson-1";
 
@@ -258,6 +265,7 @@
   <script src="game.js"></script>
   <script src="mastery.js"></script>
   <script src="streak.js"></script>
+  <script src="hint.js"></script>
   <script src="engine.js"></script>
   <script src="settings.js"></script>
   <script>
@@ -278,7 +286,11 @@
       // lesson's card count changes.
       var LESSON_COUNTS = {
         "sq/lesson-1": 11, "sq/lesson-2": 9, "sq/lesson-3": 8,
-        "sq/lesson-4": 80, "sq/lesson-5": 56, "sq/lesson-6": 6
+        "sq/lesson-4": 80, "sq/lesson-5": 56, "sq/lesson-6": 6,
+        // LB-18 alphabet section. alphabet-all (36) is rollup-excluded, so its
+        // count never reaches the denominator; kept here for completeness.
+        "sq/alphabet-vowels": 7, "sq/alphabet-consonants": 20,
+        "sq/alphabet-digraphs": 9, "sq/alphabet-all": 36
       };
       if (Array.isArray(window.LB_LESSONS)) {
         for (var li = 0; li < window.LB_LESSONS.length; li++) {
@@ -311,11 +323,17 @@
           lessonText = "This lesson: Level " + level + " of 5 (Level 1 = mastered)";
         }
 
-        var total = Array.isArray(window.LB_LESSONS) ? window.LB_LESSONS.length : 0;
+        // LB-18 SEAM B: the denominator is the count of COUNTED lessons (the
+        // pure function in mastery.js honors the rollup-skip flag, so the
+        // combined alphabet deck — rollup:false — is excluded from both N and
+        // the numerator). N stays 9: 6 number decks + 3 alphabet group decks.
+        var entries = Array.isArray(window.LB_LESSONS) ? window.LB_LESSONS : [];
+        var total = M.countCountedLessons(entries);
         var mastered = 0, allMastered = total > 0;
-        for (var i = 0; i < total; i++) {
-          var entry = window.LB_LESSONS[i];
+        for (var i = 0; i < entries.length; i++) {
+          var entry = entries[i];
           if (!entry || !entry.id) { allMastered = false; continue; }
+          if (!M.isCountedLesson(entry)) continue; // skip the rollup-excluded deck
           var isM;
           if (entry.id === id) {
             isM = M.isLessonMastered(id, cards);
