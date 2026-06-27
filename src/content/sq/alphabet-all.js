@@ -24,7 +24,7 @@ window.LB_LESSON = {
     { prompt: "ë", answer: "Uh", hint: "ëndërr (Un dur, dream) / ëmbël (Um bul, sweet) / zëri (Zuh ree, voice)", audio: "" },
     { prompt: "f", answer: "F", hint: "fjalë (Fyahl, word) / flutur (Floo toor, butterfly) / faqe (Fah cheh, cheek)", audio: "" },
     { prompt: "g", answer: "G (as in GO)", hint: "gur (Goor, stone) / gisht (Geesht, finger) / gojë (Goh yuh, mouth)", audio: "" },
-    { prompt: "gj", answer: "Jy (as in arGUe)", hint: "gjashtë (Jyosh t, six) / gjak (Jyahk, blood) / gjuhë (Jyooh, language)", audio: "" },
+    { prompt: "gj", answer: "Gy (as in arGUe)", hint: "gjashtë (Gyosht, six) / gjak (Gyahk, blood) / gjuhë (Gyooh, language)", audio: "" },
     { prompt: "h", answer: "H", hint: "hënë (Huh nuh, moon) / hap (Hahp, step) / hekur (Heh koor, iron)", audio: "" },
     { prompt: "i", answer: "Ee", hint: "mik (Meek, friend) / dritë (Dreet, light) / pi (Pee, drink)", audio: "" },
     { prompt: "j", answer: "Y (as in YES)", hint: "jam (Yahm, am) / javë (Yahv, week) / jetë (Yeht, life)", audio: "" },

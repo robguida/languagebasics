@@ -14,7 +14,7 @@ window.LB_LESSON = {
   revealMs: 5000,
   cards: [
     { prompt: "dh", answer: "Th (as in THIS)",      hint: "dhjetë (They it, ten) / dhomë (Thohm, room) / dhi (Thee, goat)",        audio: "" },
-    { prompt: "gj", answer: "Jy (as in arGUe)",     hint: "gjashtë (Jyosh t, six) / gjak (Jyahk, blood) / gjuhë (Jyooh, language)", audio: "" },
+    { prompt: "gj", answer: "Gy (as in arGUe)",     hint: "gjashtë (Gyosht, six) / gjak (Gyahk, blood) / gjuhë (Gyooh, language)", audio: "" },
     { prompt: "ll", answer: "L (dark, as in BALL)", hint: "yll (Ool, star) / mollë (Mohl, apple) / pyll (Pool, forest)",           audio: "" },
     { prompt: "nj", answer: "Ny (as in caNYon)",    hint: "një (Nyu, one) / njeri (Nyeh ree, person) / njoh (Nyoh, know)",         audio: "" },
     { prompt: "rr", answer: "R (rolled / trilled)", hint: "rrugë (Rroog, street) / burrë (Boor, man) / arrë (Ahr, walnut)",        audio: "" },
