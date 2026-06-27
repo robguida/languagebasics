@@ -9,7 +9,7 @@ window.LB_LESSON = {
     { prompt: 30, answer: "tridhjetë",     hint: "Tree they yet",  audio: "" },
     { prompt: 40, answer: "dyzet",          hint: "Doo zet",        audio: "" },
     { prompt: 50, answer: "pesëdhjetë",    hint: "Pes they yet",   audio: "" },
-    { prompt: 60, answer: "gjashtëdhjetë", hint: "Jyosht they yet",audio: "" },
+    { prompt: 60, answer: "gjashtëdhjetë", hint: "Gyosht they yet",audio: "" },
     { prompt: 70, answer: "shtatëdhjetë",  hint: "Shtah t they yet",audio: "" },
     { prompt: 80, answer: "tetëdhjetë",    hint: "Teh t they yet", audio: "" },
     { prompt: 90, answer: "nëntëdhjetë",  hint: "Nuhn t they yet",audio: "" }
