@@ -13,7 +13,7 @@ window.LB_LESSON = {
     { prompt: 13, answer: "tre | mbëdhjetë",     hint: "Trrem buh they yet",    audio: "" },
     { prompt: 14, answer: "katër | mbëdhjetë",  hint: "Kah ter buh they yet", audio: "" },
     { prompt: 15, answer: "pesë | mbëdhjetë",   hint: "Pes buh they yet",     audio: "" },
-    { prompt: 16, answer: "gjashtë | mbëdhjetë",hint: "Jyosht buh they yet",  audio: "" },
+    { prompt: 16, answer: "gjashtë | mbëdhjetë",hint: "Gyosht buh they yet",  audio: "" },
     { prompt: 17, answer: "shtatë | mbëdhjetë", hint: "Shtah t buh they yet", audio: "" },
     { prompt: 18, answer: "tetë | mbëdhjetë",   hint: "Teh t buh they yet",   audio: "" },
     { prompt: 19, answer: "nëntë | mbëdhjetë", hint: "Nuhn t buh they yet",  audio: "" }

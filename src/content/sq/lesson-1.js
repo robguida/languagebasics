@@ -13,7 +13,7 @@ window.LB_LESSON = {
     { prompt: 3,  answer: "tre",      hint: "Trreh",    audio: "" },
     { prompt: 4,  answer: "katër",   hint: "Kah ter",  audio: "" },
     { prompt: 5,  answer: "pesë",    hint: "Pes",      audio: "" },
-    { prompt: 6,  answer: "gjashtë", hint: "Jyosht",   audio: "" },
+    { prompt: 6,  answer: "gjashtë", hint: "Gyosht",   audio: "" },
     { prompt: 7,  answer: "shtatë",  hint: "Shtah t",  audio: "" },
     { prompt: 8,  answer: "tetë",    hint: "Teh t",    audio: "" },
     { prompt: 9,  answer: "nëntë",  hint: "Nuhn t",   audio: "" },
