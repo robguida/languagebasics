@@ -71,6 +71,46 @@
     return String(answer).split(" | ").join("<br>");
   }
 
+  /* LB-18 SEAM A: per-card example rotation for the alphabet cards.
+   *
+   * Alphabet cards pack THREE example words into `hint` (" / "-separated) and we
+   * want the learner to see ONE per view, cycling through all three across
+   * repeated views. The pick is keyed on CARD IDENTITY (lessonId:prompt), NOT
+   * pool position — Leitner reorders and test mode reshuffles, so position is
+   * not a stable key. exampleCycle holds a per-identity view counter that
+   * survives study<->test switches within a page load.
+   *
+   * The PURE selection logic lives in window.LBHint (hint.js, unit-tested like
+   * leitner.js/mastery.js). This is only the bookkeeping + a guarded call:
+   *   - LBHint absent (engine unit-test sandboxes have no LBHint) => return the
+   *     raw hint, byte-identical to pre-LB-18.
+   *   - hint has no " / " (every NUMBER lesson) => LBHint.pick returns it
+   *     unchanged, also byte-identical.
+   * The example is shown on reveal/back ONLY; it never gates answer time. */
+  var exampleCycle = {};
+
+  function nextExampleIndex(lessonId, prompt) {
+    var key = String(lessonId) + ":" + String(prompt);
+    var i = (typeof exampleCycle[key] === "number") ? exampleCycle[key] : 0;
+    exampleCycle[key] = i + 1;
+    return i;
+  }
+
+  function renderHint(lessonId, card) {
+    var raw = card.hint;
+    try {
+      if (typeof window !== "undefined" && window.LBHint &&
+          typeof window.LBHint.pick === "function") {
+        var idx = nextExampleIndex(lessonId, card.prompt);
+        return window.LBHint.pick(raw, idx);
+      }
+    } catch (err) {
+      // Any rotation failure => show the raw hint. Never abort the card.
+      console.warn("[engine] hint example pick failed; using raw hint", err);
+    }
+    return raw;
+  }
+
   /* Normalize and validate one raw card. Returns a clean card object, or
    * null if the card is unusable. LOOP RESILIENCE (global rule): the caller
    * skips nulls and keeps going — one bad card never aborts the deck. */
@@ -228,6 +268,8 @@
     var recallPrompt = (lesson && lesson.recallPrompt)
       ? String(lesson.recallPrompt)
       : DEFAULTS.recallPrompt;
+    // LB-18 SEAM A: identity for the per-card example-rotation key.
+    var lessonId = (lesson && lesson.id) ? String(lesson.id) : "";
 
     var deck = buildDeck(lesson);
 
@@ -348,7 +390,9 @@
 
       wordEl.style.fontSize = wordFontSize(current.answer);
       wordEl.innerHTML = renderAnswer(current.answer);
-      pronEl.textContent = current.hint;
+      // LB-18 SEAM A: rotate to ONE example for alphabet cards; raw hint for
+      // number cards / when LBHint is absent (byte-identical to before).
+      pronEl.textContent = renderHint(lessonId, current);
 
       wordEl.hidden = true;
       pronEl.hidden = true;
@@ -683,7 +727,9 @@
       wordEl.style.fontSize = wordFontSize(card.answer);
       wordEl.innerHTML = renderAnswer(card.answer);
       wordEl.hidden = true;
-      pronEl.textContent = card.hint;
+      // LB-18 SEAM A: same per-card example rotation as study mode (lessonId is
+      // already resolved above in startTest).
+      pronEl.textContent = renderHint(lessonId, card);
       pronEl.hidden = true;
       if (recallEl) { recallEl.textContent = ""; recallEl.hidden = true; }
 

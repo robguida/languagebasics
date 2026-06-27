@@ -385,6 +385,20 @@ test("lessonMasteredByCount: true only when stored L1 count === expectedCount", 
   assert.equal(LBMastery.lessonMasteredByCount(L, 0), false);
 });
 
+test("lessonMasteredByCount: small alphabet deck (7 cards) masters exactly at 7 of 7", () => {
+  // LB-18 item 5: the small alphabet decks (vowels=7) must roll up by count the
+  // same as a big deck — N-1 is not mastered, N is. Same mechanism, small count.
+  const { LBMastery } = loadMastery();
+  const V = "sq/alphabet-vowels";
+  const letters = ["a", "e", "ë", "i", "o", "u", "y"]; // the 7 vowels
+  for (let i = 0; i < 6; i++) {
+    LBMastery.record(V, { card: card(letters[i]), gotIt: true, responseMs: 900 });
+  }
+  assert.equal(LBMastery.lessonMasteredByCount(V, 7), false, "6 of 7 is not mastered");
+  LBMastery.record(V, { card: card(letters[6]), gotIt: true, responseMs: 900 });
+  assert.equal(LBMastery.lessonMasteredByCount(V, 7), true, "7 of 7 masters the small deck");
+});
+
 // ---------------------------------------------------------------------------
 // 6. order-independence — same event SET, different ORDER => same final state.
 //    Guards against any Random-vs-Leitner ordering coupling.
@@ -496,4 +510,46 @@ test("record: malformed event / unusable card id => null, never throws", () => {
   assert.equal(LBMastery.record(L, { gotIt: true, responseMs: 900 }), null, "no card");
   assert.equal(LBMastery.record(L, { card: card(""), gotIt: true, responseMs: 900 }), null, "empty prompt");
   assert.equal(LBMastery.record(null, { card: card(1), gotIt: true, responseMs: 900 }), null, "no lessonId");
+});
+
+/* ===================================================================== *
+ * LB-18 SEAM B: rollup-skip flag (countCountedLessons / isCountedLesson) *
+ * ===================================================================== */
+
+test("SEAM B: isCountedLesson — rollup:false excluded, everything else counted", () => {
+  const { LBMastery } = loadMasteryNoStore();
+  assert.equal(LBMastery.isCountedLesson({ id: "sq/lesson-1" }), true, "no flag => counted");
+  assert.equal(LBMastery.isCountedLesson({ id: "sq/alphabet-vowels", rollup: true }), true);
+  assert.equal(LBMastery.isCountedLesson({ id: "sq/alphabet-all", rollup: false }), false,
+    "rollup:false => not counted");
+  assert.equal(LBMastery.isCountedLesson(null), true, "defensive: bad entry counts (never throws)");
+});
+
+test("SEAM B: countCountedLessons excludes the rollup-skip deck (denominator stays 9)", () => {
+  const { LBMastery } = loadMasteryNoStore();
+  // 6 number decks + 3 alphabet group decks + 1 combined (rollup:false).
+  const entries = [
+    { id: "sq/lesson-1" }, { id: "sq/lesson-2" }, { id: "sq/lesson-3" },
+    { id: "sq/lesson-4" }, { id: "sq/lesson-5" }, { id: "sq/lesson-6" },
+    { id: "sq/alphabet-vowels" }, { id: "sq/alphabet-consonants" },
+    { id: "sq/alphabet-digraphs" }, { id: "sq/alphabet-all", rollup: false },
+  ];
+  assert.equal(LBMastery.countCountedLessons(entries), 9,
+    "the combined alphabet deck must be excluded from the rollup denominator");
+  assert.equal(LBMastery.countCountedLessons([]), 0);
+  assert.equal(LBMastery.countCountedLessons(null), 0, "never throws on bad input");
+});
+
+test("SEAM B: countMasteredLessons / getOverallMastered honor the skip flag", () => {
+  const { LBMastery } = loadMastery();
+  const v = { id: "sq/v", cards: [{ prompt: "a" }] };
+  const all = { id: "sq/all", cards: [{ prompt: "a" }], rollup: false };
+  // Master the counted deck's only card at L1.
+  LBMastery.record("sq/v", { card: { prompt: "a" }, gotIt: true, responseMs: 900 });
+  // The combined deck (rollup:false) is NEVER recorded, yet overall is mastered
+  // because the skip flag removes it from the rollup.
+  assert.equal(LBMastery.countMasteredLessons([v, all]), 1,
+    "only the counted deck is tallied");
+  assert.equal(LBMastery.getOverallMastered([v, all]), true,
+    "rollup:false deck must not block overall mastery");
 });
