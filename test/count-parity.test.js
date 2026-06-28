@@ -94,8 +94,8 @@ const DROPDOWN = parseDropdown();
 const EXPECTED = schemaExpected();
 const IDS = Object.keys(COUNTS).sort();
 
-test("parity: index.html LESSON_COUNTS covers exactly the 15 known lessons", () => {
-  assert.equal(IDS.length, 15, "expected 15 lessons in LESSON_COUNTS");
+test("parity: index.html LESSON_COUNTS covers exactly the 20 known lessons", () => {
+  assert.equal(IDS.length, 20, "expected 20 lessons in LESSON_COUNTS");
 });
 
 for (const id of IDS) {

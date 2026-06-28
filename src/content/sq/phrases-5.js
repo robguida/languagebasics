@@ -18,7 +18,7 @@ window.LB_LESSON = {
     { prompt: "Help!",                   answer: "Ndihmë!",            hint: "Ndeeh muh",                audio: "" },
     { prompt: "I need a doctor",         answer: "Më duhet një mjek",  hint: "Muh doo het nyu myek",     audio: "" },
     { prompt: "My name is…",             answer: "Unë quhem…",         hint: "Oo nuh choo hem",          audio: "" },
-    { prompt: "Nice to meet you",        answer: "Gëzohem që ju njoh", hint: "Guh zoh hem chuh yoo nyoh", audio: "" }
+    { prompt: "Pleased to meet you (formal)", answer: "Gëzohem që ju njoh", hint: "Guh zoh hem chuh yoo nyoh", audio: "" }
   ]
 };
 (window.LB_LESSONS = window.LB_LESSONS || []).push({ id: "sq/phrases-5", title: "Albanian Tosk Basics: Help & Connecting", rollup: false });

@@ -48,12 +48,22 @@
           <option value="sq/alphabet-digraphs">Lesson 3 — Digraphs</option>
           <option value="sq/alphabet-all">Lesson 4 — Full set (36)</option>
         </optgroup>
-        <optgroup label="Phrases">
-          <option value="sq/phrases-1">Lesson 1 — Hello & Time of Day</option>
-          <option value="sq/phrases-2">Lesson 2 — Goodbye & First Contact</option>
-          <option value="sq/phrases-3">Lesson 3 — Courtesy Basics</option>
-          <option value="sq/phrases-4">Lesson 4 — Out & About</option>
-          <option value="sq/phrases-5">Lesson 5 — Help & Connecting</option>
+        <!-- LB-21: the former "Phrases" group becomes "Words & Phrases" — each
+             topic's single-word deck (words-N) is interleaved BEFORE its phrase
+             deck (phrases-N). Per-group "Lesson N" labels restart 1-10 and are
+             DISPLAY-ONLY; option VALUES (lesson IDs / ?lesson= values) are
+             unchanged for the phrases and new for the words. -->
+        <optgroup label="Words &amp; Phrases">
+          <option value="sq/words-1">Lesson 1 — Hello: Words</option>
+          <option value="sq/phrases-1">Lesson 2 — Hello: Phrases</option>
+          <option value="sq/words-2">Lesson 3 — Goodbye: Words</option>
+          <option value="sq/phrases-2">Lesson 4 — Goodbye: Phrases</option>
+          <option value="sq/words-3">Lesson 5 — Courtesy: Words</option>
+          <option value="sq/phrases-3">Lesson 6 — Courtesy: Phrases</option>
+          <option value="sq/words-4">Lesson 7 — Out &amp; About: Words</option>
+          <option value="sq/phrases-4">Lesson 8 — Out &amp; About: Phrases</option>
+          <option value="sq/words-5">Lesson 9 — Help: Words</option>
+          <option value="sq/phrases-5">Lesson 10 — Help: Phrases</option>
         </optgroup>
       </select>
     </div>
@@ -246,7 +256,11 @@
         "sq/alphabet-digraphs": true, "sq/alphabet-all": true,
         // LB-20 phrases section: 5 decks, all rollup-excluded.
         "sq/phrases-1": true, "sq/phrases-2": true, "sq/phrases-3": true,
-        "sq/phrases-4": true, "sq/phrases-5": true
+        "sq/phrases-4": true, "sq/phrases-5": true,
+        // LB-21 words section: 5 decks, all rollup-excluded. Interleaved with
+        // the phrases decks in the "Words & Phrases" group.
+        "sq/words-1": true, "sq/words-2": true, "sq/words-3": true,
+        "sq/words-4": true, "sq/words-5": true
       };
       var DEFAULT_LESSON = "sq/lesson-1";
 
@@ -312,7 +326,11 @@
         // LB-20 phrases section. All 5 are rollup-excluded, so their counts
         // never reach the denominator; kept here for completeness.
         "sq/phrases-1": 7, "sq/phrases-2": 8, "sq/phrases-3": 6,
-        "sq/phrases-4": 6, "sq/phrases-5": 6
+        "sq/phrases-4": 6, "sq/phrases-5": 6,
+        // LB-21 words section. All 5 are rollup-excluded; counts kept for
+        // completeness / count-parity guard.
+        "sq/words-1": 9, "sq/words-2": 12, "sq/words-3": 11,
+        "sq/words-4": 13, "sq/words-5": 17
       };
       if (Array.isArray(window.LB_LESSONS)) {
         for (var li = 0; li < window.LB_LESSONS.length; li++) {
