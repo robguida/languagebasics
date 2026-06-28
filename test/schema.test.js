@@ -39,6 +39,12 @@ const EXPECTED = {
   "phrases-3.js": { count: 6, id: "sq/phrases-3", revealMs: 5000 },
   "phrases-4.js": { count: 6, id: "sq/phrases-4", revealMs: 5000 },
   "phrases-5.js": { count: 6, id: "sq/phrases-5", revealMs: 5000 },
+  // LB-21 words section: 5 decks, all rollup-excluded. 9/12/11/13/17 = 62 cards.
+  "words-1.js": { count: 9, id: "sq/words-1", revealMs: 5000 },
+  "words-2.js": { count: 12, id: "sq/words-2", revealMs: 5000 },
+  "words-3.js": { count: 11, id: "sq/words-3", revealMs: 5000 },
+  "words-4.js": { count: 13, id: "sq/words-4", revealMs: 5000 },
+  "words-5.js": { count: 17, id: "sq/words-5", revealMs: 5000 },
 };
 
 for (const [file, expected] of Object.entries(EXPECTED)) {
