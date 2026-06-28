@@ -29,17 +29,32 @@
 
     <div class="lesson-select">
       <label for="lessonPicker" class="visually-hidden">Choose a lesson</label>
+      <!-- LB-20: three section optgroups (Numbers / Alphabet / Phrases). The
+           "Lesson N — Topic" labels restart numbering per group and are
+           DISPLAY-ONLY — the option VALUES (lesson IDs / ?lesson= values) are
+           unchanged. -->
       <select id="lessonPicker" aria-label="Choose a lesson">
-        <option value="sq/lesson-1">Lesson 1 — Numbers 0–10</option>
-        <option value="sq/lesson-2">Lesson 2 — Numbers 11–19</option>
-        <option value="sq/lesson-3">Lesson 3 — Tens 20–90</option>
-        <option value="sq/lesson-4">Lesson 4 — Numbers 20–99</option>
-        <option value="sq/lesson-5">Lesson 5 — Big Number Roots</option>
-        <option value="sq/lesson-6">Lesson 6 — Number Builder</option>
-        <option value="sq/alphabet-vowels">Alphabet — Vowels</option>
-        <option value="sq/alphabet-consonants">Alphabet — Consonants</option>
-        <option value="sq/alphabet-digraphs">Alphabet — Digraphs</option>
-        <option value="sq/alphabet-all">Alphabet — Full (36)</option>
+        <optgroup label="Numbers">
+          <option value="sq/lesson-1">Lesson 1 — 0–10</option>
+          <option value="sq/lesson-2">Lesson 2 — 11–19</option>
+          <option value="sq/lesson-3">Lesson 3 — Tens 20–90</option>
+          <option value="sq/lesson-4">Lesson 4 — 20–99 compounds</option>
+          <option value="sq/lesson-5">Lesson 5 — Big Number Roots</option>
+          <option value="sq/lesson-6">Lesson 6 — Number Builder</option>
+        </optgroup>
+        <optgroup label="Alphabet">
+          <option value="sq/alphabet-vowels">Lesson 1 — Vowels</option>
+          <option value="sq/alphabet-consonants">Lesson 2 — Consonants</option>
+          <option value="sq/alphabet-digraphs">Lesson 3 — Digraphs</option>
+          <option value="sq/alphabet-all">Lesson 4 — Full set (36)</option>
+        </optgroup>
+        <optgroup label="Phrases">
+          <option value="sq/phrases-1">Lesson 1 — Hello & Time of Day</option>
+          <option value="sq/phrases-2">Lesson 2 — Goodbye & First Contact</option>
+          <option value="sq/phrases-3">Lesson 3 — Courtesy Basics</option>
+          <option value="sq/phrases-4">Lesson 4 — Out & About</option>
+          <option value="sq/phrases-5">Lesson 5 — Help & Connecting</option>
+        </optgroup>
       </select>
     </div>
 
@@ -228,7 +243,10 @@
         "sq/lesson-4": true, "sq/lesson-5": true, "sq/lesson-6": true,
         // LB-18 alphabet section: 3 group decks + 1 combined (rollup-excluded).
         "sq/alphabet-vowels": true, "sq/alphabet-consonants": true,
-        "sq/alphabet-digraphs": true, "sq/alphabet-all": true
+        "sq/alphabet-digraphs": true, "sq/alphabet-all": true,
+        // LB-20 phrases section: 5 decks, all rollup-excluded.
+        "sq/phrases-1": true, "sq/phrases-2": true, "sq/phrases-3": true,
+        "sq/phrases-4": true, "sq/phrases-5": true
       };
       var DEFAULT_LESSON = "sq/lesson-1";
 
@@ -290,7 +308,11 @@
         // LB-18 alphabet section. alphabet-all (36) is rollup-excluded, so its
         // count never reaches the denominator; kept here for completeness.
         "sq/alphabet-vowels": 7, "sq/alphabet-consonants": 20,
-        "sq/alphabet-digraphs": 9, "sq/alphabet-all": 36
+        "sq/alphabet-digraphs": 9, "sq/alphabet-all": 36,
+        // LB-20 phrases section. All 5 are rollup-excluded, so their counts
+        // never reach the denominator; kept here for completeness.
+        "sq/phrases-1": 7, "sq/phrases-2": 8, "sq/phrases-3": 6,
+        "sq/phrases-4": 6, "sq/phrases-5": 6
       };
       if (Array.isArray(window.LB_LESSONS)) {
         for (var li = 0; li < window.LB_LESSONS.length; li++) {

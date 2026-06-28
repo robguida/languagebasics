@@ -33,6 +33,12 @@ const EXPECTED = {
   "alphabet-consonants.js": { count: 20, id: "sq/alphabet-consonants", revealMs: 5000 },
   "alphabet-digraphs.js": { count: 9, id: "sq/alphabet-digraphs", revealMs: 5000 },
   "alphabet-all.js": { count: 36, id: "sq/alphabet-all", revealMs: 5000 },
+  // LB-20 phrases section: 5 decks, all rollup-excluded. 7/8/6/6/6 = 33 cards.
+  "phrases-1.js": { count: 7, id: "sq/phrases-1", revealMs: 5000 },
+  "phrases-2.js": { count: 8, id: "sq/phrases-2", revealMs: 5000 },
+  "phrases-3.js": { count: 6, id: "sq/phrases-3", revealMs: 5000 },
+  "phrases-4.js": { count: 6, id: "sq/phrases-4", revealMs: 5000 },
+  "phrases-5.js": { count: 6, id: "sq/phrases-5", revealMs: 5000 },
 };
 
 for (const [file, expected] of Object.entries(EXPECTED)) {
