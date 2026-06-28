@@ -46,12 +46,11 @@ const ANSWER_SEP = " | "; // engine renderAnswer line separator
 const HINT_DELIM = " / "; // engine alphabet hint-rotation delimiter
 
 /* Every pair/stack card across the 5 decks, keyed by id+prompt, with the exact
- * number of Albanian parts expected. Data-driven: 3 greeting pairs + Yes/No +
- * the 4-way Left/Right/Here/Stop = 5 cards with 2+ parts (4 with 2, 1 with 4). */
+ * number of Albanian parts expected. LB-21 Item A simplified the 3 greeting
+ * pairs (How are you? / Welcome / Nice to meet you) to single-part cards, so the
+ * only remaining stacks are Yes/No and the 4-way Left/Right/Here/Stop = 2 cards
+ * with 2+ parts (1 with 2, 1 with 4). */
 const PAIR_CARDS = [
-  { file: "phrases-1.js", prompt: "How are you?",                parts: 2 },
-  { file: "phrases-2.js", prompt: "Welcome",                     parts: 2 },
-  { file: "phrases-2.js", prompt: "Nice to meet you",            parts: 2 },
   { file: "phrases-3.js", prompt: "Yes / No",                    parts: 2 },
   { file: "phrases-4.js", prompt: "Left / Right / Here / Stop",  parts: 4 },
 ];
@@ -89,7 +88,7 @@ test("phrases: each pair card answer splits into the expected non-empty parts", 
   }
 });
 
-test("phrases: exactly 5 pair cards across the section, the rest are single-part", () => {
+test("phrases: exactly 2 pair cards across the section, the rest are single-part", () => {
   let pairCount = 0;
   let total = 0;
   for (const file of PHRASES_FILES) {
@@ -100,7 +99,7 @@ test("phrases: exactly 5 pair cards across the section, the rest are single-part
     }
   }
   assert.equal(total, 33, "expected 33 cards across the 5 phrases decks");
-  assert.equal(pairCount, 5, "expected exactly 5 multi-part (pair) answer cards");
+  assert.equal(pairCount, 2, "expected exactly 2 multi-part (pair) answer cards (LB-21 Item A simplified the 3 greeting pairs)");
 });
 
 // ---------------------------------------------------------------------------
