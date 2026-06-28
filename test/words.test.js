@@ -16,7 +16,7 @@
  *      " | " (engine renderAnswer line separator) or " / " (engine alphabet
  *      hint-rotation delimiter). Either would mis-render the hint or trigger
  *      example-rotation on a word card. The existing phrases.test.js separator
- *      guard is hard-scoped to the 33 phrase hints (scanned===33); this is the
+ *      guard is hard-scoped to the 32 phrase hints (scanned===32); this is the
  *      words-scoped mirror (scanned===62).
  *
  * Built-ins only: node:test, node:assert (+ the shared vm lesson loader).

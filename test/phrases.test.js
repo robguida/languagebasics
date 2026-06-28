@@ -17,7 +17,7 @@
  *     2. ENGINE: the REAL renderAnswer path (via LBEngine.start -> nextCard ->
  *        wordEl.innerHTML) turns a " | " answer into the right <br>-joined HTML,
  *        and leaves a single-part answer with NO <br>.
- *     3. HINT GUARD: no hint on any of the 33 new cards contains " | " or " / "
+ *     3. HINT GUARD: no hint on any of the 32 new cards contains " | " or " / "
  *        (either would break raw-hint render / trigger alphabet rotation). The
  *        " / " in a card PROMPT is intentional and out of scope (only hints
  *        feed the rotation delimiter).
@@ -47,13 +47,10 @@ const HINT_DELIM = " / "; // engine alphabet hint-rotation delimiter
 
 /* Every pair/stack card across the 5 decks, keyed by id+prompt, with the exact
  * number of Albanian parts expected. LB-21 Item A simplified the 3 greeting
- * pairs (How are you? / Welcome / Nice to meet you) to single-part cards, so the
- * only remaining stacks are Yes/No and the 4-way Left/Right/Here/Stop = 2 cards
- * with 2+ parts (1 with 2, 1 with 4). */
-const PAIR_CARDS = [
-  { file: "phrases-3.js", prompt: "Yes / No",                    parts: 2 },
-  { file: "phrases-4.js", prompt: "Left / Right / Here / Stop",  parts: 4 },
-];
+ * pairs (How are you? / Welcome / Nice to meet you) to single-part cards, and
+ * LB-22 removed the last two stacks (Yes/No and Left/Right/Here/Stop), so the
+ * section now has NO multi-part answer cards. */
+const PAIR_CARDS = [];
 
 function findCard(lesson, prompt) {
   return lesson.cards.find((c) => String(c.prompt) === String(prompt));
@@ -88,7 +85,7 @@ test("phrases: each pair card answer splits into the expected non-empty parts", 
   }
 });
 
-test("phrases: exactly 2 pair cards across the section, the rest are single-part", () => {
+test("phrases: no pair cards across the section, every answer is single-part", () => {
   let pairCount = 0;
   let total = 0;
   for (const file of PHRASES_FILES) {
@@ -98,8 +95,8 @@ test("phrases: exactly 2 pair cards across the section, the rest are single-part
       if (String(card.answer).includes(ANSWER_SEP)) pairCount++;
     }
   }
-  assert.equal(total, 33, "expected 33 cards across the 5 phrases decks");
-  assert.equal(pairCount, 2, "expected exactly 2 multi-part (pair) answer cards (LB-21 Item A simplified the 3 greeting pairs)");
+  assert.equal(total, 32, "expected 32 cards across the 5 phrases decks");
+  assert.equal(pairCount, 0, "expected no multi-part (pair) answer cards (LB-22 removed the last two stacks)");
 });
 
 // ---------------------------------------------------------------------------
@@ -222,6 +219,6 @@ test('phrases: no hint contains " | " or " / " (would break render / trigger rot
       }
     });
   }
-  assert.equal(scanned, 33, "expected to scan all 33 new phrases hints");
+  assert.equal(scanned, 32, "expected to scan all 32 new phrases hints");
   assert.deepEqual(offenders, [], `Forbidden hint separator(s) found:\n${offenders.join("\n")}`);
 });

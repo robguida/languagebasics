@@ -21,7 +21,7 @@ window.LB_LESSON = {
     { prompt: "not",           answer: "nuk",      hint: "Nook",        audio: "" },
     { prompt: "I speak",       answer: "flas",     hint: "Flahs",       audio: "" },
     { prompt: "Albanian",      answer: "shqip",    hint: "Shcheep",     audio: "" },
-    { prompt: "Help",          answer: "Ndihmë",   hint: "Ndeeh muh",   audio: "" },
+    { prompt: "Help!",         answer: "Ndihmë",   hint: "Ndeeh muh",   audio: "" },
     { prompt: "me",            answer: "më",       hint: "Muh",         audio: "" },
     { prompt: "is needed",     answer: "duhet",    hint: "Doo het",     audio: "" },
     { prompt: "a/one",         answer: "një",      hint: "Nyu",         audio: "" },
