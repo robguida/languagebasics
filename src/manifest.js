@@ -151,6 +151,23 @@
     return out;
   }
 
+  /* listLessonsForLanguage(manifest, code) -> the FLAT lesson array for ONE
+   * language only: the same { id, label, count, rollup, group, languageCode }
+   * rows as listLessons, filtered to languageCode === code. Powers the
+   * per-language mastery rollup (LB-27) so the "X of N mastered" denominator is
+   * scoped to the ACTIVE language instead of every registered language combined.
+   * A missing/empty code, or an unknown code, yields []. Pure; never throws. */
+  function listLessonsForLanguage(manifest, code) {
+    if (!code) return [];
+    var wanted = String(code);
+    var all = listLessons(manifest);
+    var out = [];
+    for (var i = 0; i < all.length; i++) {
+      if (all[i].languageCode === wanted) out.push(all[i]);
+    }
+    return out;
+  }
+
   /* buildAllowedMap(manifest) -> { "<id>": true } across ALL languages — the
    * ?lesson= whitelist that replaces the hand-maintained ALLOWED literal. */
   function buildAllowedMap(manifest) {
@@ -202,6 +219,7 @@
     buildLanguageOptions: buildLanguageOptions,
     buildPickerModel: buildPickerModel,
     listLessons: listLessons,
+    listLessonsForLanguage: listLessonsForLanguage,
     buildAllowedMap: buildAllowedMap,
     buildLessonCounts: buildLessonCounts,
     buildRollupMap: buildRollupMap,
