@@ -286,6 +286,47 @@ test("manifest: buildPickerModel/getDefaultLesson resolve per activeCode (langua
 });
 
 // ---------------------------------------------------------------------------
+// 6c. Per-language lesson list (LB-27) — listLessonsForLanguage scopes the
+//     mastery rollup to the ACTIVE language. sq returns only sq lessons, es only
+//     es, unknown/empty code returns []. This is the source the "X of N mastered"
+//     header denominator now reads (per-language, not combined).
+// ---------------------------------------------------------------------------
+test("manifest: listLessonsForLanguage returns only the requested language's lessons", () => {
+  const sq = LBManifest.listLessonsForLanguage(languages, "sq");
+  assert.ok(sq.length > 0, "sq must return lessons");
+  assert.ok(sq.every((r) => r.languageCode === "sq"),
+    "every sq row must have languageCode === sq");
+  assert.deepEqual(plain(sq.map((r) => r.id)),
+    plain(LESSONS.filter((r) => r.languageCode === "sq").map((r) => r.id)),
+    "sq list must equal the sq subset of listLessons, in order");
+
+  const es = LBManifest.listLessonsForLanguage(languages, "es");
+  assert.equal(es.length, 6, "es must return its 6 number lessons only");
+  assert.ok(es.every((r) => r.languageCode === "es"),
+    "every es row must have languageCode === es");
+  assert.deepEqual(plain(es.map((r) => r.id)), [
+    "es/lesson-1", "es/lesson-2", "es/lesson-3",
+    "es/lesson-4", "es/lesson-5", "es/lesson-6",
+  ], "es list must be exactly the six es lessons, in order");
+
+  // Rows carry count + rollup so the per-language rollup can judge mastery
+  // WITHOUT loading each lesson's card data (one lesson loads per page).
+  assert.ok(es.every((r) => typeof r.count === "number" && typeof r.rollup === "boolean"),
+    "each row must carry a numeric count and a boolean rollup for the rollup math");
+});
+
+test("manifest: listLessonsForLanguage returns [] for unknown/empty code (never throws)", () => {
+  assert.deepEqual(plain(LBManifest.listLessonsForLanguage(languages, "zz")), [],
+    "an unknown language code yields an empty list");
+  assert.deepEqual(plain(LBManifest.listLessonsForLanguage(languages, "")), [],
+    "an empty code yields an empty list");
+  assert.deepEqual(plain(LBManifest.listLessonsForLanguage(languages)), [],
+    "a missing code yields an empty list");
+  assert.doesNotThrow(() => LBManifest.listLessonsForLanguage(null, "sq"),
+    "a null manifest must not throw");
+});
+
+// ---------------------------------------------------------------------------
 // 7. Loop resilience — one bad lesson entry is skipped, valid ones survive
 // ---------------------------------------------------------------------------
 test("manifest: buildPickerModel skips a bad lesson entry and keeps the valid ones", () => {
