@@ -73,11 +73,13 @@ h1 { font-size: 1.25rem; font-weight: 700; margin: 0 0 14px; }
   border: 0;
 }
 
-/* Lesson selector */
-.lesson-select {
+/* Lesson selector (and LB-23 language selector, hidden until a 2nd language) */
+.lesson-select,
+.language-select {
   margin: 0 0 14px;
 }
-.lesson-select select {
+.lesson-select select,
+.language-select select {
   font: inherit;
   padding: 8px 12px;
   border-radius: 10px;

@@ -1,0 +1,84 @@
+/* LanguageBasics — language + lesson MANIFEST (LB-23).
+ *
+ * Vanilla JS, no build step, no fetch, file:// safe. Loaded as a plain <script>
+ * global BEFORE the picker bootstrap in index.html and before engine.js.
+ *
+ * SINGLE SOURCE OF TRUTH for lesson wiring. Before LB-23 the same lesson list
+ * lived in THREE hand-maintained spots in index.html — the <optgroup> markup,
+ * the ALLOWED whitelist, and the LESSON_COUNTS map — plus a hidden FOURTH: the
+ * "rollup:false" decks were only described in code comments. This manifest
+ * consolidates all of it. Each lesson entry carries its picker group, display
+ * label, card count, and an EXPLICIT rollup flag. index.html derives the
+ * whitelist, default lesson, and per-lesson counts from here; manifest.js
+ * renders the picker from here.
+ *
+ * SELF-REGISTRATION: each language pushes itself onto window.LB_LANGUAGES — the
+ * SAME pattern the lesson data files use for window.LB_LESSONS. Adding a
+ * language is a new content/<lang>/ tree plus one push here; no engine change,
+ * and the language <select> appears automatically once a 2nd language registers.
+ *
+ * rollup: true  => the deck COUNTS toward the "X of N lessons mastered" rollup.
+ * rollup: false => EXCLUDED from that rollup (non-number or already-counted
+ *                  decks: the combined alphabet deck, every words deck, every
+ *                  phrases deck). This MUST match the rollup flag each data file
+ *                  puts on its window.LB_LESSONS push — the manifest-integrity
+ *                  test cross-checks the two so they can never drift.
+ *
+ * Lesson IDs / ?lesson= values here are BYTE-IDENTICAL to the shipped ids:
+ * localStorage mastery / Leitner / streak state is keyed on them, so they never
+ * change during this refactor.
+ */
+(function () {
+  "use strict";
+
+  window.LB_LANGUAGES = window.LB_LANGUAGES || [];
+
+  window.LB_LANGUAGES.push({
+    code: "sq",
+    name: "Albanian",
+    // Default lesson when no (valid) ?lesson= is present.
+    defaultLesson: "sq/lesson-1",
+    groups: [
+      {
+        label: "Numbers",
+        lessons: [
+          { id: "sq/lesson-1", label: "Lesson 1 — 0–10", count: 11, rollup: true },
+          { id: "sq/lesson-2", label: "Lesson 2 — 11–19", count: 9, rollup: true },
+          { id: "sq/lesson-3", label: "Lesson 3 — Tens 20–90", count: 8, rollup: true },
+          { id: "sq/lesson-4", label: "Lesson 4 — 20–99 compounds", count: 80, rollup: true },
+          { id: "sq/lesson-5", label: "Lesson 5 — Big Number Roots", count: 56, rollup: true },
+          { id: "sq/lesson-6", label: "Lesson 6 — Number Builder", count: 6, rollup: true }
+        ]
+      },
+      {
+        label: "Alphabet",
+        lessons: [
+          { id: "sq/alphabet-vowels", label: "Lesson 1 — Vowels", count: 7, rollup: true },
+          { id: "sq/alphabet-consonants", label: "Lesson 2 — Consonants", count: 20, rollup: true },
+          { id: "sq/alphabet-digraphs", label: "Lesson 3 — Digraphs", count: 9, rollup: true },
+          // Combined 36-letter deck: already counted via the 3 group decks, so
+          // it is rollup-excluded (would otherwise double-count the denominator).
+          { id: "sq/alphabet-all", label: "Lesson 4 — Full set (36)", count: 36, rollup: false }
+        ]
+      },
+      {
+        // Each topic's single-word deck (words-N) is interleaved BEFORE its
+        // phrase deck (phrases-N). Per-group "Lesson N" labels restart at 1 and
+        // are DISPLAY-ONLY; the ids are the shipped values, unchanged.
+        label: "Words & Phrases",
+        lessons: [
+          { id: "sq/words-1", label: "Lesson 1 — Hello: Words", count: 9, rollup: false },
+          { id: "sq/phrases-1", label: "Lesson 2 — Hello: Phrases", count: 7, rollup: false },
+          { id: "sq/words-2", label: "Lesson 3 — Goodbye: Words", count: 12, rollup: false },
+          { id: "sq/phrases-2", label: "Lesson 4 — Goodbye: Phrases", count: 8, rollup: false },
+          { id: "sq/words-3", label: "Lesson 5 — Courtesy: Words", count: 11, rollup: false },
+          { id: "sq/phrases-3", label: "Lesson 6 — Courtesy: Phrases", count: 6, rollup: false },
+          { id: "sq/words-4", label: "Lesson 7 — Out & About: Words", count: 13, rollup: false },
+          { id: "sq/phrases-4", label: "Lesson 8 — Out & About: Phrases", count: 5, rollup: false },
+          { id: "sq/words-5", label: "Lesson 9 — Help: Words", count: 17, rollup: false },
+          { id: "sq/phrases-5", label: "Lesson 10 — Help: Phrases", count: 6, rollup: false }
+        ]
+      }
+    ]
+  });
+})();

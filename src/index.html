@@ -27,45 +27,31 @@
   <main class="app">
     <h1 id="title">Albanian Tosk Basics</h1>
 
+    <!-- LB-23: language picker. Manifest-driven and HIDDEN until a SECOND
+         language registers (shouldShowLanguageDropdown === false at one
+         language). With only sq today it stays hidden — no 1-item dropdown. The
+         switch path is wired but inert now, ready for LB-24: choosing a language
+         reloads at that language's default lesson via the SAME ?lesson= + reload
+         mechanism the lesson picker uses. Options render from the manifest in the
+         bootstrap script below. -->
+    <div class="language-select" id="languageSelectWrap" hidden>
+      <label for="languagePicker" class="visually-hidden">Choose a language</label>
+      <select id="languagePicker" aria-label="Choose a language"></select>
+    </div>
+
     <div class="lesson-select">
       <label for="lessonPicker" class="visually-hidden">Choose a lesson</label>
-      <!-- LB-20: three section optgroups (Numbers / Alphabet / Phrases). The
-           "Lesson N — Topic" labels restart numbering per group and are
-           DISPLAY-ONLY — the option VALUES (lesson IDs / ?lesson= values) are
-           unchanged. -->
-      <select id="lessonPicker" aria-label="Choose a lesson">
-        <optgroup label="Numbers">
-          <option value="sq/lesson-1">Lesson 1 — 0–10</option>
-          <option value="sq/lesson-2">Lesson 2 — 11–19</option>
-          <option value="sq/lesson-3">Lesson 3 — Tens 20–90</option>
-          <option value="sq/lesson-4">Lesson 4 — 20–99 compounds</option>
-          <option value="sq/lesson-5">Lesson 5 — Big Number Roots</option>
-          <option value="sq/lesson-6">Lesson 6 — Number Builder</option>
-        </optgroup>
-        <optgroup label="Alphabet">
-          <option value="sq/alphabet-vowels">Lesson 1 — Vowels</option>
-          <option value="sq/alphabet-consonants">Lesson 2 — Consonants</option>
-          <option value="sq/alphabet-digraphs">Lesson 3 — Digraphs</option>
-          <option value="sq/alphabet-all">Lesson 4 — Full set (36)</option>
-        </optgroup>
-        <!-- LB-21: the former "Phrases" group becomes "Words & Phrases" — each
-             topic's single-word deck (words-N) is interleaved BEFORE its phrase
-             deck (phrases-N). Per-group "Lesson N" labels restart 1-10 and are
-             DISPLAY-ONLY; option VALUES (lesson IDs / ?lesson= values) are
-             unchanged for the phrases and new for the words. -->
-        <optgroup label="Words &amp; Phrases">
-          <option value="sq/words-1">Lesson 1 — Hello: Words</option>
-          <option value="sq/phrases-1">Lesson 2 — Hello: Phrases</option>
-          <option value="sq/words-2">Lesson 3 — Goodbye: Words</option>
-          <option value="sq/phrases-2">Lesson 4 — Goodbye: Phrases</option>
-          <option value="sq/words-3">Lesson 5 — Courtesy: Words</option>
-          <option value="sq/phrases-3">Lesson 6 — Courtesy: Phrases</option>
-          <option value="sq/words-4">Lesson 7 — Out &amp; About: Words</option>
-          <option value="sq/phrases-4">Lesson 8 — Out &amp; About: Phrases</option>
-          <option value="sq/words-5">Lesson 9 — Help: Words</option>
-          <option value="sq/phrases-5">Lesson 10 — Help: Phrases</option>
-        </optgroup>
-      </select>
+      <!-- LB-23: the lesson <select> is now rendered LIVE from the MANIFEST
+           (window.LB_LANGUAGES via LBManifest.buildPickerModel) by the bootstrap
+           script below — no longer hard-coded optgroup HTML. The rendered
+           optgroups/options are byte-equivalent to the former static markup for
+           sq: same option values, visible labels, group headings, and order.
+           (Group labels like "Words & Phrases" and "Out & About" render via
+           textContent/optgroup.label, so no &amp; source-encoding is needed.)
+           Per-group "Lesson N — Topic" labels restart per group and are
+           DISPLAY-ONLY; the option VALUES (lesson ids / ?lesson= values) are
+           locked and unchanged. -->
+      <select id="lessonPicker" aria-label="Choose a lesson"></select>
     </div>
 
     <!-- LB-14: per-lesson mastery readout stays here near the picker/card. It
@@ -234,6 +220,15 @@
     </div>
   </div>
 
+  <!-- LB-23: the language + lesson MANIFEST (single source of truth for the
+       picker, whitelist, per-lesson counts, and rollup flags) plus its pure
+       helper module. Loaded as plain synchronous <script>s BEFORE the lesson
+       bootstrap below so ALLOWED / DEFAULT_LESSON derive from the manifest, and
+       before engine.js so the mastery rollup can read manifest counts. file://
+       safe, no build step, no fetch. -->
+  <script src="content/languages.js"></script>
+  <script src="manifest.js"></script>
+
   <script>
     /* Lesson selection — file:// friendly, no fetch.
      *
@@ -246,23 +241,20 @@
      * are a plain global assignment (window.LB_LESSON). One shell loading one
      * data file keeps "double-click index.html and it works" intact with zero
      * server, zero build, and no per-lesson HTML duplication.
+     *
+     * LB-23: the whitelist + default lesson are DERIVED from the manifest
+     * (window.LB_LANGUAGES via window.LBManifest) — no longer a hand-maintained
+     * literal. A defensive fallback keeps the app booting if the manifest failed
+     * to load.
      */
     (function () {
-      var ALLOWED = {
-        "sq/lesson-1": true, "sq/lesson-2": true, "sq/lesson-3": true,
-        "sq/lesson-4": true, "sq/lesson-5": true, "sq/lesson-6": true,
-        // LB-18 alphabet section: 3 group decks + 1 combined (rollup-excluded).
-        "sq/alphabet-vowels": true, "sq/alphabet-consonants": true,
-        "sq/alphabet-digraphs": true, "sq/alphabet-all": true,
-        // LB-20 phrases section: 5 decks, all rollup-excluded.
-        "sq/phrases-1": true, "sq/phrases-2": true, "sq/phrases-3": true,
-        "sq/phrases-4": true, "sq/phrases-5": true,
-        // LB-21 words section: 5 decks, all rollup-excluded. Interleaved with
-        // the phrases decks in the "Words & Phrases" group.
-        "sq/words-1": true, "sq/words-2": true, "sq/words-3": true,
-        "sq/words-4": true, "sq/words-5": true
-      };
-      var DEFAULT_LESSON = "sq/lesson-1";
+      var LBM = window.LBManifest;
+      var LANGS = (window.LB_LANGUAGES && window.LB_LANGUAGES.length)
+        ? window.LB_LANGUAGES : null;
+      var ALLOWED = (LBM && LANGS) ? LBM.buildAllowedMap(LANGS) : {};
+      var DEFAULT_LESSON = (LBM && LANGS)
+        ? (LBM.getDefaultLesson(LANGS) || "sq/lesson-1")
+        : "sq/lesson-1";
 
       function currentLesson() {
         var m = /[?&]lesson=([^&]+)/.exec(window.location.search);
@@ -271,16 +263,73 @@
       }
 
       var lesson = currentLesson();
+      // Active language = the prefix of the resolved lesson id (e.g. "sq").
+      // Drives which language's lessons the picker renders. Only sq today.
+      var activeCode = lesson.split("/")[0];
 
-      // Sync the dropdown to the active lesson and wire switching.
-      document.addEventListener("DOMContentLoaded", function () {
-        var picker = document.getElementById("lessonPicker");
-        if (!picker) return;
-        picker.value = lesson;
-        picker.addEventListener("change", function () {
-          var next = ALLOWED[picker.value] ? picker.value : DEFAULT_LESSON;
+      // Build the lesson <optgroup>/<option> DOM from the PURE manifest model
+      // (LBManifest.buildPickerModel). This is a thin render of the model — no
+      // picker logic lives here — replacing the former static optgroup markup.
+      // optgroup.label / option.textContent take PLAIN strings; the browser
+      // handles any "&" so the rendered result matches the old &amp;-encoded HTML
+      // byte-for-byte in behavior. Option values are the lesson ids, unchanged.
+      function renderLessonPicker(picker) {
+        if (!LBM || !LANGS) return; // defensive: manifest missing -> leave empty
+        var model = LBM.buildPickerModel(LANGS, activeCode);
+        while (picker.firstChild) picker.removeChild(picker.firstChild);
+        for (var g = 0; g < model.groups.length; g++) {
+          var grp = model.groups[g];
+          var og = document.createElement("optgroup");
+          og.label = grp.label;
+          for (var i = 0; i < grp.options.length; i++) {
+            var opt = document.createElement("option");
+            opt.value = grp.options[i].value;
+            opt.textContent = grp.options[i].label;
+            og.appendChild(opt);
+          }
+          picker.appendChild(og);
+        }
+      }
+
+      // Populate + REVEAL the language <select> ONLY at 2+ languages. At one
+      // language there is nothing to switch to, so it stays hidden (the markup
+      // ships with `hidden`). Choosing a language reloads at that language's
+      // default lesson — same ?lesson= + reload mechanism the lesson picker uses.
+      // Inert today (only sq); correct and ready for LB-24.
+      function wireLanguagePicker() {
+        var wrap = document.getElementById("languageSelectWrap");
+        var sel = document.getElementById("languagePicker");
+        if (!wrap || !sel || !LBM || !LANGS) return;
+        if (!LBM.shouldShowLanguageDropdown(LANGS)) return; // 1 language -> hidden
+        var opts = LBM.buildLanguageOptions(LANGS);
+        while (sel.firstChild) sel.removeChild(sel.firstChild);
+        for (var i = 0; i < opts.length; i++) {
+          var o = document.createElement("option");
+          o.value = opts[i].value;
+          o.textContent = opts[i].label;
+          sel.appendChild(o);
+        }
+        sel.value = activeCode;
+        sel.addEventListener("change", function () {
+          var next = LBM.getDefaultLesson(LANGS, sel.value) || DEFAULT_LESSON;
           window.location.search = "?lesson=" + encodeURIComponent(next);
         });
+        wrap.hidden = false;
+      }
+
+      // Render the picker from the manifest, sync it to the active lesson, wire
+      // switching, and reveal the language dropdown if 2+ languages exist.
+      document.addEventListener("DOMContentLoaded", function () {
+        var picker = document.getElementById("lessonPicker");
+        if (picker) {
+          renderLessonPicker(picker);
+          picker.value = lesson;
+          picker.addEventListener("change", function () {
+            var next = ALLOWED[picker.value] ? picker.value : DEFAULT_LESSON;
+            window.location.search = "?lesson=" + encodeURIComponent(next);
+          });
+        }
+        wireLanguagePicker();
       });
 
       // Load the active lesson's data file synchronously, then the engine.
@@ -311,27 +360,14 @@
         });
       }
 
-      // LB-12: known per-lesson card counts (same source of truth as the test
-      // suite's EXPECTED map). Attached to each LB_LESSONS registry entry so the
-      // mastery rollup can judge overall mastery across lessons whose card data
-      // isn't loaded (the app loads one lesson at a time). Keep in sync if a
-      // lesson's card count changes.
-      var LESSON_COUNTS = {
-        "sq/lesson-1": 11, "sq/lesson-2": 9, "sq/lesson-3": 8,
-        "sq/lesson-4": 80, "sq/lesson-5": 56, "sq/lesson-6": 6,
-        // LB-18 alphabet section. alphabet-all (36) is rollup-excluded, so its
-        // count never reaches the denominator; kept here for completeness.
-        "sq/alphabet-vowels": 7, "sq/alphabet-consonants": 20,
-        "sq/alphabet-digraphs": 9, "sq/alphabet-all": 36,
-        // LB-20 phrases section. All 5 are rollup-excluded, so their counts
-        // never reach the denominator; kept here for completeness.
-        "sq/phrases-1": 7, "sq/phrases-2": 8, "sq/phrases-3": 6,
-        "sq/phrases-4": 5, "sq/phrases-5": 6,
-        // LB-21 words section. All 5 are rollup-excluded; counts kept for
-        // completeness / count-parity guard.
-        "sq/words-1": 9, "sq/words-2": 12, "sq/words-3": 11,
-        "sq/words-4": 13, "sq/words-5": 17
-      };
+      // LB-23: per-lesson card counts now come from the MANIFEST
+      // (window.LB_LANGUAGES via LBManifest.buildLessonCounts) — the single
+      // source of truth — instead of a hand-maintained LESSON_COUNTS literal.
+      // Attached to each loaded LB_LESSONS registry entry as `.count` so the
+      // mastery rollup can judge overall mastery for lessons whose card data
+      // isn't loaded (the app loads one lesson at a time).
+      var LESSON_COUNTS = (window.LBManifest && window.LB_LANGUAGES)
+        ? window.LBManifest.buildLessonCounts(window.LB_LANGUAGES) : {};
       if (Array.isArray(window.LB_LESSONS)) {
         for (var li = 0; li < window.LB_LESSONS.length; li++) {
           var le = window.LB_LESSONS[li];
