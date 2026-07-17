@@ -36,7 +36,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { loadLesson, loadManifest, CONTENT_DIR } = require("./helpers/load-lesson.js");
+const { loadLesson, loadManifest, contentDir } = require("./helpers/load-lesson.js");
 
 const { languages, LBManifest } = loadManifest();
 
@@ -53,6 +53,12 @@ function fileForId(id) {
   return id.split("/")[1] + ".js";
 }
 
+// id "es/lesson-1" -> language namespace "es" (LB-25: multi-language). Data files
+// live under src/content/<lang>, so id-driven loads resolve per-language.
+function langForId(id) {
+  return id.split("/")[0];
+}
+
 /* Schema EXPECTED { id: count }, read from the sibling test (keyed by language,
  * every entry carries its own id). */
 function schemaExpected() {
@@ -64,9 +70,10 @@ function schemaExpected() {
   return out;
 }
 
-// The shipped 20 lesson ids in picker order — LOCKED. A change here is a change
-// to a ?lesson= value, which would strand saved localStorage state; this array
-// makes any such change fail loudly.
+// The shipped lesson ids in manifest order — LOCKED. A change here is a change to
+// a ?lesson= value, which would strand saved localStorage state; this array makes
+// any such change fail loudly. LB-25 appended the 6 es number-deck ids after the
+// 20 sq ids (listLessons walks languages in registration order: sq, then es).
 const LOCKED_IDS = [
   "sq/lesson-1", "sq/lesson-2", "sq/lesson-3",
   "sq/lesson-4", "sq/lesson-5", "sq/lesson-6",
@@ -75,6 +82,8 @@ const LOCKED_IDS = [
   "sq/words-1", "sq/phrases-1", "sq/words-2", "sq/phrases-2",
   "sq/words-3", "sq/phrases-3", "sq/words-4", "sq/phrases-4",
   "sq/words-5", "sq/phrases-5",
+  "es/lesson-1", "es/lesson-2", "es/lesson-3",
+  "es/lesson-4", "es/lesson-5", "es/lesson-6",
 ];
 
 // The decks that must be rollup-EXCLUDED (rollup:false): the combined alphabet
@@ -90,13 +99,21 @@ const LESSONS = LBManifest.listLessons(languages);
 // ---------------------------------------------------------------------------
 // 1. Registration
 // ---------------------------------------------------------------------------
-test("manifest: window.LB_LANGUAGES registers sq (Albanian) with 3 groups", () => {
-  assert.equal(languages.length, 1, "exactly one language registered (sq) for now");
+test("manifest: window.LB_LANGUAGES registers sq (Albanian) + es (Spanish)", () => {
+  assert.equal(languages.length, 2, "two languages registered (sq, es) after LB-25");
   const sq = languages[0];
-  assert.equal(sq.code, "sq", "language code must be sq");
-  assert.equal(sq.name, "Albanian", "language name must be Albanian");
+  assert.equal(sq.code, "sq", "first language code must be sq");
+  assert.equal(sq.name, "Albanian", "first language name must be Albanian");
   assert.ok(Array.isArray(sq.groups) && sq.groups.length === 3,
     "sq must have 3 picker groups (Numbers / Alphabet / Words & Phrases)");
+
+  const es = languages[1];
+  assert.equal(es.code, "es", "second language code must be es");
+  assert.equal(es.name, "Spanish", "second language name must be Spanish");
+  assert.ok(Array.isArray(es.groups) && es.groups.length === 1,
+    "es must have 1 picker group (Numbers)");
+  assert.equal(es.groups[0].label, "Numbers", "es group label must be Numbers");
+  assert.equal(es.groups[0].lessons.length, 6, "es Numbers group must list 6 lessons");
 });
 
 // ---------------------------------------------------------------------------
@@ -104,13 +121,14 @@ test("manifest: window.LB_LANGUAGES registers sq (Albanian) with 3 groups", () =
 // ---------------------------------------------------------------------------
 test("manifest: every lesson id has a data file; count === cards.length === EXPECTED", () => {
   const EXPECTED = schemaExpected();
-  assert.equal(LESSONS.length, 20, "manifest must list 20 lessons");
+  assert.equal(LESSONS.length, 26, "manifest must list 26 lessons (20 sq + 6 es)");
   for (const row of LESSONS) {
     const file = fileForId(row.id);
-    const full = path.join(CONTENT_DIR, file);
-    assert.ok(fs.existsSync(full), `${row.id}: data file ${file} must exist`);
+    const lang = langForId(row.id);
+    const full = path.join(contentDir(lang), file);
+    assert.ok(fs.existsSync(full), `${row.id}: data file ${lang}/${file} must exist`);
 
-    const { lesson } = loadLesson(file);
+    const { lesson } = loadLesson(file, lang);
     assert.ok(lesson, `${row.id}: data file must define window.LB_LESSON`);
     assert.equal(lesson.id, row.id, `${row.id}: data file id must match the manifest id`);
 
@@ -126,23 +144,26 @@ test("manifest: every lesson id has a data file; count === cards.length === EXPE
 // 3. Picker-model resolution: every option value resolves to a manifest lesson
 // ---------------------------------------------------------------------------
 test("manifest: every buildPickerModel option resolves to a manifest lesson (no orphans/gaps)", () => {
-  const manifestIds = new Set(LESSONS.map((r) => r.id));
-  const model = LBManifest.buildPickerModel(languages, "sq");
-  assert.equal(model.languageCode, "sq", "picker model must be for sq");
+  // LB-25: buildPickerModel is PER language. Each language's picker must cover
+  // exactly that language's manifest lessons — no orphan option, no missing lesson.
+  for (const code of ["sq", "es"]) {
+    const langIds = new Set(LESSONS.filter((r) => r.languageCode === code).map((r) => r.id));
+    const model = LBManifest.buildPickerModel(languages, code);
+    assert.equal(model.languageCode, code, `picker model must be for ${code}`);
 
-  const optionValues = [];
-  for (const group of model.groups) {
-    for (const opt of group.options) {
-      assert.ok(manifestIds.has(opt.value),
-        `picker option "${opt.value}" does not resolve to a manifest lesson`);
-      optionValues.push(opt.value);
+    const optionValues = [];
+    for (const group of model.groups) {
+      for (const opt of group.options) {
+        assert.ok(langIds.has(opt.value),
+          `${code}: picker option "${opt.value}" does not resolve to a manifest lesson`);
+        optionValues.push(opt.value);
+      }
     }
+    assert.equal(new Set(optionValues).size, optionValues.length,
+      `${code}: picker options must be unique (no duplicate values)`);
+    assert.deepEqual(optionValues.slice().sort(), [...langIds].sort(),
+      `${code}: picker option set must equal that language's manifest lesson set`);
   }
-  // No duplicate options, and the option set covers exactly the manifest set.
-  assert.equal(new Set(optionValues).size, optionValues.length,
-    "picker options must be unique (no duplicate values)");
-  assert.deepEqual(optionValues.slice().sort(), [...manifestIds].sort(),
-    "picker option set must equal the manifest lesson set (no orphan, no missing)");
 });
 
 // ---------------------------------------------------------------------------
@@ -163,7 +184,7 @@ test("manifest: rollup is an explicit boolean on every lesson; excluded set is t
 
 test("manifest: each rollup flag matches the deck's data-file LB_LESSONS push", () => {
   for (const row of LESSONS) {
-    const { lessonsIndex } = loadLesson(fileForId(row.id));
+    const { lessonsIndex } = loadLesson(fileForId(row.id), langForId(row.id));
     assert.equal(lessonsIndex.length, 1, `${row.id}: data file must push one registry entry`);
     // Default-counted convention: only an explicit rollup:false excludes a deck.
     const dataCounted = lessonsIndex[0].rollup !== false;
@@ -199,19 +220,20 @@ test("manifest: lesson ids are byte-identical to the shipped set (localStorage k
 // 6. Language <select> visibility threshold
 // ---------------------------------------------------------------------------
 test("manifest: shouldShowLanguageDropdown is false at 1 language, true at 2", () => {
-  assert.equal(LBManifest.shouldShowLanguageDropdown(languages), false,
+  // LB-25: with sq + es registered, the live manifest now has 2 languages, so the
+  // dropdown SHOWS. The 1-language (hidden) case is checked with a synthetic
+  // single-language array so the threshold logic stays covered on both sides.
+  const oneLang = [languages[0]];
+  assert.equal(LBManifest.shouldShowLanguageDropdown(oneLang), false,
     "one registered language -> dropdown hidden");
-
-  const twoLangs = languages.concat([{
-    code: "es", name: "Spanish", defaultLesson: "es/lesson-1",
-    groups: [{ label: "Numbers", lessons: [{ id: "es/lesson-1", label: "L1", count: 1, rollup: true }] }],
-  }]);
-  assert.equal(LBManifest.shouldShowLanguageDropdown(twoLangs), true,
-    "two registered languages -> dropdown shown");
+  assert.equal(LBManifest.shouldShowLanguageDropdown(languages), true,
+    "two registered languages (sq + es) -> dropdown shown");
 
   const opts = LBManifest.buildLanguageOptions(languages);
-  assert.deepEqual(plain(opts), [{ value: "sq", label: "Albanian" }],
-    "single-language option list must be [{sq, Albanian}]");
+  assert.deepEqual(plain(opts), [
+    { value: "sq", label: "Albanian" },
+    { value: "es", label: "Spanish" },
+  ], "language option list must be [{sq, Albanian}, {es, Spanish}]");
 });
 
 // ---------------------------------------------------------------------------
@@ -222,28 +244,22 @@ test("manifest: shouldShowLanguageDropdown is false at 1 language, true at 2", (
 //     rendering that language's lessons.
 // ---------------------------------------------------------------------------
 test("manifest: buildPickerModel/getDefaultLesson resolve per activeCode (language switch)", () => {
-  const twoLangs = languages.concat([{
-    code: "es", name: "Spanish", defaultLesson: "es/lesson-1",
-    groups: [{
-      label: "Numbers",
-      lessons: [
-        { id: "es/lesson-1", label: "Lección 1", count: 1, rollup: true },
-        { id: "es/lesson-2", label: "Lección 2", count: 1, rollup: true },
-      ],
-    }],
-  }]);
+  // LB-25: es is now a REAL registered language, so the switch path resolves
+  // against the live manifest (no synthetic stub needed).
 
   // Active language selects which language's picker/default is produced.
-  assert.equal(LBManifest.getDefaultLesson(twoLangs, "sq"), "sq/lesson-1",
-    "sq default lesson unchanged when a 2nd language exists");
-  assert.equal(LBManifest.getDefaultLesson(twoLangs, "es"), "es/lesson-1",
+  assert.equal(LBManifest.getDefaultLesson(languages, "sq"), "sq/lesson-1",
+    "sq default lesson unchanged now that a 2nd language exists");
+  assert.equal(LBManifest.getDefaultLesson(languages, "es"), "es/lesson-1",
     "selecting es must resolve to the es default lesson");
 
-  const esModel = LBManifest.buildPickerModel(twoLangs, "es");
+  const esModel = LBManifest.buildPickerModel(languages, "es");
   assert.equal(esModel.languageCode, "es", "picker model must be for the selected language");
   const esValues = plain(esModel.groups.flatMap((g) => g.options.map((o) => o.value)));
-  assert.deepEqual(esValues, ["es/lesson-1", "es/lesson-2"],
-    "es picker must render only es lessons, in order");
+  assert.deepEqual(esValues, [
+    "es/lesson-1", "es/lesson-2", "es/lesson-3",
+    "es/lesson-4", "es/lesson-5", "es/lesson-6",
+  ], "es picker must render only es lessons, in order");
 });
 
 // ---------------------------------------------------------------------------

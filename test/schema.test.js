@@ -49,6 +49,16 @@ const EXPECTED = {
     "words-4.js": { count: 13, id: "sq/words-4", revealMs: 5000 },
     "words-5.js": { count: 17, id: "sq/words-5", revealMs: 5000 },
   },
+  // LB-25 Spanish number deck: 6 lessons, same ranges/counts as sq (11/9/8/80/
+  // 56/6). Loaded from src/content/es via loadLesson(file, "es").
+  es: {
+    "lesson-1.js": { count: 11, id: "es/lesson-1", revealMs: 5000 },
+    "lesson-2.js": { count: 9, id: "es/lesson-2", revealMs: 5000 },
+    "lesson-3.js": { count: 8, id: "es/lesson-3", revealMs: 5000 },
+    "lesson-4.js": { count: 80, id: "es/lesson-4", revealMs: 5000 },
+    "lesson-5.js": { count: 56, id: "es/lesson-5", revealMs: 5000 },
+    "lesson-6.js": { count: 6, id: "es/lesson-6", revealMs: 10000 },
+  },
 };
 
 for (const [lang, files] of Object.entries(EXPECTED)) {

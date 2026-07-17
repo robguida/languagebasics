@@ -26,11 +26,17 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { loadLesson, loadManifest, CONTENT_DIR } = require("./helpers/load-lesson.js");
+const { loadLesson, loadManifest, contentDir } = require("./helpers/load-lesson.js");
 
 // id "sq/lesson-1" -> data file "lesson-1.js"
 function fileForId(id) {
   return id.split("/")[1] + ".js";
+}
+
+// id "es/lesson-1" -> language namespace "es" (LB-25: multi-language). Each id's
+// data file lives under src/content/<lang>, so parity checks resolve per-language.
+function langForId(id) {
+  return id.split("/")[0];
 }
 
 /* Schema EXPECTED, read from the sibling test so we cross-check the maps without
@@ -52,13 +58,13 @@ const ALLOWED = LBManifest.buildAllowedMap(languages);    // { id: true }
 const EXPECTED = schemaExpected();                        // { id: count }
 const IDS = Object.keys(COUNTS).sort();
 
-test("parity: manifest declares a count for exactly the 20 known lessons", () => {
-  assert.equal(IDS.length, 20, "expected 20 lessons with counts in the manifest");
+test("parity: manifest declares a count for exactly the 26 known lessons", () => {
+  assert.equal(IDS.length, 26, "expected 26 lessons with counts in the manifest (20 sq + 6 es)");
 });
 
 for (const id of IDS) {
   test(`parity: ${id} — manifest count === actual cards.length === schema EXPECTED`, () => {
-    const { lesson } = loadLesson(fileForId(id));
+    const { lesson } = loadLesson(fileForId(id), langForId(id));
     assert.ok(lesson, `${id}: data file must define window.LB_LESSON`);
     assert.equal(lesson.id, id, `${id}: data file id must match the manifest id`);
 
@@ -85,7 +91,7 @@ test("parity: manifest whitelist (ALLOWED) and counts list the SAME lesson set",
 
 test("parity: every manifest lesson id has a real data file on disk", () => {
   for (const id of IDS) {
-    const f = path.join(CONTENT_DIR, fileForId(id));
+    const f = path.join(contentDir(langForId(id)), fileForId(id));
     assert.ok(fs.existsSync(f), `${id}: expected data file ${fileForId(id)} to exist`);
   }
 });
