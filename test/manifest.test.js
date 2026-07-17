@@ -87,6 +87,8 @@ const LOCKED_IDS = [
   "es/lesson-4", "es/lesson-5", "es/lesson-6",
   "ja/lesson-1", "ja/lesson-2", "ja/lesson-3",
   "ja/lesson-4", "ja/lesson-5", "ja/lesson-6",
+  "bn/lesson-1", "bn/lesson-2", "bn/lesson-3",
+  "bn/lesson-4", "bn/lesson-5", "bn/lesson-6",
 ];
 
 // The decks that must be rollup-EXCLUDED (rollup:false): the combined alphabet
@@ -102,8 +104,8 @@ const LESSONS = LBManifest.listLessons(languages);
 // ---------------------------------------------------------------------------
 // 1. Registration
 // ---------------------------------------------------------------------------
-test("manifest: window.LB_LANGUAGES registers sq (Albanian) + es (Spanish) + ja (Japanese)", () => {
-  assert.equal(languages.length, 3, "three languages registered (sq, es, ja) after LB-24");
+test("manifest: window.LB_LANGUAGES registers sq (Albanian) + es (Spanish) + ja (Japanese) + bn (Bengali)", () => {
+  assert.equal(languages.length, 4, "four languages registered (sq, es, ja, bn) after LB-26");
   const sq = languages[0];
   assert.equal(sq.code, "sq", "first language code must be sq");
   assert.equal(sq.name, "Albanian", "first language name must be Albanian");
@@ -125,6 +127,14 @@ test("manifest: window.LB_LANGUAGES registers sq (Albanian) + es (Spanish) + ja 
     "ja must have 1 picker group (Numbers)");
   assert.equal(ja.groups[0].label, "Numbers", "ja group label must be Numbers");
   assert.equal(ja.groups[0].lessons.length, 6, "ja Numbers group must list 6 lessons");
+
+  const bn = languages[3];
+  assert.equal(bn.code, "bn", "fourth language code must be bn");
+  assert.equal(bn.name, "Bengali", "fourth language name must be Bengali");
+  assert.ok(Array.isArray(bn.groups) && bn.groups.length === 1,
+    "bn must have 1 picker group (Numbers)");
+  assert.equal(bn.groups[0].label, "Numbers", "bn group label must be Numbers");
+  assert.equal(bn.groups[0].lessons.length, 6, "bn Numbers group must list 6 lessons");
 });
 
 // ---------------------------------------------------------------------------
@@ -132,7 +142,7 @@ test("manifest: window.LB_LANGUAGES registers sq (Albanian) + es (Spanish) + ja 
 // ---------------------------------------------------------------------------
 test("manifest: every lesson id has a data file; count === cards.length === EXPECTED", () => {
   const EXPECTED = schemaExpected();
-  assert.equal(LESSONS.length, 32, "manifest must list 32 lessons (20 sq + 6 es + 6 ja)");
+  assert.equal(LESSONS.length, 38, "manifest must list 38 lessons (20 sq + 6 es + 6 ja + 6 bn)");
   for (const row of LESSONS) {
     const file = fileForId(row.id);
     const lang = langForId(row.id);
@@ -157,7 +167,7 @@ test("manifest: every lesson id has a data file; count === cards.length === EXPE
 test("manifest: every buildPickerModel option resolves to a manifest lesson (no orphans/gaps)", () => {
   // LB-25: buildPickerModel is PER language. Each language's picker must cover
   // exactly that language's manifest lessons — no orphan option, no missing lesson.
-  for (const code of ["sq", "es", "ja"]) {
+  for (const code of ["sq", "es", "ja", "bn"]) {
     const langIds = new Set(LESSONS.filter((r) => r.languageCode === code).map((r) => r.id));
     const model = LBManifest.buildPickerModel(languages, code);
     assert.equal(model.languageCode, code, `picker model must be for ${code}`);
@@ -245,7 +255,8 @@ test("manifest: shouldShowLanguageDropdown is false at 1 language, true at 2", (
     { value: "sq", label: "Albanian" },
     { value: "es", label: "Spanish" },
     { value: "ja", label: "Japanese" },
-  ], "language option list must be [{sq, Albanian}, {es, Spanish}, {ja, Japanese}]");
+    { value: "bn", label: "Bengali" },
+  ], "language option list must be [{sq, Albanian}, {es, Spanish}, {ja, Japanese}, {bn, Bengali}]");
 });
 
 // ---------------------------------------------------------------------------
