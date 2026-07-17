@@ -106,4 +106,29 @@
       }
     ]
   });
+
+  // LB-24: Japanese (ja) — the 3rd language. A full 6-lesson number deck applied
+  // verbatim from the Japanese linguistics dataset review. Sino-Japanese (on'yomi)
+  // counting; big numbers grouped by MYRIAD (万/億/兆), not Western thousands. Same
+  // number RANGES and card counts as the sq/es number decks (11/9/8/80/56/6), all
+  // rollup:true. No engine change.
+  window.LB_LANGUAGES.push({
+    code: "ja",
+    name: "Japanese",
+    // Default lesson when no (valid) ?lesson= is present for this language.
+    defaultLesson: "ja/lesson-1",
+    groups: [
+      {
+        label: "Numbers",
+        lessons: [
+          { id: "ja/lesson-1", label: "Lesson 1 — 0–10", count: 11, rollup: true },
+          { id: "ja/lesson-2", label: "Lesson 2 — 11–19", count: 9, rollup: true },
+          { id: "ja/lesson-3", label: "Lesson 3 — Tens 20–90", count: 8, rollup: true },
+          { id: "ja/lesson-4", label: "Lesson 4 — 20–99 compounds", count: 80, rollup: true },
+          { id: "ja/lesson-5", label: "Lesson 5 — Big Number Roots", count: 56, rollup: true },
+          { id: "ja/lesson-6", label: "Lesson 6 — Number Builder", count: 6, rollup: true }
+        ]
+      }
+    ]
+  });
 })();
