@@ -69,6 +69,16 @@ const EXPECTED = {
     "lesson-5.js": { count: 56, id: "ja/lesson-5", revealMs: 5000 },
     "lesson-6.js": { count: 6, id: "ja/lesson-6", revealMs: 10000 },
   },
+  // LB-26 Bengali number deck: 6 lessons, same ranges/counts as sq/es/ja (11/9/8/
+  // 80/56/6). Loaded from src/content/bn via loadLesson(file, "bn").
+  bn: {
+    "lesson-1.js": { count: 11, id: "bn/lesson-1", revealMs: 5000 },
+    "lesson-2.js": { count: 9, id: "bn/lesson-2", revealMs: 5000 },
+    "lesson-3.js": { count: 8, id: "bn/lesson-3", revealMs: 5000 },
+    "lesson-4.js": { count: 80, id: "bn/lesson-4", revealMs: 5000 },
+    "lesson-5.js": { count: 56, id: "bn/lesson-5", revealMs: 5000 },
+    "lesson-6.js": { count: 6, id: "bn/lesson-6", revealMs: 10000 },
+  },
 };
 
 for (const [lang, files] of Object.entries(EXPECTED)) {
