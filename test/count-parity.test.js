@@ -1,26 +1,24 @@
-/* LB-18 build-breaker guard: three-way card-count parity across the WHOLE app.
+/* Card-count parity guard — LB-23 update: manifest is now the single source.
  *
  * Run:  node --test
  *
- * The app stores per-lesson card counts in TWO places that must never drift:
- *   1. test/schema.test.js  EXPECTED            (the test source of truth)
- *   2. src/index.html       LESSON_COUNTS       (the RUNTIME source of truth —
- *      attached to each registry entry as `.count` so the mastery rollup can
- *      judge "X of N mastered" for lessons whose card data is NOT loaded, since
- *      the app loads exactly one lesson at a time)
- * ...and the ACTUAL truth is each data file's cards.length.
+ * BEFORE LB-23 the per-lesson card count lived in TWO hand-maintained spots that
+ * could silently drift — test/schema.test.js EXPECTED and src/index.html
+ * LESSON_COUNTS — and this test cross-checked them against each data file's real
+ * cards.length. LB-23 collapsed the RUNTIME source into the manifest
+ * (src/content/languages.js, read via src/manifest.js), so index.html no longer
+ * carries a hand-maintained LESSON_COUNTS / ALLOWED literal to parse.
  *
- * If LESSON_COUNTS drifts from the real card count, lessonMasteredByCount()
- * silently breaks: a lesson never reaches "mastered", or reaches it early — with
- * every existing test still green, because schema.test.js only checks ITS OWN
- * map against cards.length and never reads index.html. This harness closes that
- * gap: for ALL lessons it asserts
+ * The parity guarded here is now three-way against the MANIFEST:
  *
- *     index.html LESSON_COUNTS[id]  ===  actual cards.length  ===  schema EXPECTED[id]
+ *     manifest.count  ===  actual data-file cards.length  ===  schema EXPECTED
  *
- * plus set-parity (whitelist <-> dropdown <-> LESSON_COUNTS <-> data files), so a
- * new lesson can't be half-wired. Built-ins only: node:test, node:assert,
- * node:fs, node:path (+ the shared vm lesson loader).
+ * plus set-parity between the manifest's whitelist (buildAllowedMap), its counts
+ * map, and the data files on disk — so a new lesson can't be half-wired. If the
+ * manifest count drifts from the real card count, lessonMasteredByCount() would
+ * silently break (a lesson never reaches "mastered", or reaches it early); this
+ * closes that gap. Built-ins only: node:test, node:assert, node:fs, node:path
+ * (+ the shared vm lesson/manifest loader).
  */
 "use strict";
 
@@ -28,86 +26,46 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { loadLesson, CONTENT_DIR } = require("./helpers/load-lesson.js");
-
-const INDEX_PATH = path.resolve(__dirname, "..", "src", "index.html");
-const INDEX_SRC = fs.readFileSync(INDEX_PATH, "utf8");
+const { loadLesson, loadManifest, CONTENT_DIR } = require("./helpers/load-lesson.js");
 
 // id "sq/lesson-1" -> data file "lesson-1.js"
 function fileForId(id) {
   return id.split("/")[1] + ".js";
 }
 
-/* Pull a `var NAME = { ... };` object body out of index.html by name. */
-function objectBody(name) {
-  const re = new RegExp("var\\s+" + name + "\\s*=\\s*\\{([\\s\\S]*?)\\}", "m");
-  const m = re.exec(INDEX_SRC);
-  assert.ok(m, `index.html must define var ${name} = { ... }`);
-  return m[1];
-}
-
-/* "sq/...": <number>  ->  { id: count } */
-function parseCounts() {
-  const body = objectBody("LESSON_COUNTS");
-  const out = {};
-  const re = /"(sq\/[^"]+)"\s*:\s*(\d+)/g;
-  let m;
-  while ((m = re.exec(body)) !== null) out[m[1]] = Number(m[2]);
-  return out;
-}
-
-/* "sq/...": true  ->  Set of ids */
-function parseWhitelist() {
-  const body = objectBody("ALLOWED");
-  const out = new Set();
-  const re = /"(sq\/[^"]+)"\s*:\s*true/g;
-  let m;
-  while ((m = re.exec(body)) !== null) out.add(m[1]);
-  return out;
-}
-
-/* <option value="sq/...">  ->  Set of ids */
-function parseDropdown() {
-  const out = new Set();
-  const re = /<option\s+value="(sq\/[^"]+)"/g;
-  let m;
-  while ((m = re.exec(INDEX_SRC)) !== null) out.add(m[1]);
-  return out;
-}
-
-/* Schema EXPECTED, read from the sibling test so we cross-check the two maps
- * without duplicating a third hand-maintained count list here. */
+/* Schema EXPECTED, read from the sibling test so we cross-check the maps without
+ * duplicating a third hand-maintained count list here. EXPECTED is keyed by
+ * language namespace now; every entry still carries its own `id`, so a single
+ * regex over the whole file yields { id: count } across all languages. */
 function schemaExpected() {
   const src = fs.readFileSync(path.resolve(__dirname, "schema.test.js"), "utf8");
-  const body = (/const\s+EXPECTED\s*=\s*\{([\s\S]*?)\n\};/m.exec(src) || [])[1];
-  assert.ok(body, "schema.test.js must define const EXPECTED = { ... }");
   const out = {};
-  const re = /"([^"]+\.js)"\s*:\s*\{\s*count:\s*(\d+)/g;
+  const re = /"[^"]+\.js"\s*:\s*\{\s*count:\s*(\d+),\s*id:\s*"([^"]+)"/g;
   let m;
-  while ((m = re.exec(body)) !== null) out["sq/" + m[1].replace(/\.js$/, "")] = Number(m[2]);
+  while ((m = re.exec(src)) !== null) out[m[2]] = Number(m[1]);
   return out;
 }
 
-const COUNTS = parseCounts();
-const WHITELIST = parseWhitelist();
-const DROPDOWN = parseDropdown();
-const EXPECTED = schemaExpected();
+const { languages, LBManifest } = loadManifest();
+const COUNTS = LBManifest.buildLessonCounts(languages);   // { id: count }
+const ALLOWED = LBManifest.buildAllowedMap(languages);    // { id: true }
+const EXPECTED = schemaExpected();                        // { id: count }
 const IDS = Object.keys(COUNTS).sort();
 
-test("parity: index.html LESSON_COUNTS covers exactly the 20 known lessons", () => {
-  assert.equal(IDS.length, 20, "expected 20 lessons in LESSON_COUNTS");
+test("parity: manifest declares a count for exactly the 20 known lessons", () => {
+  assert.equal(IDS.length, 20, "expected 20 lessons with counts in the manifest");
 });
 
 for (const id of IDS) {
-  test(`parity: ${id} — LESSON_COUNTS === actual cards.length === schema EXPECTED`, () => {
+  test(`parity: ${id} — manifest count === actual cards.length === schema EXPECTED`, () => {
     const { lesson } = loadLesson(fileForId(id));
     assert.ok(lesson, `${id}: data file must define window.LB_LESSON`);
-    assert.equal(lesson.id, id, `${id}: data file id must match the count-map key`);
+    assert.equal(lesson.id, id, `${id}: data file id must match the manifest id`);
 
     const actual = lesson.cards.length;
     assert.equal(
       COUNTS[id], actual,
-      `${id}: index.html LESSON_COUNTS=${COUNTS[id]} but data file has ${actual} cards — ` +
+      `${id}: manifest count=${COUNTS[id]} but data file has ${actual} cards — ` +
       `mastery rollup (lessonMasteredByCount) would break silently`
     );
     assert.equal(
@@ -117,15 +75,15 @@ for (const id of IDS) {
   });
 }
 
-test("parity: whitelist, dropdown, and LESSON_COUNTS list the SAME lesson set", () => {
+test("parity: manifest whitelist (ALLOWED) and counts list the SAME lesson set", () => {
   const counts = new Set(IDS);
-  assert.deepEqual([...WHITELIST].sort(), [...counts].sort(),
-    "ALLOWED whitelist must match LESSON_COUNTS keys (no half-wired lesson)");
-  assert.deepEqual([...DROPDOWN].sort(), [...counts].sort(),
-    "picker <option> set must match LESSON_COUNTS keys");
+  assert.deepEqual(
+    Object.keys(ALLOWED).sort(), [...counts].sort(),
+    "manifest whitelist (buildAllowedMap) must match the manifest counts set"
+  );
 });
 
-test("parity: every LESSON_COUNTS id has a real data file on disk", () => {
+test("parity: every manifest lesson id has a real data file on disk", () => {
   for (const id of IDS) {
     const f = path.join(CONTENT_DIR, fileForId(id));
     assert.ok(fs.existsSync(f), `${id}: expected data file ${fileForId(id)} to exist`);

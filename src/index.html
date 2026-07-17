@@ -234,6 +234,15 @@
     </div>
   </div>
 
+  <!-- LB-23: the language + lesson MANIFEST (single source of truth for the
+       picker, whitelist, per-lesson counts, and rollup flags) plus its pure
+       helper module. Loaded as plain synchronous <script>s BEFORE the lesson
+       bootstrap below so ALLOWED / DEFAULT_LESSON derive from the manifest, and
+       before engine.js so the mastery rollup can read manifest counts. file://
+       safe, no build step, no fetch. -->
+  <script src="content/languages.js"></script>
+  <script src="manifest.js"></script>
+
   <script>
     /* Lesson selection — file:// friendly, no fetch.
      *
@@ -246,23 +255,20 @@
      * are a plain global assignment (window.LB_LESSON). One shell loading one
      * data file keeps "double-click index.html and it works" intact with zero
      * server, zero build, and no per-lesson HTML duplication.
+     *
+     * LB-23: the whitelist + default lesson are DERIVED from the manifest
+     * (window.LB_LANGUAGES via window.LBManifest) — no longer a hand-maintained
+     * literal. A defensive fallback keeps the app booting if the manifest failed
+     * to load.
      */
     (function () {
-      var ALLOWED = {
-        "sq/lesson-1": true, "sq/lesson-2": true, "sq/lesson-3": true,
-        "sq/lesson-4": true, "sq/lesson-5": true, "sq/lesson-6": true,
-        // LB-18 alphabet section: 3 group decks + 1 combined (rollup-excluded).
-        "sq/alphabet-vowels": true, "sq/alphabet-consonants": true,
-        "sq/alphabet-digraphs": true, "sq/alphabet-all": true,
-        // LB-20 phrases section: 5 decks, all rollup-excluded.
-        "sq/phrases-1": true, "sq/phrases-2": true, "sq/phrases-3": true,
-        "sq/phrases-4": true, "sq/phrases-5": true,
-        // LB-21 words section: 5 decks, all rollup-excluded. Interleaved with
-        // the phrases decks in the "Words & Phrases" group.
-        "sq/words-1": true, "sq/words-2": true, "sq/words-3": true,
-        "sq/words-4": true, "sq/words-5": true
-      };
-      var DEFAULT_LESSON = "sq/lesson-1";
+      var LBM = window.LBManifest;
+      var LANGS = (window.LB_LANGUAGES && window.LB_LANGUAGES.length)
+        ? window.LB_LANGUAGES : null;
+      var ALLOWED = (LBM && LANGS) ? LBM.buildAllowedMap(LANGS) : {};
+      var DEFAULT_LESSON = (LBM && LANGS)
+        ? (LBM.getDefaultLesson(LANGS) || "sq/lesson-1")
+        : "sq/lesson-1";
 
       function currentLesson() {
         var m = /[?&]lesson=([^&]+)/.exec(window.location.search);
@@ -311,27 +317,14 @@
         });
       }
 
-      // LB-12: known per-lesson card counts (same source of truth as the test
-      // suite's EXPECTED map). Attached to each LB_LESSONS registry entry so the
-      // mastery rollup can judge overall mastery across lessons whose card data
-      // isn't loaded (the app loads one lesson at a time). Keep in sync if a
-      // lesson's card count changes.
-      var LESSON_COUNTS = {
-        "sq/lesson-1": 11, "sq/lesson-2": 9, "sq/lesson-3": 8,
-        "sq/lesson-4": 80, "sq/lesson-5": 56, "sq/lesson-6": 6,
-        // LB-18 alphabet section. alphabet-all (36) is rollup-excluded, so its
-        // count never reaches the denominator; kept here for completeness.
-        "sq/alphabet-vowels": 7, "sq/alphabet-consonants": 20,
-        "sq/alphabet-digraphs": 9, "sq/alphabet-all": 36,
-        // LB-20 phrases section. All 5 are rollup-excluded, so their counts
-        // never reach the denominator; kept here for completeness.
-        "sq/phrases-1": 7, "sq/phrases-2": 8, "sq/phrases-3": 6,
-        "sq/phrases-4": 5, "sq/phrases-5": 6,
-        // LB-21 words section. All 5 are rollup-excluded; counts kept for
-        // completeness / count-parity guard.
-        "sq/words-1": 9, "sq/words-2": 12, "sq/words-3": 11,
-        "sq/words-4": 13, "sq/words-5": 17
-      };
+      // LB-23: per-lesson card counts now come from the MANIFEST
+      // (window.LB_LANGUAGES via LBManifest.buildLessonCounts) — the single
+      // source of truth — instead of a hand-maintained LESSON_COUNTS literal.
+      // Attached to each loaded LB_LESSONS registry entry as `.count` so the
+      // mastery rollup can judge overall mastery for lessons whose card data
+      // isn't loaded (the app loads one lesson at a time).
+      var LESSON_COUNTS = (window.LBManifest && window.LB_LANGUAGES)
+        ? window.LBManifest.buildLessonCounts(window.LB_LANGUAGES) : {};
       if (Array.isArray(window.LB_LESSONS)) {
         for (var li = 0; li < window.LB_LESSONS.length; li++) {
           var le = window.LB_LESSONS[li];
