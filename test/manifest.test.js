@@ -215,6 +215,38 @@ test("manifest: shouldShowLanguageDropdown is false at 1 language, true at 2", (
 });
 
 // ---------------------------------------------------------------------------
+// 6b. Language-switch path (LB-24-ready) — buildPickerModel + getDefaultLesson
+//     resolve PER activeCode. The language <select> change handler in index.html
+//     relies on getDefaultLesson(manifest, code) returning the SELECTED
+//     language's default lesson, and on buildPickerModel(manifest, code)
+//     rendering that language's lessons.
+// ---------------------------------------------------------------------------
+test("manifest: buildPickerModel/getDefaultLesson resolve per activeCode (language switch)", () => {
+  const twoLangs = languages.concat([{
+    code: "es", name: "Spanish", defaultLesson: "es/lesson-1",
+    groups: [{
+      label: "Numbers",
+      lessons: [
+        { id: "es/lesson-1", label: "Lección 1", count: 1, rollup: true },
+        { id: "es/lesson-2", label: "Lección 2", count: 1, rollup: true },
+      ],
+    }],
+  }]);
+
+  // Active language selects which language's picker/default is produced.
+  assert.equal(LBManifest.getDefaultLesson(twoLangs, "sq"), "sq/lesson-1",
+    "sq default lesson unchanged when a 2nd language exists");
+  assert.equal(LBManifest.getDefaultLesson(twoLangs, "es"), "es/lesson-1",
+    "selecting es must resolve to the es default lesson");
+
+  const esModel = LBManifest.buildPickerModel(twoLangs, "es");
+  assert.equal(esModel.languageCode, "es", "picker model must be for the selected language");
+  const esValues = plain(esModel.groups.flatMap((g) => g.options.map((o) => o.value)));
+  assert.deepEqual(esValues, ["es/lesson-1", "es/lesson-2"],
+    "es picker must render only es lessons, in order");
+});
+
+// ---------------------------------------------------------------------------
 // 7. Loop resilience — one bad lesson entry is skipped, valid ones survive
 // ---------------------------------------------------------------------------
 test("manifest: buildPickerModel skips a bad lesson entry and keeps the valid ones", () => {
