@@ -73,7 +73,8 @@ function schemaExpected() {
 // The shipped lesson ids in manifest order — LOCKED. A change here is a change to
 // a ?lesson= value, which would strand saved localStorage state; this array makes
 // any such change fail loudly. LB-25 appended the 6 es number-deck ids after the
-// 20 sq ids (listLessons walks languages in registration order: sq, then es).
+// 20 sq ids; LB-24 appended the 6 ja number-deck ids after es (listLessons walks
+// languages in registration order: sq, then es, then ja).
 const LOCKED_IDS = [
   "sq/lesson-1", "sq/lesson-2", "sq/lesson-3",
   "sq/lesson-4", "sq/lesson-5", "sq/lesson-6",
@@ -84,6 +85,8 @@ const LOCKED_IDS = [
   "sq/words-5", "sq/phrases-5",
   "es/lesson-1", "es/lesson-2", "es/lesson-3",
   "es/lesson-4", "es/lesson-5", "es/lesson-6",
+  "ja/lesson-1", "ja/lesson-2", "ja/lesson-3",
+  "ja/lesson-4", "ja/lesson-5", "ja/lesson-6",
 ];
 
 // The decks that must be rollup-EXCLUDED (rollup:false): the combined alphabet
@@ -99,8 +102,8 @@ const LESSONS = LBManifest.listLessons(languages);
 // ---------------------------------------------------------------------------
 // 1. Registration
 // ---------------------------------------------------------------------------
-test("manifest: window.LB_LANGUAGES registers sq (Albanian) + es (Spanish)", () => {
-  assert.equal(languages.length, 2, "two languages registered (sq, es) after LB-25");
+test("manifest: window.LB_LANGUAGES registers sq (Albanian) + es (Spanish) + ja (Japanese)", () => {
+  assert.equal(languages.length, 3, "three languages registered (sq, es, ja) after LB-24");
   const sq = languages[0];
   assert.equal(sq.code, "sq", "first language code must be sq");
   assert.equal(sq.name, "Albanian", "first language name must be Albanian");
@@ -114,6 +117,14 @@ test("manifest: window.LB_LANGUAGES registers sq (Albanian) + es (Spanish)", () 
     "es must have 1 picker group (Numbers)");
   assert.equal(es.groups[0].label, "Numbers", "es group label must be Numbers");
   assert.equal(es.groups[0].lessons.length, 6, "es Numbers group must list 6 lessons");
+
+  const ja = languages[2];
+  assert.equal(ja.code, "ja", "third language code must be ja");
+  assert.equal(ja.name, "Japanese", "third language name must be Japanese");
+  assert.ok(Array.isArray(ja.groups) && ja.groups.length === 1,
+    "ja must have 1 picker group (Numbers)");
+  assert.equal(ja.groups[0].label, "Numbers", "ja group label must be Numbers");
+  assert.equal(ja.groups[0].lessons.length, 6, "ja Numbers group must list 6 lessons");
 });
 
 // ---------------------------------------------------------------------------
@@ -121,7 +132,7 @@ test("manifest: window.LB_LANGUAGES registers sq (Albanian) + es (Spanish)", () 
 // ---------------------------------------------------------------------------
 test("manifest: every lesson id has a data file; count === cards.length === EXPECTED", () => {
   const EXPECTED = schemaExpected();
-  assert.equal(LESSONS.length, 26, "manifest must list 26 lessons (20 sq + 6 es)");
+  assert.equal(LESSONS.length, 32, "manifest must list 32 lessons (20 sq + 6 es + 6 ja)");
   for (const row of LESSONS) {
     const file = fileForId(row.id);
     const lang = langForId(row.id);
@@ -146,7 +157,7 @@ test("manifest: every lesson id has a data file; count === cards.length === EXPE
 test("manifest: every buildPickerModel option resolves to a manifest lesson (no orphans/gaps)", () => {
   // LB-25: buildPickerModel is PER language. Each language's picker must cover
   // exactly that language's manifest lessons — no orphan option, no missing lesson.
-  for (const code of ["sq", "es"]) {
+  for (const code of ["sq", "es", "ja"]) {
     const langIds = new Set(LESSONS.filter((r) => r.languageCode === code).map((r) => r.id));
     const model = LBManifest.buildPickerModel(languages, code);
     assert.equal(model.languageCode, code, `picker model must be for ${code}`);
@@ -233,7 +244,8 @@ test("manifest: shouldShowLanguageDropdown is false at 1 language, true at 2", (
   assert.deepEqual(plain(opts), [
     { value: "sq", label: "Albanian" },
     { value: "es", label: "Spanish" },
-  ], "language option list must be [{sq, Albanian}, {es, Spanish}]");
+    { value: "ja", label: "Japanese" },
+  ], "language option list must be [{sq, Albanian}, {es, Spanish}, {ja, Japanese}]");
 });
 
 // ---------------------------------------------------------------------------
