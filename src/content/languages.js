@@ -105,6 +105,20 @@
         ]
       },
       {
+        // LB-31: Spanish Alphabet — mirrors the sq Alphabet group. The 3 discrete
+        // decks (vowels/consonants/digraphs) are rollup:true and ADD to the es
+        // per-language mastery denominator (6 numbers -> 9). The combined 30-letter
+        // "Full set" deck is rollup:false — already counted via the 3 group decks,
+        // so counting it would double-count the denominator.
+        label: "Alphabet",
+        lessons: [
+          { id: "es/alphabet-vowels", label: "Lesson 1 — Vowels", count: 5, rollup: true },
+          { id: "es/alphabet-consonants", label: "Lesson 2 — Consonants", count: 22, rollup: true },
+          { id: "es/alphabet-digraphs", label: "Lesson 3 — Digraphs", count: 3, rollup: true },
+          { id: "es/alphabet-all", label: "Lesson 4 — Full set (30)", count: 30, rollup: false }
+        ]
+      },
+      {
         // LB-29: Spanish Words & Phrases — mirrors the sq/ja group. Each topic's
         // single-word deck (words-N) is interleaved BEFORE its phrase deck
         // (phrases-N). Per-group "Lesson N" labels restart at 1 and are
@@ -151,6 +165,21 @@
         ]
       },
       {
+        // LB-32: Japanese "Alphabet" (kana) — the two syllabic scripts, base
+        // gojuon only. All 4 discrete script decks are rollup:true and ADD to the
+        // ja per-language mastery denominator (6 numbers -> 10). Unlike sq/es,
+        // there is NO combined full-set kana deck, so every deck here is discrete
+        // and rollup-counted (standardizing on rollup:true for discrete alphabet
+        // decks across all languages). prompt = kana char, answer = the sound.
+        label: "Alphabet",
+        lessons: [
+          { id: "ja/alphabet-hiragana-1", label: "Lesson 1 — Hiragana (Part 1)", count: 25, rollup: true },
+          { id: "ja/alphabet-hiragana-2", label: "Lesson 2 — Hiragana (Part 2)", count: 21, rollup: true },
+          { id: "ja/alphabet-katakana-1", label: "Lesson 3 — Katakana (Part 1)", count: 25, rollup: true },
+          { id: "ja/alphabet-katakana-2", label: "Lesson 4 — Katakana (Part 2)", count: 21, rollup: true }
+        ]
+      },
+      {
         // LB-28: Japanese Words & Phrases — mirrors the sq group. Each topic's
         // single-word deck (words-N) is interleaved BEFORE its phrase deck
         // (phrases-N). Per-group "Lesson N" labels restart at 1 and are
@@ -193,6 +222,21 @@
           { id: "bn/lesson-4", label: "Lesson 4 — 20–99 compounds", count: 80, rollup: true },
           { id: "bn/lesson-5", label: "Lesson 5 — Big Number Roots", count: 56, rollup: true },
           { id: "bn/lesson-6", label: "Lesson 6 — Number Builder", count: 6, rollup: true }
+        ]
+      },
+      {
+        // LB-33: Bengali "Alphabet" (script) — the traditional varnamala base
+        // letters + signs, taught across 4 progressive decks. All 4 are
+        // rollup:true and ADD to the bn per-language mastery denominator (6
+        // numbers -> 10). Like ja, there is NO combined full-set deck, so every
+        // deck here is discrete and rollup-counted. prompt = Bengali char,
+        // answer = the sound (inherent-vowel form, e.g. "Kô (k)" for consonants).
+        label: "Alphabet",
+        lessons: [
+          { id: "bn/alphabet-vowels", label: "Lesson 1 — Vowels", count: 11, rollup: true },
+          { id: "bn/alphabet-consonants-1", label: "Lesson 2 — Consonants (Part 1)", count: 15, rollup: true },
+          { id: "bn/alphabet-consonants-2", label: "Lesson 3 — Consonants (Part 2)", count: 17, rollup: true },
+          { id: "bn/alphabet-signs", label: "Lesson 4 — Extra Letters & Signs", count: 7, rollup: true }
         ]
       },
       {
