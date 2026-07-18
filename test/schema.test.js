@@ -58,6 +58,13 @@ const EXPECTED = {
     "lesson-4.js": { count: 80, id: "es/lesson-4", revealMs: 5000 },
     "lesson-5.js": { count: 56, id: "es/lesson-5", revealMs: 5000 },
     "lesson-6.js": { count: 6, id: "es/lesson-6", revealMs: 10000 },
+    // LB-31 Spanish alphabet section: 3 group decks (rollup:true) + 1 combined
+    // (rollup-excluded). 5/22/3 group decks add to the es mastery denominator; the
+    // 30-card combined deck is rollup:false. 5+22+3 = 30, matching alphabet-all.
+    "alphabet-vowels.js": { count: 5, id: "es/alphabet-vowels", revealMs: 5000 },
+    "alphabet-consonants.js": { count: 22, id: "es/alphabet-consonants", revealMs: 5000 },
+    "alphabet-digraphs.js": { count: 3, id: "es/alphabet-digraphs", revealMs: 5000 },
+    "alphabet-all.js": { count: 30, id: "es/alphabet-all", revealMs: 5000 },
     // LB-29 Spanish Words & Phrases: 5 words + 5 phrases decks, all rollup-
     // excluded. words 11/13/12/14/16 = 66 (Help:Words = 17 dataset minus 1
     // dropped silent-punctuation card), phrases 7/8/6/5/6 = 32.

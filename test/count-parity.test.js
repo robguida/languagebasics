@@ -58,8 +58,8 @@ const ALLOWED = LBManifest.buildAllowedMap(languages);    // { id: true }
 const EXPECTED = schemaExpected();                        // { id: count }
 const IDS = Object.keys(COUNTS).sort();
 
-test("parity: manifest declares a count for exactly the 68 known lessons", () => {
-  assert.equal(IDS.length, 68, "expected 68 lessons with counts in the manifest (20 sq + 16 es + 16 ja + 16 bn)");
+test("parity: manifest declares a count for exactly the 72 known lessons", () => {
+  assert.equal(IDS.length, 72, "expected 72 lessons with counts in the manifest (20 sq + 20 es + 16 ja + 16 bn)");
 });
 
 for (const id of IDS) {

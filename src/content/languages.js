@@ -105,6 +105,20 @@
         ]
       },
       {
+        // LB-31: Spanish Alphabet — mirrors the sq Alphabet group. The 3 discrete
+        // decks (vowels/consonants/digraphs) are rollup:true and ADD to the es
+        // per-language mastery denominator (6 numbers -> 9). The combined 30-letter
+        // "Full set" deck is rollup:false — already counted via the 3 group decks,
+        // so counting it would double-count the denominator.
+        label: "Alphabet",
+        lessons: [
+          { id: "es/alphabet-vowels", label: "Lesson 1 — Vowels", count: 5, rollup: true },
+          { id: "es/alphabet-consonants", label: "Lesson 2 — Consonants", count: 22, rollup: true },
+          { id: "es/alphabet-digraphs", label: "Lesson 3 — Digraphs", count: 3, rollup: true },
+          { id: "es/alphabet-all", label: "Lesson 4 — Full set (30)", count: 30, rollup: false }
+        ]
+      },
+      {
         // LB-29: Spanish Words & Phrases — mirrors the sq/ja group. Each topic's
         // single-word deck (words-N) is interleaved BEFORE its phrase deck
         // (phrases-N). Per-group "Lesson N" labels restart at 1 and are
