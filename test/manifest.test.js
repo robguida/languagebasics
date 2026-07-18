@@ -16,9 +16,9 @@
  *      resolves to a manifest entry" guarantee, now that the picker is manifest
  *      -driven.
  *   4. rollup is EXPLICIT — every lesson carries a boolean rollup, the
- *      rollup-excluded set is exactly the expected 41 decks (sq alphabet-all +
- *      sq words/phrases + es words/phrases + ja words/phrases + bn words/phrases),
- *      and each manifest
+ *      rollup-excluded set is exactly the expected 42 decks (sq alphabet-all +
+ *      es alphabet-all + sq words/phrases + es words/phrases + ja words/phrases +
+ *      bn words/phrases), and each manifest
  *      rollup flag MATCHES the flag that deck's data file pushes onto
  *      window.LB_LESSONS (so the picker source and the mastery source can never
  *      drift).
@@ -87,6 +87,8 @@ const LOCKED_IDS = [
   "sq/words-5", "sq/phrases-5",
   "es/lesson-1", "es/lesson-2", "es/lesson-3",
   "es/lesson-4", "es/lesson-5", "es/lesson-6",
+  "es/alphabet-vowels", "es/alphabet-consonants",
+  "es/alphabet-digraphs", "es/alphabet-all",
   "es/words-1", "es/phrases-1", "es/words-2", "es/phrases-2",
   "es/words-3", "es/phrases-3", "es/words-4", "es/phrases-4",
   "es/words-5", "es/phrases-5",
@@ -108,6 +110,7 @@ const LOCKED_ROLLUP_FALSE = new Set([
   "sq/alphabet-all",
   "sq/words-1", "sq/words-2", "sq/words-3", "sq/words-4", "sq/words-5",
   "sq/phrases-1", "sq/phrases-2", "sq/phrases-3", "sq/phrases-4", "sq/phrases-5",
+  "es/alphabet-all",
   "es/words-1", "es/words-2", "es/words-3", "es/words-4", "es/words-5",
   "es/phrases-1", "es/phrases-2", "es/phrases-3", "es/phrases-4", "es/phrases-5",
   "ja/words-1", "ja/words-2", "ja/words-3", "ja/words-4", "ja/words-5",
@@ -132,13 +135,15 @@ test("manifest: window.LB_LANGUAGES registers sq (Albanian) + es (Spanish) + ja 
   const es = languages[1];
   assert.equal(es.code, "es", "second language code must be es");
   assert.equal(es.name, "Spanish", "second language name must be Spanish");
-  // LB-29: es gained a Words & Phrases group (Numbers + Words & Phrases = 2).
-  assert.ok(Array.isArray(es.groups) && es.groups.length === 2,
-    "es must have 2 picker groups (Numbers / Words & Phrases)");
+  // LB-31: es gained an Alphabet group (Numbers + Alphabet + Words & Phrases = 3).
+  assert.ok(Array.isArray(es.groups) && es.groups.length === 3,
+    "es must have 3 picker groups (Numbers / Alphabet / Words & Phrases)");
   assert.equal(es.groups[0].label, "Numbers", "es group[0] label must be Numbers");
   assert.equal(es.groups[0].lessons.length, 6, "es Numbers group must list 6 lessons");
-  assert.equal(es.groups[1].label, "Words & Phrases", "es group[1] label must be Words & Phrases");
-  assert.equal(es.groups[1].lessons.length, 10, "es Words & Phrases group must list 10 lessons");
+  assert.equal(es.groups[1].label, "Alphabet", "es group[1] label must be Alphabet");
+  assert.equal(es.groups[1].lessons.length, 4, "es Alphabet group must list 4 lessons");
+  assert.equal(es.groups[2].label, "Words & Phrases", "es group[2] label must be Words & Phrases");
+  assert.equal(es.groups[2].lessons.length, 10, "es Words & Phrases group must list 10 lessons");
 
   const ja = languages[2];
   assert.equal(ja.code, "ja", "third language code must be ja");
@@ -168,7 +173,7 @@ test("manifest: window.LB_LANGUAGES registers sq (Albanian) + es (Spanish) + ja 
 // ---------------------------------------------------------------------------
 test("manifest: every lesson id has a data file; count === cards.length === EXPECTED", () => {
   const EXPECTED = schemaExpected();
-  assert.equal(LESSONS.length, 68, "manifest must list 68 lessons (20 sq + 16 es + 16 ja + 16 bn)");
+  assert.equal(LESSONS.length, 72, "manifest must list 72 lessons (20 sq + 20 es + 16 ja + 16 bn)");
   for (const row of LESSONS) {
     const file = fileForId(row.id);
     const lang = langForId(row.id);
@@ -216,7 +221,7 @@ test("manifest: every buildPickerModel option resolves to a manifest lesson (no 
 // ---------------------------------------------------------------------------
 // 4. Rollup is explicit + matches the data-file registry push
 // ---------------------------------------------------------------------------
-test("manifest: rollup is an explicit boolean on every lesson; excluded set is the locked 41", () => {
+test("manifest: rollup is an explicit boolean on every lesson; excluded set is the locked 42", () => {
   const excluded = new Set();
   for (const row of LESSONS) {
     // listLessons normalizes rollup to a boolean; assert the SOURCE is explicit.
@@ -308,10 +313,12 @@ test("manifest: buildPickerModel/getDefaultLesson resolve per activeCode (langua
   assert.deepEqual(esValues, [
     "es/lesson-1", "es/lesson-2", "es/lesson-3",
     "es/lesson-4", "es/lesson-5", "es/lesson-6",
+    "es/alphabet-vowels", "es/alphabet-consonants",
+    "es/alphabet-digraphs", "es/alphabet-all",
     "es/words-1", "es/phrases-1", "es/words-2", "es/phrases-2",
     "es/words-3", "es/phrases-3", "es/words-4", "es/phrases-4",
     "es/words-5", "es/phrases-5",
-  ], "es picker must render only es lessons, in order (Numbers then Words & Phrases)");
+  ], "es picker must render only es lessons, in order (Numbers, Alphabet, then Words & Phrases)");
 });
 
 // ---------------------------------------------------------------------------
@@ -330,16 +337,18 @@ test("manifest: listLessonsForLanguage returns only the requested language's les
     "sq list must equal the sq subset of listLessons, in order");
 
   const es = LBManifest.listLessonsForLanguage(languages, "es");
-  assert.equal(es.length, 16, "es must return its 6 number + 10 Words & Phrases lessons");
+  assert.equal(es.length, 20, "es must return its 6 number + 4 alphabet + 10 Words & Phrases lessons");
   assert.ok(es.every((r) => r.languageCode === "es"),
     "every es row must have languageCode === es");
   assert.deepEqual(plain(es.map((r) => r.id)), [
     "es/lesson-1", "es/lesson-2", "es/lesson-3",
     "es/lesson-4", "es/lesson-5", "es/lesson-6",
+    "es/alphabet-vowels", "es/alphabet-consonants",
+    "es/alphabet-digraphs", "es/alphabet-all",
     "es/words-1", "es/phrases-1", "es/words-2", "es/phrases-2",
     "es/words-3", "es/phrases-3", "es/words-4", "es/phrases-4",
     "es/words-5", "es/phrases-5",
-  ], "es list must be exactly the sixteen es lessons, in order");
+  ], "es list must be exactly the twenty es lessons, in order");
 
   // Rows carry count + rollup so the per-language rollup can judge mastery
   // WITHOUT loading each lesson's card data (one lesson loads per page).
