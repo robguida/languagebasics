@@ -20,36 +20,71 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { loadLesson } = require("./helpers/load-lesson.js");
 
-// Expected card counts per lesson (from the lesson data shape + verified data).
+// Expected card counts per lesson, KEYED BY LANGUAGE NAMESPACE (LB-23). Adding a
+// language adds a top-level namespace here; the loop below loads each file under
+// its language's content/<lang> directory via loadLesson(file, lang).
 const EXPECTED = {
-  "lesson-1.js": { count: 11, id: "sq/lesson-1", revealMs: 5000 },
-  "lesson-2.js": { count: 9, id: "sq/lesson-2", revealMs: 5000 },
-  "lesson-3.js": { count: 8, id: "sq/lesson-3", revealMs: 5000 },
-  "lesson-4.js": { count: 80, id: "sq/lesson-4", revealMs: 5000 },
-  "lesson-5.js": { count: 56, id: "sq/lesson-5", revealMs: 5000 },
-  "lesson-6.js": { count: 6, id: "sq/lesson-6", revealMs: 10000 },
-  // LB-18 alphabet section: 3 group decks + 1 combined (rollup-excluded).
-  "alphabet-vowels.js": { count: 7, id: "sq/alphabet-vowels", revealMs: 5000 },
-  "alphabet-consonants.js": { count: 20, id: "sq/alphabet-consonants", revealMs: 5000 },
-  "alphabet-digraphs.js": { count: 9, id: "sq/alphabet-digraphs", revealMs: 5000 },
-  "alphabet-all.js": { count: 36, id: "sq/alphabet-all", revealMs: 5000 },
-  // LB-20 phrases section: 5 decks, all rollup-excluded. 7/8/6/5/6 = 32 cards.
-  "phrases-1.js": { count: 7, id: "sq/phrases-1", revealMs: 5000 },
-  "phrases-2.js": { count: 8, id: "sq/phrases-2", revealMs: 5000 },
-  "phrases-3.js": { count: 6, id: "sq/phrases-3", revealMs: 5000 },
-  "phrases-4.js": { count: 5, id: "sq/phrases-4", revealMs: 5000 },
-  "phrases-5.js": { count: 6, id: "sq/phrases-5", revealMs: 5000 },
-  // LB-21 words section: 5 decks, all rollup-excluded. 9/12/11/13/17 = 62 cards.
-  "words-1.js": { count: 9, id: "sq/words-1", revealMs: 5000 },
-  "words-2.js": { count: 12, id: "sq/words-2", revealMs: 5000 },
-  "words-3.js": { count: 11, id: "sq/words-3", revealMs: 5000 },
-  "words-4.js": { count: 13, id: "sq/words-4", revealMs: 5000 },
-  "words-5.js": { count: 17, id: "sq/words-5", revealMs: 5000 },
+  sq: {
+    "lesson-1.js": { count: 11, id: "sq/lesson-1", revealMs: 5000 },
+    "lesson-2.js": { count: 9, id: "sq/lesson-2", revealMs: 5000 },
+    "lesson-3.js": { count: 8, id: "sq/lesson-3", revealMs: 5000 },
+    "lesson-4.js": { count: 80, id: "sq/lesson-4", revealMs: 5000 },
+    "lesson-5.js": { count: 56, id: "sq/lesson-5", revealMs: 5000 },
+    "lesson-6.js": { count: 6, id: "sq/lesson-6", revealMs: 10000 },
+    // LB-18 alphabet section: 3 group decks + 1 combined (rollup-excluded).
+    "alphabet-vowels.js": { count: 7, id: "sq/alphabet-vowels", revealMs: 5000 },
+    "alphabet-consonants.js": { count: 20, id: "sq/alphabet-consonants", revealMs: 5000 },
+    "alphabet-digraphs.js": { count: 9, id: "sq/alphabet-digraphs", revealMs: 5000 },
+    "alphabet-all.js": { count: 36, id: "sq/alphabet-all", revealMs: 5000 },
+    // LB-20 phrases section: 5 decks, all rollup-excluded. 7/8/6/5/6 = 32 cards.
+    "phrases-1.js": { count: 7, id: "sq/phrases-1", revealMs: 5000 },
+    "phrases-2.js": { count: 8, id: "sq/phrases-2", revealMs: 5000 },
+    "phrases-3.js": { count: 6, id: "sq/phrases-3", revealMs: 5000 },
+    "phrases-4.js": { count: 5, id: "sq/phrases-4", revealMs: 5000 },
+    "phrases-5.js": { count: 6, id: "sq/phrases-5", revealMs: 5000 },
+    // LB-21 words section: 5 decks, all rollup-excluded. 9/12/11/13/17 = 62 cards.
+    "words-1.js": { count: 9, id: "sq/words-1", revealMs: 5000 },
+    "words-2.js": { count: 12, id: "sq/words-2", revealMs: 5000 },
+    "words-3.js": { count: 11, id: "sq/words-3", revealMs: 5000 },
+    "words-4.js": { count: 13, id: "sq/words-4", revealMs: 5000 },
+    "words-5.js": { count: 17, id: "sq/words-5", revealMs: 5000 },
+  },
+  // LB-25 Spanish number deck: 6 lessons, same ranges/counts as sq (11/9/8/80/
+  // 56/6). Loaded from src/content/es via loadLesson(file, "es").
+  es: {
+    "lesson-1.js": { count: 11, id: "es/lesson-1", revealMs: 5000 },
+    "lesson-2.js": { count: 9, id: "es/lesson-2", revealMs: 5000 },
+    "lesson-3.js": { count: 8, id: "es/lesson-3", revealMs: 5000 },
+    "lesson-4.js": { count: 80, id: "es/lesson-4", revealMs: 5000 },
+    "lesson-5.js": { count: 56, id: "es/lesson-5", revealMs: 5000 },
+    "lesson-6.js": { count: 6, id: "es/lesson-6", revealMs: 10000 },
+  },
+  // LB-24 Japanese number deck: 6 lessons, same ranges/counts as sq/es (11/9/8/
+  // 80/56/6). Loaded from src/content/ja via loadLesson(file, "ja").
+  ja: {
+    "lesson-1.js": { count: 11, id: "ja/lesson-1", revealMs: 5000 },
+    "lesson-2.js": { count: 9, id: "ja/lesson-2", revealMs: 5000 },
+    "lesson-3.js": { count: 8, id: "ja/lesson-3", revealMs: 5000 },
+    "lesson-4.js": { count: 80, id: "ja/lesson-4", revealMs: 5000 },
+    "lesson-5.js": { count: 56, id: "ja/lesson-5", revealMs: 5000 },
+    "lesson-6.js": { count: 6, id: "ja/lesson-6", revealMs: 10000 },
+  },
+  // LB-26 Bengali number deck: 6 lessons, same ranges/counts as sq/es/ja (11/9/8/
+  // 80/56/6). Loaded from src/content/bn via loadLesson(file, "bn").
+  bn: {
+    "lesson-1.js": { count: 11, id: "bn/lesson-1", revealMs: 5000 },
+    "lesson-2.js": { count: 9, id: "bn/lesson-2", revealMs: 5000 },
+    "lesson-3.js": { count: 8, id: "bn/lesson-3", revealMs: 5000 },
+    "lesson-4.js": { count: 80, id: "bn/lesson-4", revealMs: 5000 },
+    "lesson-5.js": { count: 56, id: "bn/lesson-5", revealMs: 5000 },
+    "lesson-6.js": { count: 6, id: "bn/lesson-6", revealMs: 10000 },
+  },
 };
 
-for (const [file, expected] of Object.entries(EXPECTED)) {
-  test(`${file}: schema + counts`, () => {
-    const { lesson, lessonsIndex } = loadLesson(file);
+for (const [lang, files] of Object.entries(EXPECTED)) {
+  for (const [file, expected] of Object.entries(files)) {
+    test(`${lang}/${file}: schema + counts`, () => {
+      const { lesson, lessonsIndex } = loadLesson(file, lang);
 
     // --- LB_LESSON present with required keys ---
     assert.ok(lesson, `${file}: window.LB_LESSON must be defined`);
@@ -111,5 +146,6 @@ for (const [file, expected] of Object.entries(EXPECTED)) {
     assert.equal(lessonsIndex.length, 1, `${file}: should push exactly one LB_LESSONS entry`);
     assert.equal(lessonsIndex[0].id, lesson.id, `${file}: LB_LESSONS entry id must match lesson.id`);
     assert.equal(lessonsIndex[0].title, lesson.title, `${file}: LB_LESSONS entry title must match lesson.title`);
-  });
+    });
+  }
 }
