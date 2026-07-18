@@ -225,6 +225,21 @@
         ]
       },
       {
+        // LB-33: Bengali "Alphabet" (script) — the traditional varnamala base
+        // letters + signs, taught across 4 progressive decks. All 4 are
+        // rollup:true and ADD to the bn per-language mastery denominator (6
+        // numbers -> 10). Like ja, there is NO combined full-set deck, so every
+        // deck here is discrete and rollup-counted. prompt = Bengali char,
+        // answer = the sound (inherent-vowel form, e.g. "Kô (k)" for consonants).
+        label: "Alphabet",
+        lessons: [
+          { id: "bn/alphabet-vowels", label: "Lesson 1 — Vowels", count: 11, rollup: true },
+          { id: "bn/alphabet-consonants-1", label: "Lesson 2 — Consonants (Part 1)", count: 15, rollup: true },
+          { id: "bn/alphabet-consonants-2", label: "Lesson 3 — Consonants (Part 2)", count: 17, rollup: true },
+          { id: "bn/alphabet-signs", label: "Lesson 4 — Extra Letters & Signs", count: 7, rollup: true }
+        ]
+      },
+      {
         // LB-30: Bengali Words & Phrases — mirrors the sq/es/ja group. Each
         // topic's single-word deck (words-N) is interleaved BEFORE its phrase
         // deck (phrases-N). Per-group "Lesson N" labels restart at 1 and are
