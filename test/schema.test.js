@@ -116,6 +116,12 @@ const EXPECTED = {
     "lesson-4.js": { count: 80, id: "bn/lesson-4", revealMs: 5000 },
     "lesson-5.js": { count: 56, id: "bn/lesson-5", revealMs: 5000 },
     "lesson-6.js": { count: 6, id: "bn/lesson-6", revealMs: 10000 },
+    // LB-33 Bengali "Alphabet" (script) section: 4 discrete decks, all
+    // rollup:true (no combined full-set deck here). 11/15/17/7 = 50 base letters.
+    "alphabet-vowels.js": { count: 11, id: "bn/alphabet-vowels", revealMs: 5000 },
+    "alphabet-consonants-1.js": { count: 15, id: "bn/alphabet-consonants-1", revealMs: 5000 },
+    "alphabet-consonants-2.js": { count: 17, id: "bn/alphabet-consonants-2", revealMs: 5000 },
+    "alphabet-signs.js": { count: 7, id: "bn/alphabet-signs", revealMs: 5000 },
     // LB-30 Bengali Words & Phrases: 5 words + 5 phrases decks, all rollup-
     // excluded. words 9/12/11/13/17 = 62, phrases 7/8/6/5/6 = 32.
     "words-1.js": { count: 9, id: "bn/words-1", revealMs: 5000 },
