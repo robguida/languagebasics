@@ -165,6 +165,21 @@
         ]
       },
       {
+        // LB-32: Japanese "Alphabet" (kana) — the two syllabic scripts, base
+        // gojuon only. All 4 discrete script decks are rollup:true and ADD to the
+        // ja per-language mastery denominator (6 numbers -> 10). Unlike sq/es,
+        // there is NO combined full-set kana deck, so every deck here is discrete
+        // and rollup-counted (standardizing on rollup:true for discrete alphabet
+        // decks across all languages). prompt = kana char, answer = the sound.
+        label: "Alphabet",
+        lessons: [
+          { id: "ja/alphabet-hiragana-1", label: "Lesson 1 — Hiragana (Part 1)", count: 25, rollup: true },
+          { id: "ja/alphabet-hiragana-2", label: "Lesson 2 — Hiragana (Part 2)", count: 21, rollup: true },
+          { id: "ja/alphabet-katakana-1", label: "Lesson 3 — Katakana (Part 1)", count: 25, rollup: true },
+          { id: "ja/alphabet-katakana-2", label: "Lesson 4 — Katakana (Part 2)", count: 21, rollup: true }
+        ]
+      },
+      {
         // LB-28: Japanese Words & Phrases — mirrors the sq group. Each topic's
         // single-word deck (words-N) is interleaved BEFORE its phrase deck
         // (phrases-N). Per-group "Lesson N" labels restart at 1 and are

@@ -88,6 +88,12 @@ const EXPECTED = {
     "lesson-4.js": { count: 80, id: "ja/lesson-4", revealMs: 5000 },
     "lesson-5.js": { count: 56, id: "ja/lesson-5", revealMs: 5000 },
     "lesson-6.js": { count: 6, id: "ja/lesson-6", revealMs: 10000 },
+    // LB-32 Japanese "Alphabet" (kana) section: 4 discrete script decks, all
+    // rollup:true (no combined full-set deck here). 25/21/25/21 = 92 base kana.
+    "alphabet-hiragana-1.js": { count: 25, id: "ja/alphabet-hiragana-1", revealMs: 5000 },
+    "alphabet-hiragana-2.js": { count: 21, id: "ja/alphabet-hiragana-2", revealMs: 5000 },
+    "alphabet-katakana-1.js": { count: 25, id: "ja/alphabet-katakana-1", revealMs: 5000 },
+    "alphabet-katakana-2.js": { count: 21, id: "ja/alphabet-katakana-2", revealMs: 5000 },
     // LB-28 Japanese Words & Phrases: 5 words + 5 phrases decks, all rollup-
     // excluded. words 9/12/11/13/17 = 62, phrases 7/8/6/5/6 = 32.
     "words-1.js": { count: 9, id: "ja/words-1", revealMs: 5000 },
