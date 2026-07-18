@@ -94,6 +94,8 @@ const LOCKED_IDS = [
   "es/words-5", "es/phrases-5",
   "ja/lesson-1", "ja/lesson-2", "ja/lesson-3",
   "ja/lesson-4", "ja/lesson-5", "ja/lesson-6",
+  "ja/alphabet-hiragana-1", "ja/alphabet-hiragana-2",
+  "ja/alphabet-katakana-1", "ja/alphabet-katakana-2",
   "ja/words-1", "ja/phrases-1", "ja/words-2", "ja/phrases-2",
   "ja/words-3", "ja/phrases-3", "ja/words-4", "ja/phrases-4",
   "ja/words-5", "ja/phrases-5",
@@ -148,13 +150,16 @@ test("manifest: window.LB_LANGUAGES registers sq (Albanian) + es (Spanish) + ja 
   const ja = languages[2];
   assert.equal(ja.code, "ja", "third language code must be ja");
   assert.equal(ja.name, "Japanese", "third language name must be Japanese");
-  // LB-28: ja gained a Words & Phrases group (Numbers + Words & Phrases = 2).
-  assert.ok(Array.isArray(ja.groups) && ja.groups.length === 2,
-    "ja must have 2 picker groups (Numbers / Words & Phrases)");
+  // LB-32: ja gained an Alphabet (kana) group (Numbers + Alphabet + Words &
+  // Phrases = 3).
+  assert.ok(Array.isArray(ja.groups) && ja.groups.length === 3,
+    "ja must have 3 picker groups (Numbers / Alphabet / Words & Phrases)");
   assert.equal(ja.groups[0].label, "Numbers", "ja group[0] label must be Numbers");
   assert.equal(ja.groups[0].lessons.length, 6, "ja Numbers group must list 6 lessons");
-  assert.equal(ja.groups[1].label, "Words & Phrases", "ja group[1] label must be Words & Phrases");
-  assert.equal(ja.groups[1].lessons.length, 10, "ja Words & Phrases group must list 10 lessons");
+  assert.equal(ja.groups[1].label, "Alphabet", "ja group[1] label must be Alphabet");
+  assert.equal(ja.groups[1].lessons.length, 4, "ja Alphabet group must list 4 kana lessons");
+  assert.equal(ja.groups[2].label, "Words & Phrases", "ja group[2] label must be Words & Phrases");
+  assert.equal(ja.groups[2].lessons.length, 10, "ja Words & Phrases group must list 10 lessons");
 
   const bn = languages[3];
   assert.equal(bn.code, "bn", "fourth language code must be bn");
@@ -173,7 +178,7 @@ test("manifest: window.LB_LANGUAGES registers sq (Albanian) + es (Spanish) + ja 
 // ---------------------------------------------------------------------------
 test("manifest: every lesson id has a data file; count === cards.length === EXPECTED", () => {
   const EXPECTED = schemaExpected();
-  assert.equal(LESSONS.length, 72, "manifest must list 72 lessons (20 sq + 20 es + 16 ja + 16 bn)");
+  assert.equal(LESSONS.length, 76, "manifest must list 76 lessons (20 sq + 20 es + 20 ja + 16 bn)");
   for (const row of LESSONS) {
     const file = fileForId(row.id);
     const lang = langForId(row.id);
