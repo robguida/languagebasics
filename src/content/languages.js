@@ -194,6 +194,27 @@
           { id: "bn/lesson-5", label: "Lesson 5 — Big Number Roots", count: 56, rollup: true },
           { id: "bn/lesson-6", label: "Lesson 6 — Number Builder", count: 6, rollup: true }
         ]
+      },
+      {
+        // LB-30: Bengali Words & Phrases — mirrors the sq/es/ja group. Each
+        // topic's single-word deck (words-N) is interleaved BEFORE its phrase
+        // deck (phrases-N). Per-group "Lesson N" labels restart at 1 and are
+        // DISPLAY-ONLY; the ids are the shipped values. All rollup:false. ANSWER
+        // stacks native Bangla script | romanization via " | " (apni register,
+        // Standard Bangladeshi Bengali). Last language of the phrases phase.
+        label: "Words & Phrases",
+        lessons: [
+          { id: "bn/words-1", label: "Lesson 1 — Hello: Words", count: 9, rollup: false },
+          { id: "bn/phrases-1", label: "Lesson 2 — Hello: Phrases", count: 7, rollup: false },
+          { id: "bn/words-2", label: "Lesson 3 — Goodbye: Words", count: 12, rollup: false },
+          { id: "bn/phrases-2", label: "Lesson 4 — Goodbye: Phrases", count: 8, rollup: false },
+          { id: "bn/words-3", label: "Lesson 5 — Courtesy: Words", count: 11, rollup: false },
+          { id: "bn/phrases-3", label: "Lesson 6 — Courtesy: Phrases", count: 6, rollup: false },
+          { id: "bn/words-4", label: "Lesson 7 — Out & About: Words", count: 13, rollup: false },
+          { id: "bn/phrases-4", label: "Lesson 8 — Out & About: Phrases", count: 5, rollup: false },
+          { id: "bn/words-5", label: "Lesson 9 — Help: Words", count: 17, rollup: false },
+          { id: "bn/phrases-5", label: "Lesson 10 — Help: Phrases", count: 6, rollup: false }
+        ]
       }
     ]
   });

@@ -16,8 +16,9 @@
  *      resolves to a manifest entry" guarantee, now that the picker is manifest
  *      -driven.
  *   4. rollup is EXPLICIT — every lesson carries a boolean rollup, the
- *      rollup-excluded set is exactly the expected 31 decks (sq alphabet-all +
- *      sq words/phrases + es words/phrases + ja words/phrases), and each manifest
+ *      rollup-excluded set is exactly the expected 41 decks (sq alphabet-all +
+ *      sq words/phrases + es words/phrases + ja words/phrases + bn words/phrases),
+ *      and each manifest
  *      rollup flag MATCHES the flag that deck's data file pushes onto
  *      window.LB_LESSONS (so the picker source and the mastery source can never
  *      drift).
@@ -96,6 +97,9 @@ const LOCKED_IDS = [
   "ja/words-5", "ja/phrases-5",
   "bn/lesson-1", "bn/lesson-2", "bn/lesson-3",
   "bn/lesson-4", "bn/lesson-5", "bn/lesson-6",
+  "bn/words-1", "bn/phrases-1", "bn/words-2", "bn/phrases-2",
+  "bn/words-3", "bn/phrases-3", "bn/words-4", "bn/phrases-4",
+  "bn/words-5", "bn/phrases-5",
 ];
 
 // The decks that must be rollup-EXCLUDED (rollup:false): the combined alphabet
@@ -108,6 +112,8 @@ const LOCKED_ROLLUP_FALSE = new Set([
   "es/phrases-1", "es/phrases-2", "es/phrases-3", "es/phrases-4", "es/phrases-5",
   "ja/words-1", "ja/words-2", "ja/words-3", "ja/words-4", "ja/words-5",
   "ja/phrases-1", "ja/phrases-2", "ja/phrases-3", "ja/phrases-4", "ja/phrases-5",
+  "bn/words-1", "bn/words-2", "bn/words-3", "bn/words-4", "bn/words-5",
+  "bn/phrases-1", "bn/phrases-2", "bn/phrases-3", "bn/phrases-4", "bn/phrases-5",
 ]);
 
 const LESSONS = LBManifest.listLessons(languages);
@@ -148,10 +154,13 @@ test("manifest: window.LB_LANGUAGES registers sq (Albanian) + es (Spanish) + ja 
   const bn = languages[3];
   assert.equal(bn.code, "bn", "fourth language code must be bn");
   assert.equal(bn.name, "Bengali", "fourth language name must be Bengali");
-  assert.ok(Array.isArray(bn.groups) && bn.groups.length === 1,
-    "bn must have 1 picker group (Numbers)");
-  assert.equal(bn.groups[0].label, "Numbers", "bn group label must be Numbers");
+  // LB-30: bn gained a Words & Phrases group (Numbers + Words & Phrases = 2).
+  assert.ok(Array.isArray(bn.groups) && bn.groups.length === 2,
+    "bn must have 2 picker groups (Numbers / Words & Phrases)");
+  assert.equal(bn.groups[0].label, "Numbers", "bn group[0] label must be Numbers");
   assert.equal(bn.groups[0].lessons.length, 6, "bn Numbers group must list 6 lessons");
+  assert.equal(bn.groups[1].label, "Words & Phrases", "bn group[1] label must be Words & Phrases");
+  assert.equal(bn.groups[1].lessons.length, 10, "bn Words & Phrases group must list 10 lessons");
 });
 
 // ---------------------------------------------------------------------------
@@ -159,7 +168,7 @@ test("manifest: window.LB_LANGUAGES registers sq (Albanian) + es (Spanish) + ja 
 // ---------------------------------------------------------------------------
 test("manifest: every lesson id has a data file; count === cards.length === EXPECTED", () => {
   const EXPECTED = schemaExpected();
-  assert.equal(LESSONS.length, 58, "manifest must list 58 lessons (20 sq + 16 es + 16 ja + 6 bn)");
+  assert.equal(LESSONS.length, 68, "manifest must list 68 lessons (20 sq + 16 es + 16 ja + 16 bn)");
   for (const row of LESSONS) {
     const file = fileForId(row.id);
     const lang = langForId(row.id);
@@ -207,7 +216,7 @@ test("manifest: every buildPickerModel option resolves to a manifest lesson (no 
 // ---------------------------------------------------------------------------
 // 4. Rollup is explicit + matches the data-file registry push
 // ---------------------------------------------------------------------------
-test("manifest: rollup is an explicit boolean on every lesson; excluded set is the locked 31", () => {
+test("manifest: rollup is an explicit boolean on every lesson; excluded set is the locked 41", () => {
   const excluded = new Set();
   for (const row of LESSONS) {
     // listLessons normalizes rollup to a boolean; assert the SOURCE is explicit.
