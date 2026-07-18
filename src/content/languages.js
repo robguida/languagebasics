@@ -103,6 +103,27 @@
           { id: "es/lesson-5", label: "Lesson 5 — Big Number Roots", count: 56, rollup: true },
           { id: "es/lesson-6", label: "Lesson 6 — Number Builder", count: 6, rollup: true }
         ]
+      },
+      {
+        // LB-29: Spanish Words & Phrases — mirrors the sq/ja group. Each topic's
+        // single-word deck (words-N) is interleaved BEFORE its phrase deck
+        // (phrases-N). Per-group "Lesson N" labels restart at 1 and are
+        // DISPLAY-ONLY; the ids are the shipped values. All rollup:false.
+        // Help: Words is the dataset's 17 minus one dropped silent-punctuation
+        // card = 16 (a say-it-aloud card can't be a spoken-less ¿ ¡ mark).
+        label: "Words & Phrases",
+        lessons: [
+          { id: "es/words-1", label: "Lesson 1 — Hello: Words", count: 11, rollup: false },
+          { id: "es/phrases-1", label: "Lesson 2 — Hello: Phrases", count: 7, rollup: false },
+          { id: "es/words-2", label: "Lesson 3 — Goodbye: Words", count: 13, rollup: false },
+          { id: "es/phrases-2", label: "Lesson 4 — Goodbye: Phrases", count: 8, rollup: false },
+          { id: "es/words-3", label: "Lesson 5 — Courtesy: Words", count: 12, rollup: false },
+          { id: "es/phrases-3", label: "Lesson 6 — Courtesy: Phrases", count: 6, rollup: false },
+          { id: "es/words-4", label: "Lesson 7 — Out & About: Words", count: 14, rollup: false },
+          { id: "es/phrases-4", label: "Lesson 8 — Out & About: Phrases", count: 5, rollup: false },
+          { id: "es/words-5", label: "Lesson 9 — Help: Words", count: 16, rollup: false },
+          { id: "es/phrases-5", label: "Lesson 10 — Help: Phrases", count: 6, rollup: false }
+        ]
       }
     ]
   });
