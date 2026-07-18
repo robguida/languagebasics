@@ -68,6 +68,18 @@ const EXPECTED = {
     "lesson-4.js": { count: 80, id: "ja/lesson-4", revealMs: 5000 },
     "lesson-5.js": { count: 56, id: "ja/lesson-5", revealMs: 5000 },
     "lesson-6.js": { count: 6, id: "ja/lesson-6", revealMs: 10000 },
+    // LB-28 Japanese Words & Phrases: 5 words + 5 phrases decks, all rollup-
+    // excluded. words 9/12/11/13/17 = 62, phrases 7/8/6/5/6 = 32.
+    "words-1.js": { count: 9, id: "ja/words-1", revealMs: 5000 },
+    "words-2.js": { count: 12, id: "ja/words-2", revealMs: 5000 },
+    "words-3.js": { count: 11, id: "ja/words-3", revealMs: 5000 },
+    "words-4.js": { count: 13, id: "ja/words-4", revealMs: 5000 },
+    "words-5.js": { count: 17, id: "ja/words-5", revealMs: 5000 },
+    "phrases-1.js": { count: 7, id: "ja/phrases-1", revealMs: 5000 },
+    "phrases-2.js": { count: 8, id: "ja/phrases-2", revealMs: 5000 },
+    "phrases-3.js": { count: 6, id: "ja/phrases-3", revealMs: 5000 },
+    "phrases-4.js": { count: 5, id: "ja/phrases-4", revealMs: 5000 },
+    "phrases-5.js": { count: 6, id: "ja/phrases-5", revealMs: 5000 },
   },
   // LB-26 Bengali number deck: 6 lessons, same ranges/counts as sq/es/ja (11/9/8/
   // 80/56/6). Loaded from src/content/bn via loadLesson(file, "bn").
