@@ -22,20 +22,28 @@ const vm = require("node:vm");
 
 const SRC_DIR = path.resolve(__dirname, "..", "..", "src");
 const CONTENT_ROOT = path.resolve(SRC_DIR, "content");
+const PARKED_ROOT = path.resolve(SRC_DIR, "..", "parked", "content");
 
 /** Absolute path to a language's content directory (default "sq"). */
 function contentDir(lang) {
   return path.join(CONTENT_ROOT, lang || "sq");
 }
 
+/** LB-34: absolute path to a language's PARKED content dir (repo-root
+ *  parked/content/<lang>, never deployed). */
+function parkedDir(lang) {
+  return path.join(PARKED_ROOT, lang || "sq");
+}
+
 /**
- * Load one lesson data file in isolation.
+ * Load one lesson data file in isolation. opts.parked loads from parked/ instead.
  * @param {string} file e.g. "lesson-1.js"
  * @param {string} [lang="sq"] language namespace under src/content/
  * @returns {{ lesson: object, lessonsIndex: Array<{id:string,title:string}> }}
  */
-function loadLesson(file, lang) {
-  const full = path.join(contentDir(lang), file);
+function loadLesson(file, lang, opts) {
+  const dir = (opts && opts.parked) ? parkedDir(lang) : contentDir(lang);
+  const full = path.join(dir, file);
   const code = fs.readFileSync(full, "utf8");
 
   // Fresh window shim per load so LB_LESSONS does not leak between files.
@@ -80,7 +88,9 @@ module.exports = {
   loadLesson,
   loadManifest,
   contentDir,
+  parkedDir,
   CONTENT_ROOT,
+  PARKED_ROOT,
   // Back-compat: the default (sq) content dir, as several tests import today.
   CONTENT_DIR: contentDir("sq"),
 };

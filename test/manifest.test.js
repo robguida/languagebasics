@@ -79,28 +79,28 @@ function schemaExpected() {
 // languages in registration order: sq, then es, then ja).
 const LOCKED_IDS = [
   "sq/lesson-1", "sq/lesson-2", "sq/lesson-3",
-  "sq/lesson-4", "sq/lesson-5", "sq/lesson-6",
+  "sq/lesson-4",
   "sq/alphabet-vowels", "sq/alphabet-consonants",
   "sq/alphabet-digraphs", "sq/alphabet-all",
   "sq/words-1", "sq/phrases-1", "sq/words-2", "sq/phrases-2",
   "sq/words-3", "sq/phrases-3", "sq/words-4", "sq/phrases-4",
   "sq/words-5", "sq/phrases-5",
   "es/lesson-1", "es/lesson-2", "es/lesson-3",
-  "es/lesson-4", "es/lesson-5", "es/lesson-6",
+  "es/lesson-4",
   "es/alphabet-vowels", "es/alphabet-consonants",
   "es/alphabet-digraphs", "es/alphabet-all",
   "es/words-1", "es/phrases-1", "es/words-2", "es/phrases-2",
   "es/words-3", "es/phrases-3", "es/words-4", "es/phrases-4",
   "es/words-5", "es/phrases-5",
   "ja/lesson-1", "ja/lesson-2", "ja/lesson-3",
-  "ja/lesson-4", "ja/lesson-5", "ja/lesson-6",
+  "ja/lesson-4",
   "ja/alphabet-hiragana-1", "ja/alphabet-hiragana-2",
   "ja/alphabet-katakana-1", "ja/alphabet-katakana-2",
   "ja/words-1", "ja/phrases-1", "ja/words-2", "ja/phrases-2",
   "ja/words-3", "ja/phrases-3", "ja/words-4", "ja/phrases-4",
   "ja/words-5", "ja/phrases-5",
   "bn/lesson-1", "bn/lesson-2", "bn/lesson-3",
-  "bn/lesson-4", "bn/lesson-5", "bn/lesson-6",
+  "bn/lesson-4",
   "bn/alphabet-vowels", "bn/alphabet-consonants-1",
   "bn/alphabet-consonants-2", "bn/alphabet-signs",
   "bn/words-1", "bn/phrases-1", "bn/words-2", "bn/phrases-2",
@@ -143,7 +143,7 @@ test("manifest: window.LB_LANGUAGES registers sq (Albanian) + es (Spanish) + ja 
   assert.ok(Array.isArray(es.groups) && es.groups.length === 3,
     "es must have 3 picker groups (Numbers / Alphabet / Words & Phrases)");
   assert.equal(es.groups[0].label, "Numbers", "es group[0] label must be Numbers");
-  assert.equal(es.groups[0].lessons.length, 6, "es Numbers group must list 6 lessons");
+  assert.equal(es.groups[0].lessons.length, 4, "es Numbers group must list 4 lessons (lessons 5-6 parked, LB-34)");
   assert.equal(es.groups[1].label, "Alphabet", "es group[1] label must be Alphabet");
   assert.equal(es.groups[1].lessons.length, 4, "es Alphabet group must list 4 lessons");
   assert.equal(es.groups[2].label, "Words & Phrases", "es group[2] label must be Words & Phrases");
@@ -157,7 +157,7 @@ test("manifest: window.LB_LANGUAGES registers sq (Albanian) + es (Spanish) + ja 
   assert.ok(Array.isArray(ja.groups) && ja.groups.length === 3,
     "ja must have 3 picker groups (Numbers / Alphabet / Words & Phrases)");
   assert.equal(ja.groups[0].label, "Numbers", "ja group[0] label must be Numbers");
-  assert.equal(ja.groups[0].lessons.length, 6, "ja Numbers group must list 6 lessons");
+  assert.equal(ja.groups[0].lessons.length, 4, "ja Numbers group must list 4 lessons (lessons 5-6 parked, LB-34)");
   assert.equal(ja.groups[1].label, "Alphabet", "ja group[1] label must be Alphabet");
   assert.equal(ja.groups[1].lessons.length, 4, "ja Alphabet group must list 4 kana lessons");
   assert.equal(ja.groups[2].label, "Words & Phrases", "ja group[2] label must be Words & Phrases");
@@ -171,7 +171,7 @@ test("manifest: window.LB_LANGUAGES registers sq (Albanian) + es (Spanish) + ja 
   assert.ok(Array.isArray(bn.groups) && bn.groups.length === 3,
     "bn must have 3 picker groups (Numbers / Alphabet / Words & Phrases)");
   assert.equal(bn.groups[0].label, "Numbers", "bn group[0] label must be Numbers");
-  assert.equal(bn.groups[0].lessons.length, 6, "bn Numbers group must list 6 lessons");
+  assert.equal(bn.groups[0].lessons.length, 4, "bn Numbers group must list 4 lessons (lessons 5-6 parked, LB-34)");
   assert.equal(bn.groups[1].label, "Alphabet", "bn group[1] label must be Alphabet");
   assert.equal(bn.groups[1].lessons.length, 4, "bn Alphabet group must list 4 script lessons");
   assert.equal(bn.groups[2].label, "Words & Phrases", "bn group[2] label must be Words & Phrases");
@@ -183,7 +183,7 @@ test("manifest: window.LB_LANGUAGES registers sq (Albanian) + es (Spanish) + ja 
 // ---------------------------------------------------------------------------
 test("manifest: every lesson id has a data file; count === cards.length === EXPECTED", () => {
   const EXPECTED = schemaExpected();
-  assert.equal(LESSONS.length, 80, "manifest must list 80 lessons (20 sq + 20 es + 20 ja + 20 bn)");
+  assert.equal(LESSONS.length, 72, "manifest must list 72 lessons (18 per language x 4; lessons 5-6 parked, LB-34)");
   for (const row of LESSONS) {
     const file = fileForId(row.id);
     const lang = langForId(row.id);
@@ -322,7 +322,7 @@ test("manifest: buildPickerModel/getDefaultLesson resolve per activeCode (langua
   const esValues = plain(esModel.groups.flatMap((g) => g.options.map((o) => o.value)));
   assert.deepEqual(esValues, [
     "es/lesson-1", "es/lesson-2", "es/lesson-3",
-    "es/lesson-4", "es/lesson-5", "es/lesson-6",
+    "es/lesson-4",
     "es/alphabet-vowels", "es/alphabet-consonants",
     "es/alphabet-digraphs", "es/alphabet-all",
     "es/words-1", "es/phrases-1", "es/words-2", "es/phrases-2",
@@ -347,18 +347,18 @@ test("manifest: listLessonsForLanguage returns only the requested language's les
     "sq list must equal the sq subset of listLessons, in order");
 
   const es = LBManifest.listLessonsForLanguage(languages, "es");
-  assert.equal(es.length, 20, "es must return its 6 number + 4 alphabet + 10 Words & Phrases lessons");
+  assert.equal(es.length, 18, "es must return its 4 number + 4 alphabet + 10 Words & Phrases lessons");
   assert.ok(es.every((r) => r.languageCode === "es"),
     "every es row must have languageCode === es");
   assert.deepEqual(plain(es.map((r) => r.id)), [
     "es/lesson-1", "es/lesson-2", "es/lesson-3",
-    "es/lesson-4", "es/lesson-5", "es/lesson-6",
+    "es/lesson-4",
     "es/alphabet-vowels", "es/alphabet-consonants",
     "es/alphabet-digraphs", "es/alphabet-all",
     "es/words-1", "es/phrases-1", "es/words-2", "es/phrases-2",
     "es/words-3", "es/phrases-3", "es/words-4", "es/phrases-4",
     "es/words-5", "es/phrases-5",
-  ], "es list must be exactly the twenty es lessons, in order");
+  ], "es list must be exactly the eighteen es lessons, in order");
 
   // Rows carry count + rollup so the per-language rollup can judge mastery
   // WITHOUT loading each lesson's card data (one lesson loads per page).

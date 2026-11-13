@@ -525,16 +525,16 @@ test("SEAM B: isCountedLesson — rollup:false excluded, everything else counted
   assert.equal(LBMastery.isCountedLesson(null), true, "defensive: bad entry counts (never throws)");
 });
 
-test("SEAM B: countCountedLessons excludes the rollup-skip deck (denominator stays 9)", () => {
+test("SEAM B: countCountedLessons excludes the rollup-skip deck (denominator is 7 after LB-34)", () => {
   const { LBMastery } = loadMasteryNoStore();
-  // 6 number decks + 3 alphabet group decks + 1 combined (rollup:false).
+  // 4 number decks (LB-34 parked lessons 5-6) + 3 alphabet group decks + 1 combined (rollup:false).
   const entries = [
     { id: "sq/lesson-1" }, { id: "sq/lesson-2" }, { id: "sq/lesson-3" },
-    { id: "sq/lesson-4" }, { id: "sq/lesson-5" }, { id: "sq/lesson-6" },
+    { id: "sq/lesson-4" },
     { id: "sq/alphabet-vowels" }, { id: "sq/alphabet-consonants" },
     { id: "sq/alphabet-digraphs" }, { id: "sq/alphabet-all", rollup: false },
   ];
-  assert.equal(LBMastery.countCountedLessons(entries), 9,
+  assert.equal(LBMastery.countCountedLessons(entries), 7,
     "the combined alphabet deck must be excluded from the rollup denominator");
   assert.equal(LBMastery.countCountedLessons([]), 0);
   assert.equal(LBMastery.countCountedLessons(null), 0, "never throws on bad input");
