@@ -63,15 +63,6 @@
     return out;
   }
 
-  /* buildPool(deck, requestedCount, rng) -> shuffle the deck, then take the
-   * clamped count. Pure; returns a NEW array. */
-  function buildPool(deck, requestedCount, rng) {
-    var clean = Array.isArray(deck) ? deck : [];
-    var count = clampCount(requestedCount, clean.length);
-    if (count === 0) return [];
-    return shuffle(clean, rng).slice(0, count);
-  }
-
   function promptKey(card) {
     if (!card || typeof card !== "object" || card.prompt == null) return null;
     var k = String(card.prompt);
@@ -183,7 +174,6 @@
     clampCount: clampCount,
     testSize: testSize,
     shuffle: shuffle,
-    buildPool: buildPool,
     buildTestPool: buildTestPool,
     buildRetryPool: buildRetryPool,
     makeSelfRateEvent: makeSelfRateEvent,

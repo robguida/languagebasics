@@ -3,7 +3,7 @@
  * Vanilla JS, no build step, no fetch, no framework. Works on file://.
  *
  * One global: window.LBManifest. PURE, DOM-FREE logic (same convention as
- * game.js / mastery.js / leitner.js) so it is unit-testable in a node:vm sandbox
+ * game.js / progress.js / streak.js) so it is unit-testable in a node:vm sandbox
  * with Node built-ins only — NO jsdom, which would break the project's no-deps
  * rule. index.html imports these functions instead of hand-maintaining the
  * whitelist / default lesson / per-lesson counts, and (LB-23 commit 2) renders
@@ -153,9 +153,9 @@
 
   /* listLessonsForLanguage(manifest, code) -> the FLAT lesson array for ONE
    * language only: the same { id, label, count, rollup, group, languageCode }
-   * rows as listLessons, filtered to languageCode === code. Powers the
-   * per-language mastery rollup (LB-27) so the "X of N mastered" denominator is
-   * scoped to the ACTIVE language instead of every registered language combined.
+   * rows as listLessons, filtered to languageCode === code. Built for the
+   * per-language rollup (LB-27); LB-36 removed that rollup from the page, so
+   * nothing in src/ calls this today (kept, with its tests, for reuse).
    * A missing/empty code, or an unknown code, yields []. Pure; never throws. */
   function listLessonsForLanguage(manifest, code) {
     if (!code) return [];
@@ -189,7 +189,8 @@
   }
 
   /* buildRollupMap(manifest) -> { "<id>": bool } — the explicit rollup flag per
-   * lesson (true = counts toward the mastery rollup). */
+   * lesson (true = counted by the old LB-27 rollup, removed from the page in
+   * LB-36; nothing in src/ calls this today). */
   function buildRollupMap(manifest) {
     var lessons = listLessons(manifest);
     var out = {};

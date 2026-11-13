@@ -3,8 +3,8 @@
  * Vanilla JS, no build step, no fetch, no framework. Works on file://.
  *
  * One global: window.LBStreak. Pure logic, DOM-free, so it is unit-testable in a
- * node:vm sandbox directly (same convention as store.js / prefs.js / leitner.js /
- * game.js / mastery.js). It reads/writes streak state THROUGH window.LBStore
+ * node:vm sandbox directly (same convention as store.js / prefs.js /
+ * game.js / progress.js). It reads/writes streak state THROUGH window.LBStore
  * (LB-8) under the `languagebasics.streak` namespace.
  *
  * DESIGN ETHIC: a CALM streak. It quietly counts days practiced in a row. There

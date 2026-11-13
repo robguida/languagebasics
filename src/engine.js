@@ -5,9 +5,8 @@
  * A lesson is supplied as a global object (see content/sq/*.js) of shape:
  *   {
  *     id:          "sq/lesson-1",                 // string, for the selector
- *     title:       "Albanian Numbers: 1-10",      // shown in <h1>
+ *     title:       "Numbers: 1-10",               // shown in <h1>
  *     revealMs:    5000,                           // optional, default 5000
- *     recallPrompt:"Say it out loud, then reveal.", // optional, see DEFAULTS
  *     cards: [ { prompt, answer, hint, audio }, ... ]
  *   }
  *
@@ -24,10 +23,7 @@
   "use strict";
 
   var DEFAULTS = {
-    revealMs: 5000,
-    // Placeholder copy. Final microcopy goes here (or per-card via
-    // card.recallPrompt) WITHOUT touching this engine.
-    recallPrompt: "Say it out loud, then reveal."
+    revealMs: 5000
   };
 
   /* LB-36: test-mode copy (final UX wording) and the rating lock. */

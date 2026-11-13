@@ -11,7 +11,6 @@
  * percent, the 5/10/20 count choices and the time-used math):
  *   - clampCount / testSize: min(10, deck), empty deck, bad input
  *   - shuffle: returns a permutation, does NOT mutate input, deterministic rng
- *   - buildPool: shuffle + clamp; fewer-than-asked uses all; pure
  *   - buildTestPool: NOT-known cards first, then known, cut to min(10, deck)
  *   - buildRetryPool: only the missed cards, unknown prompts skipped
  *   - makeSelfRateEvent: { card, gotIt } with strict-boolean gotIt
@@ -30,7 +29,7 @@ const GAME_SRC = fs.readFileSync(GAME_PATH, "utf8");
 
 /* Load game.js into a fresh sandbox. Optional rng override is not needed at
  * load (the module reads Math.random at call time); we pass a deterministic rng
- * directly to shuffle/buildPool where determinism matters. */
+ * directly to shuffle where determinism matters. */
 function loadGame() {
   const windowShim = {};
   const sandbox = { window: windowShim, Math, String, Array, Number, isFinite };
@@ -40,7 +39,7 @@ function loadGame() {
 }
 
 // A deterministic rng that always returns 0 -> Fisher-Yates becomes a fixed,
-// reproducible permutation so shuffle/buildPool are assertable.
+// reproducible permutation so shuffle is assertable.
 function zeroRng() { return 0; }
 
 function deck(n) {
@@ -105,31 +104,6 @@ test("LBGame: shuffle with a deterministic rng is reproducible", () => {
   assert.deepEqual(a, b, "same rng -> same order");
 });
 
-/* -------------------------------- buildPool ------------------------------- */
-
-test("LBGame: buildPool returns exactly the clamped count", () => {
-  const G = loadGame();
-  assert.equal(G.buildPool(deck(11), 5, Math.random).length, 5);
-  assert.equal(G.buildPool(deck(9), 20, Math.random).length, 9,
-    "fewer cards than asked -> all of them");
-});
-
-test("LBGame: buildPool cards are all real members of the deck", () => {
-  const G = loadGame();
-  const pool = G.buildPool(deck(11), 5, Math.random);
-  for (const c of pool) {
-    assert.ok(c.prompt >= 1 && c.prompt <= 11, "pool card came from the deck");
-  }
-  // No duplicates in the pool.
-  const seen = new Set(pool.map((c) => c.prompt));
-  assert.equal(seen.size, pool.length, "no duplicate cards in a pool");
-});
-
-test("LBGame: buildPool on an empty deck is empty", () => {
-  const G = loadGame();
-  assert.equal(G.buildPool([], 5, Math.random).length, 0);
-});
-
 /* ===================================================================== *
  * LB-11 HARDENING: boundary + defensive-guard gaps the initial 21      *
  * tests did not cover. Same loadGame()/zeroRng()/deck() shims, no deps. *
@@ -182,19 +156,9 @@ test("LBGame: shuffle of a non-array / empty input returns an empty array (no th
   assert.equal(G.shuffle([]).length, 0);
 });
 
-/* ----------------------- buildPool: rng + bad deck ----------------------- */
-
-test("LBGame: buildPool threads the injected rng (deterministic pool order)", () => {
+test("LBGame: buildPool is retired (LB-36: a test uses buildTestPool / buildRetryPool)", () => {
   const G = loadGame();
-  // Same zeroRng permutation as above, then sliced to the clamped count of 3.
-  const out = G.buildPool(deck(5), 3, zeroRng).map((c) => c.prompt);
-  assert.equal(out.join(","), "2,3,4", "buildPool = deterministic shuffle then slice");
-});
-
-test("LBGame: buildPool on a non-array deck is empty (no throw)", () => {
-  const G = loadGame();
-  assert.equal(G.buildPool(null, 5, Math.random).length, 0);
-  assert.equal(G.buildPool(undefined, 5).length, 0);
+  assert.equal(G.buildPool, undefined);
 });
 
 
