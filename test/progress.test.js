@@ -275,3 +275,27 @@ test("no LBStore at all: reads empty, writes no-op, never throws", () => {
   assert.equal(P.getBest("sq/lesson-1"), null);
   assert.equal(P.isPersistent(), false);
 });
+
+/* --------------------- LB-36: "__proto__" keys are skipped ------------------ */
+
+test('a stored "__proto__" card key is skipped; it never swaps the cards map prototype', () => {
+  const { P, storage } = loadProgress();
+  storage.seedRaw(KEY, '{"v":1,"lessons":{"sq/lesson-1":{"cards":{' +
+    '"__proto__":{"r":"knew","t":1},"7":{"r":"knew","t":2}}}}}');
+  const lesson = P.getLesson("sq/lesson-1");
+  assert.equal(Object.prototype.hasOwnProperty.call(lesson.cards, "7"), true, "the good record survives");
+  assert.equal(Object.keys(lesson.cards).join(","), "7", "only the real card is kept");
+  assert.equal(lesson.cards.r, undefined, "the bad record did not become the prototype");
+  assert.equal(P.isKnown("sq/lesson-1", "7"), true);
+  assert.deepEqual(Object.keys(P.knownMap("sq/lesson-1")), ["7"]);
+  assert.equal(({}).r, undefined, "no global pollution");
+});
+
+test('record / recordTestResult refuse a "__proto__" lesson id or card prompt', () => {
+  const { P, storage } = loadProgress();
+  assert.equal(P.record("__proto__", 1, true, 5), false);
+  assert.equal(P.record("sq/lesson-1", "__proto__", true, 5), false);
+  assert.equal(P.recordTestResult("__proto__", 1, 2, 5).status, "lower");
+  assert.equal(storage.getItem(KEY), null, "nothing written");
+  assert.equal(P.getBest("__proto__"), null);
+});

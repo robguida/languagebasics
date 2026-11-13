@@ -67,7 +67,8 @@
 
   /* The stored prefs object for one lesson, or null if none. Never throws. */
   function getLesson(lessonId) {
-    if (!lessonId) return null;
+    // "__proto__" is never a lesson key (it would swap the map's prototype).
+    if (!lessonId || lessonId === "__proto__") return null;
     var all = readAll();
     if (!Object.prototype.hasOwnProperty.call(all.lessons, lessonId)) return null;
     var entry = all.lessons[lessonId];
@@ -87,7 +88,7 @@
    * No-op (returns false) when LBStore is missing. Returns whatever
    * LBStore.set returns (true = reached localStorage, false = memory only). */
   function setLesson(lessonId, patch) {
-    if (!lessonId || !patch || typeof patch !== "object") return false;
+    if (!lessonId || lessonId === "__proto__" || !patch || typeof patch !== "object") return false;
     if (!hasStore()) return false;
 
     var all = readAll();

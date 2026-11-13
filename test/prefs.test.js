@@ -342,3 +342,17 @@ test("blocked storage (throwOnSet): setRevealMs returns false but does not throw
   assert.equal(LBPrefs.getRevealMs("sq/lesson-1"), 8000,
     "in-memory mirror serves the value this session even when persistence is blocked");
 });
+
+/* --------------------- LB-36: "__proto__" lesson id ----------------------- */
+
+test('prefs: a "__proto__" lesson id is never read or written', () => {
+  const { LBPrefs, storage } = loadPrefs();
+  assert.equal(LBPrefs.setRevealMs("__proto__", 3000), false, "write refused");
+  assert.equal(storage.getItem(LBPrefs.STORE_KEY), null, "nothing stored");
+  storage.seedRaw(LBPrefs.STORE_KEY, '{"v":1,"lessons":{"__proto__":{"revealMs":9000},"sq/lesson-1":{"revealMs":2000}}}');
+  assert.equal(LBPrefs.getRevealMs("__proto__"), null, "read refused");
+  assert.equal(LBPrefs.getRevealMs("sq/lesson-1"), 2000, "a real lesson still reads");
+  assert.equal(LBPrefs.setRevealMs("sq/lesson-2", 4000), true);
+  assert.equal(LBPrefs.getRevealMs("sq/lesson-2"), 4000);
+  assert.equal(({}).revealMs, undefined, "no global pollution");
+});

@@ -58,7 +58,7 @@
    * on write — so we probe with a real set/remove inside try/catch. */
   var backend = (function detectBackend() {
     try {
-      var probe = "__lbstore_probe__";
+      var probe = PREFIX + "__probe__";
       window.localStorage.setItem(probe, "1");
       window.localStorage.removeItem(probe);
       return window.localStorage;

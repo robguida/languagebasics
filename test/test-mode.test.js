@@ -177,6 +177,19 @@ test("Space/Enter reveal in the prompt phase; they do not hijack another focused
   assert.equal(h.calls.record.length, 0);
 });
 
+test("answer text is plain text nodes split by <br> (never innerHTML), in study and test", () => {
+  const h = env();
+  const lesson = { id: "sq/html", title: "H", revealMs: 5000,
+    cards: [{ prompt: 1, answer: "<img src=x onerror=alert(1)> | b&amp;c", hint: "h" }] };
+  for (const run of [() => h.engine.start(lesson), () => h.engine.startTest(lesson)]) {
+    run();
+    const w = h.elements.word;
+    assert.equal(w.innerHTML, "", "innerHTML is never written");
+    assert.deepEqual(w.children.map((c) => (c.nodeType === 3 ? "T:" + c.data : c.tagName)),
+      ["T:<img src=x onerror=alert(1)>", "BR", "T:b&amp;c"], "two text nodes around one <br>");
+  }
+});
+
 /* ------------------------------- time's up -------------------------------- */
 
 test("timer runs out -> Not yet recorded automatically, 'Time's up', one 'Next card' button", () => {

@@ -269,3 +269,21 @@ test("LB-36: a prototype name like 'toString' is not a valid key", () => {
   assert.equal(LBStore.get("toString", "FB"), "FB");
   assert.equal(LBStore.set("toString", { a: 1 }), false);
 });
+
+/* ------------------------- LB-36: the probe key --------------------------- */
+
+test("LBStore: the storage probe uses languagebasics.__probe__ and leaves nothing behind", () => {
+  const fs = require("node:fs");
+  const vm = require("node:vm");
+  const { makeStoreSandbox, STORE_SRC } = require("./helpers/local-storage-shim.js");
+  const ctx = makeStoreSandbox();
+  const seen = [];
+  const realSet = ctx.storage.setItem.bind(ctx.storage);
+  ctx.storage.setItem = (k, v) => { seen.push(k); return realSet(k, v); };
+  vm.runInContext(fs.readFileSync(STORE_SRC, "utf8"), ctx.sandbox, { filename: STORE_SRC });
+  assert.deepEqual(seen, ["languagebasics.__probe__"], "only the namespaced probe key is written at load");
+  assert.equal(ctx.storage.getItem("languagebasics.__probe__"), null, "the probe is removed");
+  assert.equal(ctx.storage.getItem("__lbstore_probe__"), null, "the old probe key is never used");
+  assert.equal(ctx.window.LBStore.set("languagebasics.__probe__", { a: 1 }), false,
+    "the probe key is not a data key (not in the whitelist)");
+});

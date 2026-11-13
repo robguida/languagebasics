@@ -106,11 +106,11 @@ test("full 10-card test: ratings + best stored under languagebasics.progress; re
 
   const lbTouched = log.filter((e) => e.key.startsWith("lb."));
   assert.equal(lbTouched.length, 0, "no lb.* key read, written or deleted: " + JSON.stringify(lbTouched));
-  assert.equal(log.filter((e) => e.fn === "removeItem" && e.key !== "__lbstore_probe__").length, 0);
+  assert.equal(log.filter((e) => e.fn === "removeItem" && e.key !== "languagebasics.__probe__").length, 0);
   assert.equal(storage.getItem("lb.mastery"), '{"v":1,"cards":{}}', "the other app's data is untouched");
   const keys = new Set(log.filter((e) => e.fn === "setItem").map((e) => e.key));
   for (const k of keys) {
-    assert.ok(k === "languagebasics.progress" || k === "languagebasics.streak" || k === "__lbstore_probe__", k);
+    assert.ok(k === "languagebasics.progress" || k === "languagebasics.streak" || k === "languagebasics.__probe__", k);
   }
 });
 

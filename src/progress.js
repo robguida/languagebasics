@@ -42,6 +42,12 @@
 
   var hasOwn = Object.prototype.hasOwnProperty;
 
+  // A stored or passed-in "__proto__" key is never used as a map key: on a
+  // plain {} it would swap that object's prototype instead of adding a key.
+  function isSafeKey(k) {
+    return k !== "__proto__";
+  }
+
   function hasStore() {
     return !!(typeof window !== "undefined" && window.LBStore &&
       typeof window.LBStore.get === "function" &&
@@ -106,12 +112,12 @@
    * card record is skipped; the rest of the lesson survives. Never throws. */
   function readLesson(all, lessonId) {
     var out = { cards: {}, best: null };
-    if (!lessonId || !hasOwn.call(all.lessons, lessonId)) return out;
+    if (!lessonId || !isSafeKey(String(lessonId)) || !hasOwn.call(all.lessons, lessonId)) return out;
     var raw = all.lessons[lessonId];
     if (!isPlainObject(raw)) return out;
     if (isPlainObject(raw.cards)) {
       for (var key in raw.cards) {
-        if (!hasOwn.call(raw.cards, key)) continue;
+        if (!hasOwn.call(raw.cards, key) || !isSafeKey(key)) continue;
         try {
           var rec = cleanCardRecord(raw.cards[key]);
           if (rec) out.cards[key] = rec;
@@ -150,7 +156,7 @@
    * reached localStorage. No-op (false) for a missing lesson id / prompt. */
   function record(lessonId, prompt, knew, now) {
     var key = cardKey(prompt);
-    if (!lessonId || key === "") return false;
+    if (!lessonId || key === "" || !isSafeKey(key) || !isSafeKey(String(lessonId))) return false;
     if (!hasStore()) return false;
     var all = readAll();
     var lesson = readLesson(all, lessonId);
@@ -210,7 +216,7 @@
     var lesson = readLesson(all, lessonId);
     var stored = lesson.best;
     var candidate = cleanBest({ score: score, of: of, t: nowMs(now) });
-    if (!lessonId || !candidate) return { status: "lower", best: stored };
+    if (!lessonId || !isSafeKey(String(lessonId)) || !candidate) return { status: "lower", best: stored };
 
     if (!stored || stored.of !== candidate.of || candidate.score > stored.score) {
       lesson.best = candidate;

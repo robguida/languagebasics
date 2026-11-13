@@ -85,9 +85,27 @@
     return ""; // empty => fall back to the .word CSS clamp
   }
 
-  // Multi-part answers use " | " as a line separator.
-  function renderAnswer(answer) {
-    return String(answer).split(" | ").join("<br>");
+  // Multi-part answers use " | " as a line separator. Built from text nodes
+  // and <br> elements (never innerHTML), so lesson text is always plain text.
+  // A DOM without createTextNode (some unit-test shims) gets the lines as
+  // plain text, one line per part.
+  function setAnswer(el, answer) {
+    if (!el) return;
+    var parts = String(answer).split(" | ");
+    var canBuild = typeof document !== "undefined" &&
+      typeof document.createTextNode === "function" &&
+      typeof document.createElement === "function" &&
+      typeof el.appendChild === "function";
+    if (!canBuild) {
+      el.textContent = parts.join("\n");
+      return;
+    }
+    el.textContent = "";
+    while (el.firstChild) el.removeChild(el.firstChild);
+    for (var i = 0; i < parts.length; i++) {
+      if (i > 0) el.appendChild(document.createElement("br"));
+      el.appendChild(document.createTextNode(parts[i]));
+    }
   }
 
   /* LB-18 SEAM A: per-card example rotation for the alphabet cards, keyed on
@@ -350,7 +368,7 @@
       numberEl.textContent = current.prompt;
 
       wordEl.style.fontSize = wordFontSize(current.answer);
-      wordEl.innerHTML = renderAnswer(current.answer);
+      setAnswer(wordEl, current.answer);
       pronEl.textContent = renderHint(lessonId, current);
 
       wordEl.hidden = true;
@@ -620,7 +638,7 @@
       numberEl.textContent = card.prompt;
 
       wordEl.style.fontSize = wordFontSize(card.answer);
-      wordEl.innerHTML = renderAnswer(card.answer);
+      setAnswer(wordEl, card.answer);
       wordEl.hidden = true;
       pronEl.textContent = renderHint(lessonId, card);
       pronEl.hidden = true;
