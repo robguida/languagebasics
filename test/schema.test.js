@@ -9,8 +9,8 @@
  *     including lesson 6 which was previously blank)
  *   - optional fields (audio, recallPrompt) are correct type when present
  *   - window.LB_LESSONS received exactly one {id, title} entry for the lesson
- *   - known card counts hold (1=11, 2=9, 3=8, 4=80, 5=56, 6=6)
- *   - lesson 6 revealMs === 10000 (10s)
+ *   - known card counts hold (1=11, 2=9, 3=8, 4=80)
+ *   - LB-34: lessons 5 and 6 are PARKED (see test/parked.test.js)
  *
  * Built-ins only: node:test, node:assert. No npm installs.
  */
@@ -29,8 +29,6 @@ const EXPECTED = {
     "lesson-2.js": { count: 9, id: "sq/lesson-2", revealMs: 5000 },
     "lesson-3.js": { count: 8, id: "sq/lesson-3", revealMs: 5000 },
     "lesson-4.js": { count: 80, id: "sq/lesson-4", revealMs: 5000 },
-    "lesson-5.js": { count: 56, id: "sq/lesson-5", revealMs: 5000 },
-    "lesson-6.js": { count: 6, id: "sq/lesson-6", revealMs: 10000 },
     // LB-18 alphabet section: 3 group decks + 1 combined (rollup-excluded).
     "alphabet-vowels.js": { count: 7, id: "sq/alphabet-vowels", revealMs: 5000 },
     "alphabet-consonants.js": { count: 20, id: "sq/alphabet-consonants", revealMs: 5000 },
@@ -56,8 +54,6 @@ const EXPECTED = {
     "lesson-2.js": { count: 9, id: "es/lesson-2", revealMs: 5000 },
     "lesson-3.js": { count: 8, id: "es/lesson-3", revealMs: 5000 },
     "lesson-4.js": { count: 80, id: "es/lesson-4", revealMs: 5000 },
-    "lesson-5.js": { count: 56, id: "es/lesson-5", revealMs: 5000 },
-    "lesson-6.js": { count: 6, id: "es/lesson-6", revealMs: 10000 },
     // LB-31 Spanish alphabet section: 3 group decks (rollup:true) + 1 combined
     // (rollup-excluded). 5/22/3 group decks add to the es mastery denominator; the
     // 30-card combined deck is rollup:false. 5+22+3 = 30, matching alphabet-all.
@@ -86,8 +82,6 @@ const EXPECTED = {
     "lesson-2.js": { count: 9, id: "ja/lesson-2", revealMs: 5000 },
     "lesson-3.js": { count: 8, id: "ja/lesson-3", revealMs: 5000 },
     "lesson-4.js": { count: 80, id: "ja/lesson-4", revealMs: 5000 },
-    "lesson-5.js": { count: 56, id: "ja/lesson-5", revealMs: 5000 },
-    "lesson-6.js": { count: 6, id: "ja/lesson-6", revealMs: 10000 },
     // LB-32 Japanese "Alphabet" (kana) section: 4 discrete script decks, all
     // rollup:true (no combined full-set deck here). 25/21/25/21 = 92 base kana.
     "alphabet-hiragana-1.js": { count: 25, id: "ja/alphabet-hiragana-1", revealMs: 5000 },
@@ -114,8 +108,6 @@ const EXPECTED = {
     "lesson-2.js": { count: 9, id: "bn/lesson-2", revealMs: 5000 },
     "lesson-3.js": { count: 8, id: "bn/lesson-3", revealMs: 5000 },
     "lesson-4.js": { count: 80, id: "bn/lesson-4", revealMs: 5000 },
-    "lesson-5.js": { count: 56, id: "bn/lesson-5", revealMs: 5000 },
-    "lesson-6.js": { count: 6, id: "bn/lesson-6", revealMs: 10000 },
     // LB-33 Bengali "Alphabet" (script) section: 4 discrete decks, all
     // rollup:true (no combined full-set deck here). 11/15/17/7 = 50 base letters.
     "alphabet-vowels.js": { count: 11, id: "bn/alphabet-vowels", revealMs: 5000 },

@@ -13,8 +13,8 @@
        screen readers hear streak/mastery updates. The hamburger moved up here
        and still opens the settings modal. -->
   <header id="appHeader" class="app-header">
-    <span id="streakCount" class="header-streak" aria-live="polite"></span>
-    <span id="masteryOverall" class="header-mastery" aria-live="polite"></span>
+    <span id="streakCount" data-feature="testing" class="header-streak" aria-live="polite"></span>
+    <span id="masteryOverall" data-feature="testing" class="header-mastery" aria-live="polite"></span>
     <button id="settingsBtn" class="hamburger" type="button"
             aria-label="Open settings" aria-haspopup="dialog"
             aria-controls="settingsModal" aria-expanded="false">
@@ -57,7 +57,7 @@
     <!-- LB-14: per-lesson mastery readout stays here near the picker/card. It
          shows ONLY "This lesson" now — the overall "X of N lessons mastered" line
          moved up to the header bar. aria-live so updates are announced. -->
-    <div id="masteryReadout" class="mastery-readout" aria-live="polite" hidden>
+    <div id="masteryReadout" data-feature="testing" class="mastery-readout" aria-live="polite" hidden>
       <span id="masteryLesson" class="mastery-readout-lesson"></span>
     </div>
 
@@ -66,7 +66,7 @@
       <div class="label" id="label"></div>
       <div class="recall" id="recall"></div>
       <!-- LB-14: test-mode progress ("Card N of M"), shown only during a test. -->
-      <div class="test-progress" id="testProgress" aria-live="polite" hidden></div>
+      <div class="test-progress" id="testProgress" data-feature="testing" aria-live="polite" hidden></div>
       <div class="number" id="number">1</div>
       <div class="word" id="word" hidden></div>
       <div class="pronunciation" id="pronunciation" hidden></div>
@@ -86,7 +86,7 @@
          miss). LB-16 removed the in-card Study / Test-again result row; the end
          result is now a modal (#resultModal) with a single Close action.
          (#testNextWrap kept hidden for markup stability; unused since LB-15.) -->
-    <div class="controls test-controls" id="testControls" hidden>
+    <div class="controls test-controls" id="testControls" data-feature="testing" hidden>
       <div class="test-next-wrap" id="testNextWrap" hidden>
         <button id="testNextBtn" type="button">Next Card</button>
       </div>
@@ -96,7 +96,7 @@
          study (nothing recorded). ON = a scored N-card test on the current
          lesson; reveal before the timer = "got it", timeout = "missed". Styled
          as a modern slider toggle (.switch-track / .switch-thumb). -->
-    <div class="test-switch">
+    <div class="test-switch" data-feature="testing">
       <label class="switch-label" for="testModeToggle">
         <span class="switch-control">
           <input type="checkbox" id="testModeToggle" class="switch-input" />
@@ -145,7 +145,7 @@
 
         <!-- Card order: Random <-> Leitner. LB-9 only PERSISTS the choice;
              Leitner ordering is wired in LB-10, so the helper text is honest. -->
-        <fieldset class="setting">
+        <fieldset class="setting" data-feature="testing">
           <legend class="setting-label">Card order</legend>
           <div class="setting-row setting-radios">
             <label class="radio">
@@ -168,7 +168,7 @@
         <!-- LB-14: GLOBAL number-of-questions-for-quizzes preference (5/10/20,
              default 10). Stored at the top level of lb.prefs (not per lesson);
              test mode uses it for whatever lesson is active. -->
-        <fieldset class="setting">
+        <fieldset class="setting" data-feature="testing">
           <legend class="setting-label">Number of questions for Quizzes</legend>
           <div class="setting-row setting-radios">
             <label class="radio">
@@ -198,7 +198,7 @@
        Dismiss is a SINGLE way out: the Close button (plus Esc and backdrop-click,
        wired in the engine). On dismiss the engine turns test mode OFF (endTest)
        and returns to normal study. No Study / Test-again buttons. -->
-  <div id="resultModal" class="modal" role="dialog" aria-modal="true"
+  <div id="resultModal" data-feature="testing" class="modal" role="dialog" aria-modal="true"
        aria-labelledby="resultTitle" tabindex="-1">
     <div class="modal-panel">
       <div class="modal-head">
@@ -226,6 +226,10 @@
        bootstrap below so ALLOWED / DEFAULT_LESSON derive from the manifest, and
        before engine.js so the mastery rollup can read manifest counts. file://
        safe, no build step, no fetch. -->
+  <!-- LB-34: feature flags. ONE switch, window.LB_FEATURES.testing (src/features.js).
+       Off = testing/scoring UI is removed from the page. Flip it to true there to
+       bring testing back. Loaded before anything that reads it. -->
+  <script src="features.js"></script>
   <script src="content/languages.js"></script>
   <script src="manifest.js"></script>
 
@@ -386,6 +390,8 @@
         var lessonEl = document.getElementById("masteryLesson");
         var overallEl = document.getElementById("masteryOverall");
         if (!window.LBMastery || !window.LB_LESSON) return;
+        // LB-34: testing flag off => no mastery readouts.
+        if (window.LBFeatures && !window.LBFeatures.isOn("testing")) return;
         var M = window.LBMastery;
         var id = window.LB_LESSON.id;
         var cards = Array.isArray(window.LB_LESSON.cards) ? window.LB_LESSON.cards : [];
@@ -445,6 +451,8 @@
       // the "Today: done / not yet" goal marker was removed in LB-14.
       (function renderStreak() {
         var countEl = document.getElementById("streakCount");
+        // LB-34: testing flag off => no streak display.
+        if (window.LBFeatures && !window.LBFeatures.isOn("testing")) return;
         if (!countEl || !window.LBStreak ||
             typeof window.LBStreak.getState !== "function") return;
         var s = window.LBStreak.getState();
@@ -472,6 +480,8 @@
         var toggle = document.getElementById("testModeToggle");
         var studyHint = document.getElementById("studyHint");
         if (!toggle || !window.LBEngine || !window.LB_LESSON) return;
+        // LB-34: testing flag off => the switch is not wired at all.
+        if (window.LBFeatures && !window.LBFeatures.isOn("testing")) return;
 
         function quizCount() {
           if (window.LBPrefs && typeof window.LBPrefs.getQuizCount === "function") {
