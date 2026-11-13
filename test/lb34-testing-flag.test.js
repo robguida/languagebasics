@@ -125,7 +125,9 @@ test("index.html: plain study controls are NOT tagged; flag loads first; paths a
 
 /* ---------------------------- engine guards ------------------------------- */
 
-function engineSandbox(win) {
+/* opts.onTimeout(fn, delay) sees every setTimeout call, so a test can check
+ * the real reveal delay (the plain stub throws the delay away). */
+function engineSandbox(win, opts) {
   const ids = ["number", "word", "pronunciation", "label", "recall", "bar", "toggleBtn", "title",
     "testProgress", "studyControls", "testControls", "testNextWrap", "resultModal",
     "resultScore", "resultTime", "resultMastery", "resultClose", "resultCloseBtn"];
@@ -146,7 +148,8 @@ function engineSandbox(win) {
   const sandbox = {
     window: windowShim, document: documentShim,
     console: { warn() {}, log() {} },
-    setTimeout: () => 0, clearTimeout: () => {}, Math, String, Array,
+    setTimeout: (fn, delay) => { if (opts && opts.onTimeout) opts.onTimeout(fn, delay); return 0; },
+    clearTimeout: () => {}, Math, String, Array,
   };
   vm.createContext(sandbox);
   vm.runInContext(ENGINE_SRC, sandbox, { filename: "engine.js" });
@@ -155,14 +158,45 @@ function engineSandbox(win) {
 
 const LESSON = { id: "sq/lesson-1", title: "X", cards: [{ prompt: 1, answer: "në" }, { prompt: 2, answer: "dy" }] };
 
-test("flag OFF: a stored leitner order is ignored (plain random, Leitner never consulted)", () => {
+test("flag OFF: a stored leitner order is ignored (LBLeitner.nextCard called 0 times)", () => {
+  let called = 0;
   const { engine, elements } = engineSandbox({
     LB_FEATURES: { testing: false },
     LBPrefs: { getOrder: () => "leitner" },
-    LBLeitner: { nextCard: () => { throw new Error("Leitner must not run while testing is off"); } },
+    LBLeitner: { nextCard: (id, deck) => { called++; return deck[1]; } },
   });
-  assert.doesNotThrow(() => engine.start(LESSON));
+  engine.start(LESSON);
+  assert.equal(called, 0, "Leitner must not be consulted while testing is off");
   assert.ok(["1", "2"].includes(String(elements.number.textContent)), "a card rendered via random");
+});
+
+/* Reveal timer with the flag OFF: the delay handed to setTimeout must be a
+ * real number of ms (saved setting, else the lesson's, else the 5000 default). */
+function firstRevealDelay(win, lesson) {
+  const delays = [];
+  const { engine } = engineSandbox(win, { onTimeout: (fn, d) => delays.push(d) });
+  engine.start(lesson);
+  assert.ok(delays.length > 0, "a reveal timeout was scheduled");
+  return delays[0];
+}
+
+test("flag OFF: the saved reveal-timer setting drives the reveal delay", () => {
+  const d = firstRevealDelay({
+    LB_FEATURES: { testing: false },
+    LBPrefs: { getRevealMs: () => 7000 },
+  }, LESSON);
+  assert.equal(typeof d, "number", "delay must be a number");
+  assert.equal(d, 7000);
+});
+
+test("flag OFF, no saved setting: reveal delay is the lesson's revealMs, else 5000", () => {
+  const withMs = firstRevealDelay({ LB_FEATURES: { testing: false } },
+    Object.assign({}, LESSON, { revealMs: 10000 }));
+  assert.equal(typeof withMs, "number");
+  assert.equal(withMs, 10000);
+  const dflt = firstRevealDelay({ LB_FEATURES: { testing: false } }, LESSON);
+  assert.equal(typeof dflt, "number");
+  assert.equal(dflt, 5000);
 });
 
 test("flag ON: stored leitner order works again (recoverable)", () => {

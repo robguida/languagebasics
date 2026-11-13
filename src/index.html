@@ -408,15 +408,16 @@
         // LB-27: the rollup is scoped to the ACTIVE LANGUAGE. Source the lesson
         // entries from the MANIFEST filtered to the active language's code (the
         // lesson-id prefix, e.g. "sq"/"es"), NOT window.LB_LESSONS. Two reasons:
-        //   1. Per-language: Spanish shows its own "X of 6", Albanian its own
-        //      "X of 9", etc. — never one combined cross-language denominator.
+        //   1. Per-language: Spanish shows its own "X of 7", Albanian its own
+        //      "X of 7", etc. — never one combined cross-language denominator.
         //   2. Fixes a latent bug: only ONE lesson data file loads per page, so
         //      at runtime window.LB_LESSONS held just the active lesson — a
         //      degenerate "X of 1" denominator. The manifest knows every lesson
         //      (id/count/rollup) for the language without its card data loaded.
         // LB-18 SEAM B still applies: rollup:false decks (the combined alphabet
         // deck + words/phrases) are excluded from both N and the numerator via
-        // M.isCountedLesson, so sq stays N=9 (6 number + 3 alphabet group decks).
+        // M.isCountedLesson, so sq has N=7 (4 number + 3 alphabet group decks;
+        // LB-34 parked number lessons 5 and 6).
         var activeCode = String(id).split("/")[0];
         var entries = (window.LBManifest && window.LB_LANGUAGES)
           ? window.LBManifest.listLessonsForLanguage(window.LB_LANGUAGES, activeCode)

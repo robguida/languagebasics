@@ -10,7 +10,10 @@
  *   - optional fields (audio, recallPrompt) are correct type when present
  *   - window.LB_LESSONS received exactly one {id, title} entry for the lesson
  *   - known card counts hold (1=11, 2=9, 3=8, 4=80)
- *   - LB-34: lessons 5 and 6 are PARKED (see test/parked.test.js)
+ *   - LB-34: lessons 5 and 6 are PARKED in parked/content/<lang>/ (not
+ *     deployed). They still get the FULL schema checks below (PARKED map), so
+ *     they are valid when they come back; the "not shipped / not in the
+ *     picker" checks live in test/lb34-testing-flag.test.js.
  *
  * Built-ins only: node:test, node:assert. No npm installs.
  */
@@ -129,10 +132,27 @@ const EXPECTED = {
   },
 };
 
-for (const [lang, files] of Object.entries(EXPECTED)) {
+// LB-34: number lessons 5 and 6 are parked (parked/content/<lang>/, never
+// deployed). Same full schema checks, loaded from parked/, so they stay valid
+// for when they come back. Counts/revealMs as before parking (56 / 6, L6 = 10s).
+const PARKED = {};
+for (const lang of ["sq", "es", "ja", "bn"]) {
+  PARKED[lang] = {
+    "lesson-5.js": { count: 56, id: lang + "/lesson-5", revealMs: 5000 },
+    "lesson-6.js": { count: 6, id: lang + "/lesson-6", revealMs: 10000 },
+  };
+}
+
+const SUITES = [
+  { label: "", table: EXPECTED, opts: undefined },
+  { label: "parked ", table: PARKED, opts: { parked: true } },
+];
+
+for (const suite of SUITES)
+for (const [lang, files] of Object.entries(suite.table)) {
   for (const [file, expected] of Object.entries(files)) {
-    test(`${lang}/${file}: schema + counts`, () => {
-      const { lesson, lessonsIndex } = loadLesson(file, lang);
+    test(`${suite.label}${lang}/${file}: schema + counts`, () => {
+      const { lesson, lessonsIndex } = loadLesson(file, lang, suite.opts);
 
     // --- LB_LESSON present with required keys ---
     assert.ok(lesson, `${file}: window.LB_LESSON must be defined`);

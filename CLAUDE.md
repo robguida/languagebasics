@@ -6,17 +6,17 @@ Read this first to orient on the codebase: what it is, the stack, layout, conven
 
 ## What it is
 
-LanguageBasics is a hobby **Albanian-numbers flashcard web app**. RandBMedia-owned (Rob's own product surface).
+LanguageBasics is a hobby **language flashcard web app**. RandBMedia-owned (Rob's own product surface).
 
 - **Live at:** `languagebasics.robguida.com`
-- **6 lessons, ~170 cards** covering Albanian numbers:
+- **4 languages:** Albanian (`sq`, Tosk), Spanish (`es`), Japanese (`ja`), Bengali (`bn`). Each has number lessons, an Alphabet / script section, and Words + Phrases decks.
+- **Live number lessons (each language, 108 cards):**
   1. Lesson 1 — Numbers 0–10 (11 cards)
   2. Lesson 2 — Numbers 11–19 (9 cards)
   3. Lesson 3 — Tens 20–90 (8 cards)
   4. Lesson 4 — Numbers 20–99 compounds (80 cards)
-  5. Lesson 5 — Big Number Roots (56 cards)
-  6. Lesson 6 — Number Builder / built compounds (6 cards)
-- A flashcard shows a number, you say it out loud, a timer runs, then the Albanian word + pronunciation reveal.
+- **Parked (LB-34), not live:** Lesson 5 — Big Number Roots (56 cards) and Lesson 6 — Number Builder (6 cards, `revealMs` 10000), in all 4 languages. Their files sit in `parked/content/<lang>/` (see "Parked lessons").
+- A flashcard shows a prompt, you say it out loud, a timer runs, then the answer + pronunciation reveal.
 
 ---
 
@@ -35,19 +35,39 @@ Served files live under **`src/`** — only `src/` reaches the live site (see De
 ```
 src/
   index.html              # the single shell: lesson picker + card UI + bootstrap
+  features.js             # LB-34 feature flags (window.LB_FEATURES) — loads first
   engine.js               # shared flashcard engine (window.LBEngine)
-  styles.css              # all styling (unified from the original 6 standalone files)
+  manifest.js             # picker / whitelist / count helpers over the manifest
+  settings.js, prefs.js, store.js     # settings modal + localStorage prefs
+  game.js, leitner.js, mastery.js, streak.js  # testing/scoring code (flag-gated)
+  hint.js                 # hint rotation
+  styles.css              # all styling
   content/
-    sq/                   # sq = Albanian language namespace
-      lesson-1.js ... lesson-6.js   # per-lesson card data (window.LB_LESSON)
+    languages.js          # the manifest: every language + lesson (id, count, rollup)
+    sq/ es/ ja/ bn/       # per-language lesson data (window.LB_LESSON):
+                          #   lesson-1..4, alphabet-*, words-1..5, phrases-1..5
+parked/                   # LB-34 parked lessons — NOT served, never deploys
+  content/<lang>/lesson-5.js, lesson-6.js
 test/                     # node --test suite (NOT served)
-  schema.test.js          # per-lesson schema + card-count checks
-  button-toggle.test.js   # reveal/next toggle state-machine
-  loop-resilience.test.js # bad-card-skip regression on the engine
-  helpers/load-lesson.js  # vm sandbox loader for lesson data files
+  schema.test.js          # per-lesson schema + card-count checks (incl. parked)
+  lb34-testing-flag.test.js  # testing flag + parked-lesson checks
+  ...                     # engine, manifest, mastery, leitner, game, etc.
+  helpers/load-lesson.js  # vm sandbox loader (src/content or parked/content)
 docs/                     # concept/source files, NOT served (see Docs)
 package.json              # name, test script — no deps
 ```
+
+### Testing features are switched OFF (LB-34)
+
+- One switch: `src/features.js`, `window.LB_FEATURES = { testing: false }`.
+- Off (shipped): the Test mode switch, quiz-count setting, results modal, mastery and streak readouts, and the Random/Leitner card-order setting are **removed from the page** (markup tagged `data-feature="testing"`). The engine always uses random order and `startTest` does nothing. Saved localStorage state is kept, just ignored.
+- **To turn testing back on:** change `testing: false` to `testing: true` in `src/features.js`. Nothing else.
+
+### Parked lessons (LB-34)
+
+- Number lessons 5 and 6 (all 4 languages) live in `parked/content/<lang>/`, outside `src/`, so they never deploy. They are out of `content/languages.js`, so they are not in the picker, the `?lesson=` whitelist or the mastery counts.
+- The tests still run the full schema checks on them, so they stay valid.
+- **To bring one back:** `git mv` it into `src/content/<lang>/`, re-add its manifest entry in `content/languages.js`, and move its row from `PARKED` to `EXPECTED` in `test/schema.test.js` (plus the count tests that change).
 
 ### How a lesson loads (no fetch, file:// safe)
 
@@ -101,13 +121,13 @@ npm test          # runs: node --test  (Node built-in runner, no deps)
 
 - Tests live in `test/` and load the real `src/` files (engine + lesson data) inside a `node:vm` sandbox with a minimal `window`/DOM shim — Node built-ins only (`node:test`, `node:assert`, `node:fs`, `node:vm`, `node:path`).
 - Coverage: per-lesson schema + exact card counts, the reveal/next toggle state machine, and loop-resilience (one bad card is skipped, never aborts the deck).
-- **Card-count source of truth** is `EXPECTED` in `test/schema.test.js`. If you change a lesson's card count, update that map or the test fails.
+- **Card-count source of truth** is `EXPECTED` (live lessons) and `PARKED` (parked lessons 5 and 6) in `test/schema.test.js`. If you change a lesson's card count, update that map or the test fails.
 
 ---
 
 ## How to deploy
 
-**Only the contents of `src/` ship to the live site.** Nothing else (`package.json`, `test/`, `docs/`) reaches the docroot.
+**Only the contents of `src/` ship to the live site.** Nothing else (`package.json`, `test/`, `docs/`, `parked/`) reaches the docroot.
 
 Deploy flow:
 1. Pull `main` into a local checkout.
@@ -152,10 +172,9 @@ These are reference/history. They never deploy.
 
 ---
 
-## In progress (brief)
+## Personalize/gamify features (built; testing parts switched off)
 
-A **personalize/gamify batch** is planned/underway, all **client-side** (browser `localStorage`; no accounts, no backend, no pricing — personal use):
-- A **settings modal**, opened from a hamburger menu.
-- A **per-lesson reveal timer** (1–20s, default 5s).
-- A card-order toggle: **Random ↔ Leitner**.
-- A **self-rated game/test mode**.
+All **client-side** (browser `localStorage`; no accounts, no backend, no pricing — personal use):
+- A **settings modal**, opened from a hamburger menu — live.
+- A **per-lesson reveal timer** (1–20s, default 5s) — live.
+- A card-order toggle **Random ↔ Leitner**, a **self-rated game/test mode**, mastery and streak — built, but **switched off** by the LB-34 testing flag (see "Testing features are switched OFF").

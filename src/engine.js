@@ -168,10 +168,6 @@
    */
   function resolvedRevealMs(lesson) {
     try {
-      // LB-34: testing flag off => Leitner order is unavailable (it depends on
-      // test-mode ratings); always plain random. Missing flag object => on.
-      if (typeof window !== "undefined" && window.LB_FEATURES &&
-          window.LB_FEATURES.testing === false) return "random";
       if (lesson && lesson.id && typeof window !== "undefined" &&
           window.LBPrefs && typeof window.LBPrefs.getRevealMs === "function") {
         var override = window.LBPrefs.getRevealMs(lesson.id);
@@ -210,6 +206,10 @@
    */
   function resolvedOrderSource(lesson) {
     try {
+      // LB-34: testing flag off => Leitner order is unavailable (it depends on
+      // test-mode ratings); always plain random. Missing flag object => on.
+      if (typeof window !== "undefined" && window.LB_FEATURES &&
+          window.LB_FEATURES.testing === false) return "random";
       if (lesson && lesson.id && typeof window !== "undefined" &&
           window.LBPrefs && typeof window.LBPrefs.getOrder === "function" &&
           window.LBLeitner && typeof window.LBLeitner.nextCard === "function") {
