@@ -1,9 +1,9 @@
 /* LB-34: the "testing" feature flag + parked number lessons.
  *
  * Proves, with Node built-ins only (no deps):
- *   - flag OFF (as shipped): every testing/scoring/quizzing piece of markup is
- *     removed from the page and the engine cannot start a test or use Leitner
- *     order;
+ *   - flag OFF: every testing/scoring piece of markup is removed from the
+ *     page and the engine cannot start a test (LB-36: Leitner order, the Test
+ *     mode switch and the quiz-count setting are retired, not just hidden);
  *   - flag ON: the markup stays and the engine paths work again (recoverable);
  *   - lessons 5 and 6 are gone from the picker, whitelist and rollup counts in
  *     all four languages, and a typed ?lesson= for them is rejected, while
@@ -23,10 +23,10 @@ const FEATURES_SRC = fs.readFileSync(path.join(SRC, "features.js"), "utf8");
 const ENGINE_SRC = fs.readFileSync(path.join(SRC, "engine.js"), "utf8");
 const INDEX_HTML = fs.readFileSync(path.join(SRC, "index.html"), "utf8");
 
-// Every id that is about testing/scoring/quizzing and must be tagged for removal.
+// Every id that is about testing/scoring and must be tagged for removal (LB-36).
 const TESTING_IDS = [
-  "streakCount", "masteryOverall", "masteryReadout", "testProgress",
-  "testControls", "resultModal",
+  "streakCount", "masteryReadout", "testProgress", "rateControls",
+  "testMeWrap", "stopTestBtn", "testHint", "resultModal",
 ];
 
 /* ---------------------------- fake DOM for features.js -------------------- */
@@ -105,9 +105,19 @@ test("index.html: every testing/scoring/quizzing element is tagged", () => {
   for (const id of TESTING_IDS) {
     assert.ok(tagFor(new RegExp('<[a-z]+[^>]*id="' + id + '"[^>]*>')), "#" + id + " must be tagged");
   }
-  assert.ok(tagFor(/<div class="test-switch"[^>]*>/), "Test mode switch tagged");
-  assert.ok(tagFor(/<fieldset[^>]*>\s*<legend class="setting-label">Card order/), "Card order tagged");
-  assert.ok(tagFor(/<fieldset[^>]*>\s*<legend class="setting-label">Number of questions for Quizzes/), "quiz count tagged");
+});
+
+test("LB-36: retired UI is gone from index.html (switch, card order, quiz count, rollup, Leitner/mastery scripts)", () => {
+  for (const gone of ['id="testModeToggle"', 'class="test-switch"', 'name="cardOrder"', 'name="quizCount"',
+    "Card order", "Number of questions for Quizzes", 'id="masteryOverall"', 'id="testControls"',
+    'src="leitner.js"', 'src="mastery.js"', 'id="resultTime"']) {
+    assert.ok(!INDEX_HTML.includes(gone), gone + " must be gone");
+  }
+  assert.ok(!fs.existsSync(path.join(SRC, "leitner.js")), "leitner.js retired");
+  assert.ok(!fs.existsSync(path.join(SRC, "mastery.js")), "mastery.js retired");
+  for (const s of ["progress.js", "game.js", "streak.js"]) {
+    assert.ok(INDEX_HTML.includes('<script src="' + s + '">'), s + " loaded");
+  }
 });
 
 test("index.html: plain study controls are NOT tagged; flag loads first; paths are relative", () => {
@@ -129,8 +139,8 @@ test("index.html: plain study controls are NOT tagged; flag loads first; paths a
  * the real reveal delay (the plain stub throws the delay away). */
 function engineSandbox(win, opts) {
   const ids = ["number", "word", "pronunciation", "label", "recall", "bar", "toggleBtn", "title",
-    "testProgress", "studyControls", "testControls", "testNextWrap", "resultModal",
-    "resultScore", "resultTime", "resultMastery", "resultClose", "resultCloseBtn"];
+    "testProgress", "studyControls", "rateControls", "rateKnewBtn", "rateNotYetBtn", "resultModal",
+    "resultScore", "resultClose", "resultDoneBtn"];
   const elements = {};
   for (const id of ids) {
     elements[id] = {
@@ -157,18 +167,6 @@ function engineSandbox(win, opts) {
 }
 
 const LESSON = { id: "sq/lesson-1", title: "X", cards: [{ prompt: 1, answer: "në" }, { prompt: 2, answer: "dy" }] };
-
-test("flag OFF: a stored leitner order is ignored (LBLeitner.nextCard called 0 times)", () => {
-  let called = 0;
-  const { engine, elements } = engineSandbox({
-    LB_FEATURES: { testing: false },
-    LBPrefs: { getOrder: () => "leitner" },
-    LBLeitner: { nextCard: (id, deck) => { called++; return deck[1]; } },
-  });
-  engine.start(LESSON);
-  assert.equal(called, 0, "Leitner must not be consulted while testing is off");
-  assert.ok(["1", "2"].includes(String(elements.number.textContent)), "a card rendered via random");
-});
 
 /* Reveal timer with the flag OFF: the delay handed to setTimeout must be a
  * real number of ms (saved setting, else the lesson's, else the 5000 default). */
@@ -199,7 +197,19 @@ test("flag OFF, no saved setting: reveal delay is the lesson's revealMs, else 50
   assert.equal(dflt, 5000);
 });
 
-test("flag ON: stored leitner order works again (recoverable)", () => {
+test("flag OFF: startTest never starts a test; flag ON: it does", () => {
+  let pools = 0;
+  const game = { buildTestPool: (deck) => { pools++; return deck.slice(); } };
+  const off = engineSandbox({ LB_FEATURES: { testing: false }, LBGame: game });
+  off.engine.startTest(LESSON);
+  assert.equal(pools, 0, "no test pool built while testing is off");
+
+  const on = engineSandbox({ LB_FEATURES: { testing: true }, LBGame: game });
+  on.engine.startTest(LESSON);
+  assert.equal(pools, 1, "test pool built when testing is on");
+});
+
+test("LB-36: Leitner is retired — a stored order and an LBLeitner global are never used", () => {
   let called = 0;
   const { engine, elements } = engineSandbox({
     LB_FEATURES: { testing: true },
@@ -207,20 +217,8 @@ test("flag ON: stored leitner order works again (recoverable)", () => {
     LBLeitner: { nextCard: (id, deck) => { called++; return deck[1]; } },
   });
   engine.start(LESSON);
-  assert.ok(called > 0, "Leitner consulted");
-  assert.equal(String(elements.number.textContent), "2");
-});
-
-test("flag OFF: startTest never starts a test; flag ON: it does", () => {
-  let pools = 0;
-  const game = { buildPool: (deck) => { pools++; return deck.slice(); } };
-  const off = engineSandbox({ LB_FEATURES: { testing: false }, LBGame: game });
-  off.engine.startTest(LESSON, 2);
-  assert.equal(pools, 0, "no test pool built while testing is off");
-
-  const on = engineSandbox({ LB_FEATURES: { testing: true }, LBGame: game });
-  try { on.engine.startTest(LESSON, 2); } catch (e) { /* later steps may need more stubs */ }
-  assert.ok(pools > 0, "test pool built when testing is on");
+  assert.equal(called, 0, "LBLeitner.nextCard called 0 times");
+  assert.ok(["1", "2"].includes(String(elements.number.textContent)), "plain random study");
 });
 
 /* ---------------------------- parked lessons 5 and 6 ---------------------- */

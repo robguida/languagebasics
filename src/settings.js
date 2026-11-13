@@ -9,9 +9,7 @@
  *   - keyboard accessibility: focus moves in on open, focus trap while open,
  *     Esc closes, focus returns to the hamburger on close
  *   - the per-lesson reveal-timer control (1-20s, default 5s) -> LBPrefs
- *   - the Random <-> Leitner order control -> LBPrefs (LB-9 PERSISTS ONLY; the
- *     actual Leitner ordering is LB-10, so the control saves the pref and the
- *     UI says "coming soon" — no faked behavior)
+ *     (LB-36: the only setting; card order and quiz count were retired)
  *
  * This module never touches the engine's live card flow. The timer override is
  * read by the engine at start() via LBPrefs; a changed value applies on the
@@ -38,10 +36,6 @@
     var closeBtn = document.getElementById("settingsClose");
     var timerInput = document.getElementById("revealSeconds");
     var timerValue = document.getElementById("revealSecondsValue");
-    var orderRandom = document.getElementById("orderRandom");
-    var orderLeitner = document.getElementById("orderLeitner");
-    // LB-14: GLOBAL quiz-count radios (5/10/20, default 10). Not per-lesson.
-    var quizCountRadios = document.querySelectorAll('input[name="quizCount"]');
 
     // If the static modal markup is absent for any reason, degrade silently
     // rather than throw — the flashcards still work without settings.
@@ -55,7 +49,7 @@
 
     // ----- seed the controls from stored prefs (or defaults) -----
     function seedControls() {
-      var defaults = (prefs && prefs.DEFAULTS) || { revealMs: 5000, order: "random" };
+      var defaults = (prefs && prefs.DEFAULTS) || { revealMs: 5000 };
 
       var ms = (prefs && prefs.getRevealMs) ? prefs.getRevealMs(lessonId) : null;
       var seconds = Math.round((ms != null ? ms : defaults.revealMs) / 1000);
@@ -63,21 +57,6 @@
 
       if (timerInput) timerInput.value = String(seconds);
       if (timerValue) timerValue.textContent = String(seconds);
-
-      var order = (prefs && prefs.getOrder) ? prefs.getOrder(lessonId) : null;
-      if (order == null) order = defaults.order;
-      if (orderRandom) orderRandom.checked = (order === "random");
-      if (orderLeitner) orderLeitner.checked = (order === "leitner");
-
-      // LB-14: seed the GLOBAL quiz-count radios from the stored pref (or the
-      // 10-default). getQuizCount always returns a usable value, never null.
-      var quizCount = (prefs && prefs.getQuizCount)
-        ? prefs.getQuizCount()
-        : (defaults.quizCount || 10);
-      for (var qi = 0; qi < quizCountRadios.length; qi++) {
-        var qr = quizCountRadios[qi];
-        qr.checked = (Number(qr.value) === quizCount);
-      }
     }
 
     // ----- persistence wiring -----
@@ -92,37 +71,12 @@
       if (prefs && prefs.setRevealMs) prefs.setRevealMs(lessonId, seconds * 1000);
     }
 
-    function persistOrder() {
-      var order = (orderLeitner && orderLeitner.checked) ? "leitner" : "random";
-      if (prefs && prefs.setOrder) prefs.setOrder(lessonId, order);
-    }
-
-    // LB-14: persist the GLOBAL quiz count (one of 5/10/20). Applies to all
-    // lessons; test mode reads it for whatever lesson is active.
-    function persistQuizCount() {
-      var chosen = null;
-      for (var qi = 0; qi < quizCountRadios.length; qi++) {
-        if (quizCountRadios[qi].checked) {
-          chosen = Number(quizCountRadios[qi].value);
-          break;
-        }
-      }
-      if (chosen != null && prefs && prefs.setQuizCount) {
-        prefs.setQuizCount(chosen);
-      }
-    }
-
     if (timerInput) {
       // input -> live value readout; change -> persist (covers slider + number)
       timerInput.addEventListener("input", function () {
         if (timerValue) timerValue.textContent = String(timerInput.value);
       });
       timerInput.addEventListener("change", persistTimer);
-    }
-    if (orderRandom) orderRandom.addEventListener("change", persistOrder);
-    if (orderLeitner) orderLeitner.addEventListener("change", persistOrder);
-    for (var qri = 0; qri < quizCountRadios.length; qri++) {
-      quizCountRadios[qri].addEventListener("change", persistQuizCount);
     }
 
     // ----- focus trap -----

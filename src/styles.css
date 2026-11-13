@@ -29,8 +29,9 @@ body {
 }
 
 /* ---- LB-14: fixed top header bar ---- */
-/* A single horizontal line pinned to the top: streak (left), overall mastery
-   (middle), hamburger (right). Calm, low-emphasis, matching the app's style. */
+/* A single horizontal line pinned to the top: streak (left), hamburger
+   (right). Calm, low-emphasis, matching the app's style. LB-36 removed the
+   overall mastery rollup from the middle. */
 .app-header {
   position: fixed;
   top: 0;
@@ -50,12 +51,6 @@ body {
   font-weight: 700;
   color: #ffffff;
   white-space: nowrap;
-}
-.header-mastery {
-  flex: 1;
-  text-align: center;
-  font-size: .85rem;
-  color: #cbd5e1;
 }
 
 .app { width: min(480px, 100%); text-align: center; }
@@ -102,6 +97,11 @@ h1 { font-size: 1.25rem; font-weight: 700; margin: 0 0 14px; }
   justify-content: center;
   align-items: center;
 }
+
+/* LB-36: in a test, focus moves to the card after a reveal. Keyboard users
+   see a ring; a mouse/touch reveal does not draw one. */
+.card:focus { outline: none; }
+.card:focus-visible { outline: 3px solid var(--accent2); outline-offset: 3px; }
 
 .label { color: var(--muted); font-size: 1rem; margin-bottom: 8px; }
 
@@ -155,7 +155,7 @@ button.secondary { background: #475569; }
 
 .hamburger {
   flex-shrink: 0;
-  margin-left: auto; /* LB-34: stay right-aligned when streak/mastery spans are removed */
+  margin-left: auto; /* LB-34: stay right-aligned when the streak span is removed */
   width: 40px;
   height: 40px;
   padding: 0;
@@ -281,9 +281,8 @@ button.secondary { background: #475569; }
   line-height: 1.35;
 }
 
-/* ---- Mastery readout (LB-12 / LB-14) ---- */
-/* Near the lesson picker: ONLY "This lesson" now (the overall line moved to the
-   header bar in LB-14). Plain text, low-emphasis — no bars/badges. */
+/* ---- Lesson readout (LB-36: "This lesson: N of M known.") ---- */
+/* Near the lesson picker. Plain text, low-emphasis — no bars/badges. */
 .mastery-readout {
   margin: 0 0 14px;
   font-size: .9rem;
@@ -291,116 +290,90 @@ button.secondary { background: #475569; }
 }
 .mastery-readout-lesson { font-weight: 700; color: #ffffff; }
 
-/* ---- LB-16: test-result modal ---- */
+/* ---- LB-36: test-result modal ---- */
 /* Reuses .modal / .modal-panel / .modal-head / .modal-close (shared with the
-   settings modal) for the overlay + panel chrome, so it matches the app's calm
-   style and the header/toggle look. These rules style only the result body. */
+   settings modal) for the overlay + panel chrome. These rules style only the
+   result body. */
 .result-block {
   text-align: center;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 .result-score {
   font-size: 1.35rem;
   font-weight: 800;
   color: var(--text);
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
-.result-time {
-  font-size: 1.05rem;
+.result-best {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--accent2);
+  margin-bottom: 8px;
+}
+.result-lesson {
+  font-size: .95rem;
   color: var(--text);
-  line-height: 1.4;
 }
-.result-time strong { color: var(--accent); }
-.result-mastery {
-  margin-top: 12px;
-  font-size: .85rem;
-  color: var(--muted);
+.result-list-head {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0 0 8px;
+  color: var(--text);
 }
-/* The single Close action — full-width, primary, matches the card buttons. */
-.result-actions { display: grid; grid-template-columns: 1fr; }
+.result-list {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+.result-item {
+  padding: 8px 0;
+  border-top: 1px solid #e2e8f0;
+  overflow-wrap: anywhere;
+}
+.result-item:first-child { border-top: 0; }
+.result-item-main { display: block; font-weight: 700; color: var(--text); }
+.result-item-hint { display: block; font-size: .9rem; color: var(--muted); margin-top: 2px; }
+.result-none {
+  text-align: center;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 16px;
+}
+/* Full-width stacked actions, matching the card buttons. */
+.result-actions { display: grid; grid-template-columns: 1fr; gap: 10px; }
 .result-actions button { width: 100%; }
+.result-footer {
+  margin: 14px 0 0;
+  font-size: .8rem;
+  color: var(--muted);
+  text-align: center;
+}
 
-/* ---- LB-14: test-mode card region ---- */
-/* "Card N of M" progress, shown inside the card only during a test. */
+/* ---- Test-mode card region ---- */
+/* "Card 3 of 10" progress, shown inside the card only during a test. */
 .test-progress { color: var(--muted); font-size: .9rem; margin-bottom: 10px; }
 
-/* ---- LB-15/LB-16: test-mode controls ---- */
-/* Test mode reuses the single study #toggleBtn (the timer is the scoring
-   signal). LB-16 removed the in-card Study / Test-again result row; the end
-   result is now the #resultModal. The test-controls slot keeps only the unused
-   #testNextWrap (hidden, markup stability). */
-.test-controls { gap: 12px; }
+/* ---- LB-36: rating buttons ("Not yet" left, "I knew it" right) ---- */
+.rate-controls { grid-template-columns: 1fr 1fr; }
+.rate-controls button { width: 100%; }
 
-.test-next-wrap button { width: 100%; }
+/* ---- LB-36: "Test me" button + "Stop test" link ---- */
+.test-me { margin-top: 16px; display: flex; justify-content: center; }
+.test-me button { min-width: 50%; }
 
-/* ---- LB-15: test-mode switch (modern slider toggle) ---- */
-/* Sits just under the controls. A clean, calm pill-slider clearly labeled
-   "Test mode". The native checkbox is visually hidden (kept for a11y + the
-   label-for hit target); the .switch-track pill + .switch-thumb knob render the
-   toggle and animate on :checked. Colors match the app palette (accent2 = the
-   same green as the timer bar) so "on" reads as active without shouting. */
-.test-switch { margin-top: 16px; display: flex; justify-content: center; }
-
-.switch-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-  user-select: none;
-}
-
-.switch-control {
-  position: relative;
-  display: inline-flex;
-  flex-shrink: 0;
-}
-
-/* The real checkbox: hidden visually but still focusable + clickable. */
-.switch-input {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  opacity: 0;
-  cursor: pointer;
-}
-
-/* The pill track. */
-.switch-track {
-  display: inline-block;
-  width: 46px;
-  height: 26px;
-  border-radius: 99px;
-  background: rgba(255, 255, 255, .22);
-  transition: background .2s ease;
-}
-
-/* The sliding knob. */
-.switch-thumb {
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: #ffffff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, .35);
-  transition: transform .2s ease;
-}
-
-/* ON state: green track + knob slides right. */
-.switch-input:checked ~ .switch-track { background: var(--accent2); }
-.switch-input:checked ~ .switch-track .switch-thumb { transform: translateX(20px); }
-
-/* Keyboard focus ring on the visible track when the hidden input is focused. */
-.switch-input:focus-visible ~ .switch-track {
-  outline: 2px solid #ffffff;
-  outline-offset: 2px;
-}
-
-.switch-text {
-  font-size: .95rem;
-  font-weight: 700;
+.link-button {
+  display: block;
+  margin: 14px auto 0;
+  padding: 6px 10px;
+  background: transparent;
   color: #cbd5e1;
+  font-weight: 600;
+  text-decoration: underline;
+  border-radius: 8px;
 }
+.link-button:hover { color: #ffffff; }
+
+/* The hidden attribute must win over the display rules above. */
+[hidden] { display: none !important; }

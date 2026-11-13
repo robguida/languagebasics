@@ -5,14 +5,14 @@
  * One global: window.LBStreak. Pure logic, DOM-free, so it is unit-testable in a
  * node:vm sandbox directly (same convention as store.js / prefs.js / leitner.js /
  * game.js / mastery.js). It reads/writes streak state THROUGH window.LBStore
- * (LB-8) under the `lb.streak` namespace.
+ * (LB-8) under the `languagebasics.streak` namespace.
  *
  * DESIGN ETHIC: a CALM streak. It quietly counts days practiced in a row. There
  * is NO nagging, NO guilt, NO loss warnings, NO punishment. A missed day simply
  * resets the count to 1 on the next practice — the data layer carries no negative
  * messaging. The display layer (index.html) keeps the same calm tone.
  *
- * Stored shape under lb.streak (LBStore stamps the v field, not us):
+ * Stored shape under languagebasics.streak (LBStore stamps the v field, not us):
  *   {
  *     v: 1,
  *     current:       3,            // days practiced in a row, through lastActiveDay
@@ -39,7 +39,7 @@
 (function () {
   "use strict";
 
-  var STORE_KEY = "lb.streak";
+  var STORE_KEY = "languagebasics.streak";
 
   // The default daily goal: one practice marks the day as done. Stored so a
   // future ticket could raise it without a migration; nothing varies it yet.
