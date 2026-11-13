@@ -471,3 +471,35 @@ test("copy + aria: Reveal it / card label (study and test), rating buttons stay 
   ]) assert.ok(html.includes(s), "index.html has: " + s);
   assert.ok(html.indexOf('id="rateNotYetBtn"') < html.indexOf('id="rateKnewBtn"'), "Not yet is on the left");
 });
+
+test("rating phase: Enter on another focused button keeps its native action (not swallowed)", () => {
+  const h = env();
+  h.engine.startTest(lessonOf(2));
+  h.click("toggleBtn");
+  h.advance(LOCK);
+  const settingsClose = { tagName: "BUTTON" };
+  assert.equal(h.keydown("Enter", settingsClose), false, "not prevented");
+  assert.equal(h.keydown("Enter", h.elements.rateKnewBtn), false, "a focused rating button gets its own click");
+  assert.equal(h.calls.record.length, 0, "the keydown handler itself recorded nothing");
+});
+
+test("rating keys are ignored while typing in a form field", () => {
+  const h = env();
+  h.engine.startTest(lessonOf(2));
+  h.click("toggleBtn");
+  h.advance(LOCK);
+  h.keydown("k", { tagName: "INPUT" });
+  h.keydown("1", { tagName: "SELECT" });
+  assert.equal(h.calls.record.length, 0);
+  h.keydown("k", h.cardEl);
+  assert.equal(h.calls.record.length, 1);
+});
+
+test("a device clock that jumps backwards does not leave the rating locked", () => {
+  const h = env();
+  h.engine.startTest(lessonOf(2));
+  h.click("toggleBtn");
+  h.advance(-3600 * 1000); // clock set back an hour
+  h.click("rateKnewBtn");
+  assert.equal(h.calls.record.length, 1);
+});

@@ -638,7 +638,10 @@
     // "I knew it" (true) / "Not yet" (false) — exactly one per card.
     function rate(knew) {
       if (phase !== "rating") return;
-      if (nowMs() < lockUntil) return; // the 500 ms lock
+      // The 500 ms lock. If the device clock jumped backwards since the
+      // reveal, do not stay locked.
+      var now = nowMs();
+      if (now < lockUntil && now >= lockUntil - RATING_LOCK_MS) return;
       phase = "busy";
       commit(pool[idx], knew === true);
       advance();
@@ -677,22 +680,22 @@
       if (!event || event.ctrlKey || event.metaKey || event.altKey) return;
       var k = event.key;
       var target = event.target;
+      var onOtherControl = !!(target && target !== toggleBtn &&
+        isTag(target, ["BUTTON", "A", "SELECT", "INPUT", "TEXTAREA"]));
       if (k === " " || k === "Enter") {
-        if (phase === "rating") {
-          // A deliberate press on a focused rating button keeps its native
-          // click (still behind the lock). Anything else does nothing.
-          if (target && (target === knewBtn || target === notYetBtn)) return;
-          event.preventDefault();
-          return;
-        }
-        // Leave other focused controls (Stop test, the pickers) alone.
-        if (target && target !== toggleBtn &&
-            isTag(target, ["BUTTON", "A", "SELECT", "INPUT", "TEXTAREA"])) return;
+        // A focused control (a rating button, Stop test, a picker, the
+        // settings dialog) keeps its own key; a rating button's native click
+        // still sits behind the lock.
+        if (onOtherControl) return;
         event.preventDefault();
+        // While rating, Space/Enter do NOTHING (a held key cannot rate).
+        if (phase === "rating") return;
         onToggle();
         return;
       }
       if (phase !== "rating" || typeof k !== "string") return;
+      // Never rate while the learner is typing into a form field.
+      if (target && isTag(target, ["INPUT", "SELECT", "TEXTAREA"])) return;
       var lower = k.toLowerCase();
       if (lower === "k" || k === "1") {
         event.preventDefault();
