@@ -417,12 +417,127 @@ test("streak: NOT marked on page load or test start; marked on the first rating"
   assert.equal(h.calls.mark, 1, "the first rating marks the day");
 });
 
-test("streak: a manual reveal in study marks the day", () => {
+test("streak: a manual reveal in study marks the day (button click and key)", () => {
   const h = env();
   h.engine.start(lessonOf(3));
-  h.click("toggleBtn"); // study uses addEventListener, not onclick — use the keyboard path
-  h.keydown(" ", null);
-  assert.ok(h.calls.mark >= 1, "manual study reveal marks");
+  h.click("toggleBtn"); // the study button's real click listener
+  assert.equal(h.elements.word.hidden, false, "the click revealed the card");
+  assert.equal(h.calls.mark, 1, "a manual click reveal marks the day");
+  h.click("toggleBtn"); // next card
+  h.keydown(" ", null); // keyboard reveal
+  assert.equal(h.calls.mark, 2, "a manual key reveal marks too");
+});
+
+test("study with the flag ON: clicks, keys and the timer record no rating", () => {
+  const h = env();
+  h.engine.start(lessonOf(3));
+  for (let i = 0; i < 4; i++) h.click("toggleBtn"); // reveal, next, reveal, next
+  h.fireTimer();                                     // idle auto-reveal
+  h.keydown("Enter", null);                          // next
+  h.keydown(" ", h.elements.toggleBtn);              // reveal
+  h.keydown("n", null);                              // skip
+  assert.equal(h.calls.record.length, 0, "record called 0 times in study");
+  assert.equal(h.calls.best.length, 0, "recordTestResult called 0 times in study");
+});
+
+/* ------------------- study keys vs. other focused controls ------------------ */
+
+test("study: Enter/Space on a focused Test me keeps its own click (no reveal, no streak)", () => {
+  const h = env();
+  h.engine.start(lessonOf(3));
+  assert.equal(h.keydown("Enter", h.elements.testMeBtn), false, "Enter not prevented");
+  assert.equal(h.keydown(" ", h.elements.testMeBtn), false, "Space not prevented");
+  assert.equal(h.elements.word.hidden, true, "the study card stays hidden");
+  assert.equal(h.calls.mark, 0, "markActive called 0 times");
+  // Same for Stop test, a link, the lesson picker and the settings slider.
+  for (const target of [h.elements.stopTestBtn, { tagName: "A" }, { tagName: "SELECT" }, { tagName: "INPUT" }]) {
+    assert.equal(h.keydown("Enter", target), false, target.tagName + " keeps Enter");
+  }
+  assert.equal(h.elements.word.hidden, true);
+  // With nothing else focused (or the card button itself), the keys still work.
+  assert.equal(h.keydown(" ", null), true, "Space on the page is used");
+  assert.equal(h.elements.word.hidden, false, "Space still reveals");
+  assert.equal(h.calls.mark, 1);
+});
+
+test("study: 'n' does not skip while typing in a form field; modifier keys are ignored", () => {
+  const h = env();
+  h.engine.start(lessonOf(30));
+  const first = h.elements.number.textContent;
+  h.keydown("n", { tagName: "INPUT" });
+  h.keydown("n", { tagName: "SELECT" });
+  h.keydown("N", { tagName: "TEXTAREA" });
+  assert.equal(h.elements.number.textContent, first, "no skip from a form field");
+  assert.equal(h.keydown(" ", null, { ctrlKey: true }), false, "Ctrl+Space ignored");
+  assert.equal(h.keydown("Enter", null, { metaKey: true }), false, "Meta+Enter ignored");
+  h.keydown("n", null, { altKey: true });
+  assert.equal(h.elements.number.textContent, first, "Alt+N ignored");
+  assert.equal(h.elements.word.hidden, true);
+  h.keydown("n", null);
+  assert.notEqual(h.elements.number.textContent, first, "plain n still skips");
+});
+
+test("study: a held key (auto-repeat) never acts again", () => {
+  const h = env();
+  h.engine.start(lessonOf(3));
+  assert.equal(h.keydown("Enter", h.elements.testMeBtn, { repeat: true }), true,
+    "a repeat on Test me is swallowed so a held Enter cannot press it");
+  assert.equal(h.keydown("Enter", null, { repeat: true }), true);
+  assert.equal(h.elements.word.hidden, true, "a repeat does not reveal");
+  assert.equal(h.calls.mark, 0);
+});
+
+test("study and test: no shortcut acts while the settings dialog is open", () => {
+  let open = true;
+  const h = env({ window: { LBSettings: { isOpen: () => open } } });
+  h.engine.start(lessonOf(3));
+  const first = h.elements.number.textContent;
+  assert.equal(h.keydown(" ", null), false);
+  h.keydown("n", null);
+  assert.equal(h.elements.word.hidden, true, "study: no reveal behind the dialog");
+  assert.equal(h.elements.number.textContent, first, "study: no skip behind the dialog");
+  h.engine.startTest(lessonOf(3));
+  open = false;
+  h.click("toggleBtn");
+  h.advance(LOCK);
+  open = true;
+  const settingsClose = { tagName: "BUTTON" };
+  h.keydown("k", settingsClose);
+  h.keydown("1", null);
+  h.keydown("n", h.cardEl);
+  assert.equal(h.calls.record.length, 0, "test: K/1/N do not rate behind the dialog");
+  open = false;
+  h.keydown("k", h.cardEl);
+  assert.equal(h.calls.record.length, 1, "after it closes, K rates");
+});
+
+test("test: a held Enter on Next card does not also reveal the next card", () => {
+  const h = env();
+  h.engine.startTest(lessonOf(3));
+  h.fireTimer();                                   // time's up on card 1
+  h.keydown("Enter", h.elements.toggleBtn);        // Next card
+  assert.equal(h.elements.testProgress.textContent, "Card 2 of 3");
+  assert.equal(h.keydown("Enter", h.elements.toggleBtn, { repeat: true }), true);
+  assert.equal(h.elements.word.hidden, true, "card 2 stays hidden");
+  assert.equal(h.keydown("Enter", h.elements.stopTestBtn, { repeat: true }), true,
+    "a repeat on Stop test is swallowed too");
+  assert.equal(h.elements.stopTestBtn.hidden, false, "still in the test");
+});
+
+test("after Done / Esc / Stop test, focus moves to Test me", () => {
+  for (const how of ["done", "esc", "stop"]) {
+    const h = env();
+    h.engine.startTest(lessonOf(2));
+    if (how === "stop") {
+      h.click("stopTestBtn");
+    } else {
+      runAll(h, [true, false]);
+      h.advance(LOCK);
+      if (how === "done") h.click("resultDoneBtn");
+      else h.keydown("Escape", null);
+    }
+    assert.equal(h.focused, h.elements.testMeBtn, how);
+  }
 });
 
 /* ---------------------------- flag + guards -------------------------------- */

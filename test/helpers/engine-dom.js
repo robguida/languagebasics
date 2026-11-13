@@ -9,7 +9,12 @@
  *     classList / setAttribute / focus, plus tiny child lists for the results
  *     list (createElement / createTextNode / appendChild / removeChild);
  *   - document keydown listeners (with event.target support);
- *   - ONE captured setTimeout callback (the reveal timer) fired on demand;
+ *   - element listeners (addEventListener / removeEventListener): click()
+ *     runs the element's onclick AND its "click" listeners, so the study
+ *     button's real listener runs in tests too;
+ *   - every setTimeout callback, by id (clearTimeout removes that one);
+ *     fireTimer() runs the newest pending one, lastTimer() hands a test the
+ *     newest callback so it can be called later on purpose;
  *   - a controllable wall clock for the 500 ms rating lock (LBEngine._setClock).
  */
 "use strict";
@@ -54,8 +59,12 @@ function makeNode(tag) {
     removeChild(c) { const i = this.children.indexOf(c); if (i >= 0) this.children.splice(i, 1); return c; },
     setAttribute(k, v) { this.attrs[k] = String(v); },
     removeAttribute(k) { delete this.attrs[k]; },
-    addEventListener() {},
-    removeEventListener() {},
+    listeners: [],
+    addEventListener(type, fn) { this.listeners.push({ type, fn }); },
+    removeEventListener(type, fn) {
+      const i = this.listeners.findIndex((l) => l.type === type && l.fn === fn);
+      if (i >= 0) this.listeners.splice(i, 1);
+    },
   };
   return node;
 }
@@ -119,7 +128,8 @@ function makeEngineEnv(opts) {
     title: "",
   };
 
-  let timerCb = null;
+  const timers = new Map(); // id -> callback, pending only
+  let nextTimerId = 1;
   let clock = 1000000;
   const warnings = [];
 
@@ -132,8 +142,8 @@ function makeEngineEnv(opts) {
     window: windowShim,
     document: documentShim,
     console: { warn: (...a) => warnings.push(a), log() {} },
-    setTimeout: (fn) => { timerCb = fn; return 1; },
-    clearTimeout: () => { timerCb = null; },
+    setTimeout: (fn) => { const id = nextTimerId++; timers.set(id, fn); return id; },
+    clearTimeout: (id) => { timers.delete(id); },
   };
   vm.createContext(sandbox);
   for (const m of opts.modules || []) {
@@ -156,9 +166,28 @@ function makeEngineEnv(opts) {
     engine, window: windowShim, elements, cardEl, timerWrap, storage, warnings, sandbox,
     get focused() { return focused; },
     advance(ms) { clock += ms; },
-    fireTimer() { const cb = timerCb; if (cb) cb(); },
-    timerPending() { return timerCb != null; },
-    click(id) { const el = elements[id]; if (el && typeof el.onclick === "function") el.onclick({ target: el }); },
+    fireTimer() {
+      if (!timers.size) return;
+      const id = Math.max(...timers.keys());
+      const cb = timers.get(id);
+      timers.delete(id);
+      cb();
+    },
+    timerPending() { return timers.size > 0; },
+    pendingTimerCount() { return timers.size; },
+    isTimerPending(id) { return timers.has(id); },
+    lastTimer() {
+      if (!timers.size) return null;
+      const id = Math.max(...timers.keys());
+      return { id, fn: timers.get(id) };
+    },
+    click(id) {
+      const el = elements[id];
+      if (!el) return;
+      const ev = { target: el, type: "click", preventDefault() {} };
+      if (typeof el.onclick === "function") el.onclick(ev);
+      for (const l of el.listeners.slice()) if (l.type === "click") l.fn(ev);
+    },
     keydown,
     listenerCount(type) { return docListeners.filter((l) => l.type === type).length; },
     resultOpen() { return elements.resultModal.classes.has("open"); },

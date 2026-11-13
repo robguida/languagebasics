@@ -200,6 +200,23 @@
       ? document.querySelector(sel) : null;
   }
 
+  /* Keyboard guards shared by the study and test key handlers (LB-36). */
+  var CONTROLS = ["BUTTON", "A", "SELECT", "INPUT", "TEXTAREA"];
+  var FORM_FIELDS = ["INPUT", "SELECT", "TEXTAREA"];
+  function isTag(el, names) {
+    var tag = (el && typeof el.tagName === "string") ? el.tagName.toUpperCase() : "";
+    return names.indexOf(tag) !== -1;
+  }
+  // The settings dialog is open: the card's shortcut keys must not act behind it.
+  function settingsOpen() {
+    try {
+      return !!(typeof window !== "undefined" && window.LBSettings &&
+        typeof window.LBSettings.isOpen === "function" && window.LBSettings.isOpen());
+    } catch (err) {
+      return false;
+    }
+  }
+
   /* LB-34 flag: testing off => no scoring, no streak, no test. A missing flag
    * object (unit-test sandboxes) counts as ON. */
   function testingOn() {
@@ -370,15 +387,30 @@
     }
 
     function onToggleClick() { toggle(); }
+    // Same focused-control rules as the test handler (onTestKeydown): a key
+    // pressed on another control (Test me, Stop test, a picker, the settings
+    // dialog) keeps its own action and is never cancelled here.
     function onStudyKeydown(event) {
-      // Space/Enter mirror the single button: reveal, then next.
-      if (event.key === " " || event.key === "Enter") {
+      if (!event || event.ctrlKey || event.metaKey || event.altKey) return;
+      if (settingsOpen()) return;
+      var k = event.key;
+      if (typeof k !== "string") return;
+      var target = event.target;
+      // Never act on keys typed into a form field (picker, slider).
+      if (target && isTag(target, FORM_FIELDS)) return;
+      if (k === " " || k === "Enter") {
+        // A held key acts once: auto-repeats are swallowed, so holding Enter
+        // on Done cannot go on to press "Test me" or reveal a card.
+        if (event.repeat) { event.preventDefault(); return; }
+        if (target && target !== toggleBtn && isTag(target, CONTROLS)) return;
+        // Space/Enter mirror the single button: reveal, then next.
         event.preventDefault();
         toggle();
+        return;
       }
       // "n" retained as a power-user shortcut to force the next card
       // regardless of phase (skip without revealing).
-      if (event.key.toLowerCase() === "n") nextCard();
+      if (k.toLowerCase() === "n") nextCard();
     }
 
     if (toggleBtn) toggleBtn.addEventListener("click", onToggleClick);
@@ -483,10 +515,6 @@
     setHidden(query(".timer"), false);
   }
 
-  function isTag(el, names) {
-    var tag = (el && typeof el.tagName === "string") ? el.tagName.toUpperCase() : "";
-    return names.indexOf(tag) !== -1;
-  }
 
   /* startTest(lesson, onExit) — run a full test on the CURRENT lesson.
    * onExit (optional) is called after the test ends and study resumes. */
@@ -678,16 +706,24 @@
     function onTestKeydown(event) {
       if (resultOpen || phase === "done" || phase === "idle") return;
       if (!event || event.ctrlKey || event.metaKey || event.altKey) return;
+      // No card shortcut acts behind the open settings dialog.
+      if (settingsOpen()) return;
       var k = event.key;
       var target = event.target;
-      var onOtherControl = !!(target && target !== toggleBtn &&
-        isTag(target, ["BUTTON", "A", "SELECT", "INPUT", "TEXTAREA"]));
+      var onOtherControl = !!(target && target !== toggleBtn && isTag(target, CONTROLS));
       if (k === " " || k === "Enter") {
         // A focused control (a rating button, Stop test, a picker, the
         // settings dialog) keeps its own key; a rating button's native click
         // still sits behind the lock.
+        if (onOtherControl && !isTag(target, FORM_FIELDS) && event.repeat) {
+          // A held key acts once: an auto-repeat never presses a button.
+          event.preventDefault();
+          return;
+        }
         if (onOtherControl) return;
         event.preventDefault();
+        // A held key acts once (no reveal of the next card from one press).
+        if (event.repeat) return;
         // While rating, Space/Enter do NOTHING (a held key cannot rate).
         if (phase === "rating") return;
         onToggle();
@@ -695,7 +731,7 @@
       }
       if (phase !== "rating" || typeof k !== "string") return;
       // Never rate while the learner is typing into a form field.
-      if (target && isTag(target, ["INPUT", "SELECT", "TEXTAREA"])) return;
+      if (target && isTag(target, FORM_FIELDS)) return;
       var lower = k.toLowerCase();
       if (lower === "k" || k === "1") {
         event.preventDefault();
@@ -836,6 +872,8 @@
       if (exitCallback) {
         try { exitCallback(); } catch (err) { /* ignore */ }
       }
+      // Focus leaves the closed dialog / hidden Stop test for "Test me".
+      focusEl(byId("testMeBtn"));
     }
 
     function onResultKeydown(event) {
