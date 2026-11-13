@@ -8,7 +8,7 @@ Read this first to orient on the codebase: what it is, the stack, layout, conven
 
 LanguageBasics is a hobby **language flashcard web app**. RandBMedia-owned (Rob's own product surface).
 
-- **Live at:** `languagebasics.robguida.com`
+- **Live at:** `https://bengusa.pro/languagebasics/` (on bengusa.pro's Lightsail box). The old host `languagebasics.robguida.com` still exists but is **not** where releases go, and it currently fails with an untrusted-certificate error.
 - **4 languages:** Albanian (`sq`, Tosk), Spanish (`es`), Japanese (`ja`), Bengali (`bn`). Each has number lessons, an Alphabet / script section, and Words + Phrases decks.
 - **Live number lessons (each language, 108 cards):**
   1. Lesson 1 — Numbers 0–10 (11 cards)
@@ -67,7 +67,11 @@ package.json              # name, test script — no deps
 
 - Number lessons 5 and 6 (all 4 languages) live in `parked/content/<lang>/`, outside `src/`, so they never deploy. They are out of `content/languages.js`, so they are not in the picker, the `?lesson=` whitelist or the mastery counts.
 - The tests still run the full schema checks on them, so they stay valid.
-- **To bring one back:** `git mv` it into `src/content/<lang>/`, re-add its manifest entry in `content/languages.js`, and move its row from `PARKED` to `EXPECTED` in `test/schema.test.js` (plus the count tests that change).
+- **To bring one back:**
+  1. Move the file back into `src/content/<lang>/`.
+  2. Re-add its row (with its `count`) in `src/content/languages.js`.
+  3. In `test/schema.test.js`, move its entry from `PARKED` to `EXPECTED`.
+  4. Update the tests that expect it parked: `test/count-parity.test.js` (lesson total), `test/manifest.test.js` (lessons per group, lesson total), `test/mastery.test.js` (denominator comment and numbers), `test/notation-audit.test.js` (parked file list) and `test/lb34-testing-flag.test.js` (parked-lesson checks).
 
 ### How a lesson loads (no fetch, file:// safe)
 
@@ -75,7 +79,7 @@ package.json              # name, test script — no deps
 
 ### Adding a language
 
-`sq` is the Albanian namespace. A new language is new data files under `content/<lang>/` plus picker/whitelist entries in `index.html` — **no engine change**. The engine is language-agnostic.
+`sq` is the Albanian namespace. A new language is new data files under `content/<lang>/` plus one entry in `src/content/languages.js` — **no engine change and no edit to `index.html`**. The picker, the `?lesson=` whitelist, the default lesson and the card counts all come from that file. The engine is language-agnostic.
 
 ---
 
@@ -121,25 +125,32 @@ npm test          # runs: node --test  (Node built-in runner, no deps)
 
 - Tests live in `test/` and load the real `src/` files (engine + lesson data) inside a `node:vm` sandbox with a minimal `window`/DOM shim — Node built-ins only (`node:test`, `node:assert`, `node:fs`, `node:vm`, `node:path`).
 - Coverage: per-lesson schema + exact card counts, the reveal/next toggle state machine, and loop-resilience (one bad card is skipped, never aborts the deck).
-- **Card-count source of truth** is `EXPECTED` (live lessons) and `PARKED` (parked lessons 5 and 6) in `test/schema.test.js`. If you change a lesson's card count, update that map or the test fails.
+- **Card-count source of truth** is `EXPECTED` (live lessons) and `PARKED` (parked lessons 5 and 6) in `test/schema.test.js`. If you change a lesson's card count, update that map **and** the lesson's `count` in `src/content/languages.js`, or the tests fail.
 
 ---
 
 ## How to deploy
 
-**Only the contents of `src/` ship to the live site.** Nothing else (`package.json`, `test/`, `docs/`, `parked/`) reaches the docroot.
+**Only the contents of `src/` ship to the live site.** `parked/`, `test/`, `docs/` and `package.json` never ship.
 
-Deploy flow:
+Live address: `https://bengusa.pro/languagebasics/`.
+
+How a deploy works:
 1. Pull `main` into a local checkout.
-2. `rsync` the **contents of `src/`** to the Lightsail docroot:
-   `/home/bitnami/htdocs/languagebasics.robguida.com/public_html/` over SSH (`.pem` key).
-3. `npm install` on the server for parity — a no-op (no deps).
+2. Upload the **contents of `src/`** to the Lightsail box as a new dated release folder. The app has its own folder there, outside bengusa.pro's own release folder, so bengusa.pro deploys never touch it.
+3. A `current` link points at the live release. **Rollback = point `current` back at the previous release folder.**
+4. After upload, the deploy checks the files from outside. If a check fails, it rolls back on its own.
+
+The deploy script is not kept in the repo yet. It will move into `./scripts` (follow-up).
 
 No backend, no server-side build. Static files only.
+
+**Old host:** `languagebasics.robguida.com` still exists but is the old host. It is not where releases go, and it currently fails with an untrusted-certificate error.
 
 ### Hosting
 
 - **RandBMedia AWS Lightsail** — Lightsail instance + Lightsail-managed networking/DNS. **NOT standard AWS** (no EC2/ALB/Route53 here). A Lightsail LB looks like standard AWS from outside (`awselb`, `awsdns`, ACM cert) — it is still Lightsail. Manage infra in the Lightsail console.
+- A CDN sits in front of bengusa.pro. It does not pass `?lesson=` to the server. That is fine: the browser reads `?lesson=` itself. Files are served with `Cache-Control: no-cache`.
 
 ---
 
@@ -147,7 +158,8 @@ No backend, no server-side build. Static files only.
 
 ### Branch / PR flow
 - Branch off **`development`**. One ticket → one branch. Branch name prefixed with the ticket (e.g. `LB-9-...` or `issue-...`).
-- `main` = production. PRs merge to `development`, then promote to `main`.
+- `main` = production. Ticket PRs go to `development`. A release PR then goes `development` → `main`.
+- **`development` must never be deleted** (it is protected). Delete a ticket branch only after its PR shows Merged.
 
 ### Language correctness (Albanian)
 - Phonetics use **Rob's own plain-English-syllable notation** (e.g. `Nyuh`, `Jyosht`), **Tosk dialect only**.
