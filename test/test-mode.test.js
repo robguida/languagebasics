@@ -198,7 +198,7 @@ test("timer runs out -> Not yet recorded automatically, 'Time's up', one 'Next c
   h.fireTimer();
   assert.equal(h.calls.record.length, 1);
   assert.equal(h.calls.record[0].knew, false, "timeout = Not yet");
-  assert.equal(h.elements.label.textContent, "Time's up");
+  assert.equal(h.elements.label.textContent, "Time's up. Marked to practice.");
   assert.equal(h.elements.toggleBtn.textContent, "Next card");
   assert.equal(h.elements.toggleBtn.attrs["aria-label"], "Next card");
   assert.equal(h.elements.rateControls.hidden, true, "no rating buttons after a time-out");
@@ -374,7 +374,7 @@ test("Stop test: ratings given stay; no results screen; no personal best", () =>
   // Even if that old callback still fired, it must not rate the card.
   testTimer.fn();
   assert.equal(h.calls.record.length, 2, "the old test timer cannot rate after stopping");
-  assert.equal(h.elements.label.textContent, "", "no 'Time's up' after stopping");
+  assert.equal(h.elements.label.textContent, "", "no time's-up line after stopping");
 });
 
 /* --------------------------- results input lock ---------------------------- */
@@ -449,7 +449,7 @@ test("no-storage footer when progress cannot be saved", () => {
   const h = env({ persistent: false });
   h.engine.startTest(lessonOf(1));
   runAll(h, [true]);
-  assert.equal(h.elements.resultFooter.textContent, "Progress can't be saved in this browser (private window?).");
+  assert.equal(h.elements.resultFooter.textContent, "Progress can't be saved here. Private browsing may be on.");
 });
 
 /* --------------------------------- pool ----------------------------------- */
@@ -674,7 +674,12 @@ test("copy + aria: Reveal it / card label (study and test), rating buttons stay 
     'Say it out loud, then reveal. Tap "I knew it" only if you got it right.',
     "Say it out loud, then reveal. When the timer ends, the answer shows.",
     "How many seconds you get to think before the answer shows. Used in",
+    'countEl.textContent = "No streak yet.";',
+    "<title>LanguageBasics</title>",
+    '<h1 id="title">LanguageBasics</h1>',
   ]) assert.ok(html.includes(s), "index.html has: " + s);
+  assert.ok(!/Albanian/.test(html), "the shared page shell names no one language");
+  assert.ok(!html.includes("Start a streak today!"), "old streak copy is gone");
   assert.ok(html.indexOf('id="rateNotYetBtn"') < html.indexOf('id="rateKnewBtn"'), "Not yet is on the left");
 });
 

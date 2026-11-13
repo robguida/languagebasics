@@ -32,7 +32,7 @@
     revealAria: "Reveal the answer",
     nextCard: "Next card",
     nextCardAria: "Next card",
-    timesUp: "Time's up",
+    timesUp: "Time's up. Marked to practice.",
     cardHidden: "Answer hidden. Press Reveal it to show the answer and pronunciation.",
     testTitle: "Test results",
     practiceTitle: "Practice results",
@@ -42,7 +42,7 @@
     bestNew: "New personal best!",
     bestTie: "You matched your best.",
     footerSaved: "Your progress is saved on this device only.",
-    footerNotSaved: "Progress can't be saved in this browser (private window?)."
+    footerNotSaved: "Progress can't be saved here. Private browsing may be on."
   };
   function cardOfText(i, n) { return "Card " + i + " of " + n; }
   function knewText(k, n) { return "You knew " + k + " of " + n + "."; }
@@ -465,7 +465,7 @@
    *     it, N or 2 = Not yet. Focus goes to the answer region.             *
    *   - A rating is stored (LBProgress) and the next card shows at once.   *
    *   - The timer running out shows the answer, records "Not yet", says    *
-   *     "Time's up", and offers one button "Next card".                    *
+   *     "Time's up. Marked to practice.", and offers one "Next card".      *
    *   - "Stop test" goes back to study: ratings given stay; no results,    *
    *     no personal best.                                                  *
    * After the last card: the results modal (missed list, personal best on  *

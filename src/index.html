@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Albanian Numbers Flashcards</title>
+  <title>LanguageBasics</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -22,7 +22,7 @@
   </header>
 
   <main class="app">
-    <h1 id="title">Albanian Tosk Basics</h1>
+    <h1 id="title">LanguageBasics</h1>
 
     <!-- LB-23: language picker. Manifest-driven and HIDDEN until a SECOND
          language registers (shouldShowLanguageDropdown === false at one
@@ -338,7 +338,7 @@
         var n = window.LBStreak.getState().current;
         while (countEl.firstChild) countEl.removeChild(countEl.firstChild);
         if (n <= 0) {
-          countEl.textContent = "Start a streak today!";
+          countEl.textContent = "No streak yet.";
           return;
         }
         var fire = document.createElement("span");

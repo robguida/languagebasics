@@ -138,5 +138,5 @@ test("blocked storage (private window): the test still runs; footer says it can'
   h.engine.startTest(lesson(2));
   play(h, [true, false]);
   assert.equal(h.elements.resultScore.textContent, "You knew 1 of 2.");
-  assert.equal(h.elements.resultFooter.textContent, "Progress can't be saved in this browser (private window?).");
+  assert.equal(h.elements.resultFooter.textContent, "Progress can't be saved here. Private browsing may be on.");
 });
