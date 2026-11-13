@@ -206,6 +206,10 @@
    */
   function resolvedOrderSource(lesson) {
     try {
+      // LB-34: testing flag off => Leitner order is unavailable (it depends on
+      // test-mode ratings); always plain random. Missing flag object => on.
+      if (typeof window !== "undefined" && window.LB_FEATURES &&
+          window.LB_FEATURES.testing === false) return "random";
       if (lesson && lesson.id && typeof window !== "undefined" &&
           window.LBPrefs && typeof window.LBPrefs.getOrder === "function" &&
           window.LBLeitner && typeof window.LBLeitner.nextCard === "function") {
@@ -620,6 +624,11 @@
    * unit-test sandboxes have no LBGame, so this returns early and never affects the
    * existing study tests. */
   function startTest(lesson, requestedCount, onExit) {
+    // LB-34: testing flag off => a test can never start, even if called directly.
+    if (typeof window !== "undefined" && window.LB_FEATURES &&
+        window.LB_FEATURES.testing === false) {
+      return;
+    }
     // Ensure no study session is still listening on the shared region/keys.
     stopStudySession();
     // Restart cleanly if a prior test session was active.

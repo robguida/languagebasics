@@ -28,6 +28,11 @@ const { loadLesson } = require("./helpers/load-lesson.js");
 
 // Number decks in scope. The alphabet decks (alphabet-*.js) were already
 // corrected to "Gyosht" under LB-18 and are intentionally out of scope here.
+// LB-34: lessons 5 and 6 are parked (parked/content/sq) but their notation is
+// still audited so the data is correct whenever they are brought back.
+const PARKED_FILES = new Set(["lesson-5.js", "lesson-6.js"]);
+const load = (file) => loadLesson(file, "sq", { parked: PARKED_FILES.has(file) });
+
 const LESSON_FILES = [
   "lesson-1.js",
   "lesson-2.js",
@@ -55,7 +60,7 @@ test("notation audit (lessons 1-6): no forbidden legacy gj spelling survives", (
   const offenders = [];
 
   for (const file of LESSON_FILES) {
-    const { lesson } = loadLesson(file);
+    const { lesson } = load(file);
     lesson.cards.forEach((card, i) => {
       for (const field of TEXT_FIELDS) {
         const val = card[field];
@@ -131,7 +136,7 @@ const CORRECTED = [
 // Cache each lesson once so we do not re-load files per row.
 function lessonCache() {
   const cache = {};
-  return (file) => (cache[file] ||= loadLesson(file).lesson);
+  return (file) => (cache[file] ||= load(file).lesson);
 }
 
 function findCard(lesson, prompt) {
