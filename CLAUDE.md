@@ -69,9 +69,9 @@ package.json              # name, test script — no deps
   2. **Revealing a card never scores.** Only the learner's own rating counts: **"I knew it"** or **"Not yet"**. The rating buttons ignore clicks for 500 ms after the reveal.
   3. If the timer runs out, the card counts as **"Not yet"**.
   4. The results screen lists the missed cards and offers **"Practice these again"**. A practice round never counts toward the personal best.
-  5. Each lesson shows **"N of M known"** (a card is known when its last rating was "I knew it") and a **personal best**.
+  5. Each lesson shows **"N of M known"** near the picker (a card is known when its last rating was "I knew it"). The **personal best** shows on the results screen only.
   6. A **calm streak** is marked on the first manual reveal or rating of a day, never on page load.
-- **Storage:** browser `localStorage` only, three keys: `languagebasics.prefs`, `languagebasics.progress`, `languagebasics.streak`. ⛔ Never read, write or delete any `lb.*` key — bengusa.pro shares browser storage across its apps.
+- **Storage:** browser `localStorage` only. Data lives in three keys: `languagebasics.prefs`, `languagebasics.progress`, `languagebasics.streak`. At start-up the store also writes and then removes one test key, `languagebasics.__probe__`, to check that storage works; it holds no data. ⛔ Never read, write or delete any `lb.*` key — bengusa.pro shares browser storage across its apps.
 - **Retired in LB-36:** `mastery.js`, `leitner.js`, the quiz-count setting, speed levels, the overall rollup and the Test mode switch.
 - **To turn testing off:** change `testing: true` to `testing: false` in `src/features.js`. The testing markup (tagged `data-feature="testing"`) is then removed from the page, and nothing is recorded. Saved progress stays and comes back when it is turned on again.
 
@@ -123,7 +123,7 @@ window.LB_LESSON = {
   id: "sq/lesson-1",                 // string, matches the ?lesson= value
   title: "Albanian Tosk Numbers: 0–10",
   revealMs: 5000,                    // optional; engine default 5000 (lesson 6 = 10000)
-  // recallPrompt: "...",            // optional lesson-level override of the recall copy
+  // recallPrompt: "...",            // reserved: accepted, never read or shown today
   cards: [
     { prompt: 0, answer: "zero", hint: "Zeh rō", audio: "" },
     // ...
@@ -137,14 +137,14 @@ window.LB_LESSON = {
 | Field    | Type          | Required | Notes |
 |----------|---------------|----------|-------|
 | `prompt` | string\|number | yes      | the number shown first |
-| `answer` | string         | yes      | Albanian word(s); `" \| "` splits into stacked lines |
+| `answer` | string         | yes      | the target-language word(s); `" \| "` splits into stacked lines |
 | `hint`   | string         | optional* | pronunciation (plain-English syllables) |
 | `audio`  | string         | optional  | reserved future slot; currently `""` |
-| `recallPrompt` | string   | optional  | per-card override of the recall copy |
+| `recallPrompt` | string   | optional  | reserved: the engine accepts it but never shows it today |
 
 \* The engine treats `hint`/`audio` as optional, but the **current dataset fills `hint` on every card** and the schema test enforces non-empty hints app-wide (including the parked lessons).
 
-**Multi-part answers:** lesson 2 (and parked lesson 6) use `" | "` as a line separator; the engine renders it as `<br>`. The engine also auto-shrinks the font for long prompts (big numbers) and long answers so they fit the card.
+**Multi-part answers:** `sq/lesson-2` and every Japanese (`ja`) and Bengali (`bn`) numbers, words and phrases deck use `" | "` as a line separator, as do the parked lesson 6 in all 4 languages and the parked `ja`/`bn` lesson 5; the engine renders it as `<br>`. The engine also auto-shrinks the font for long prompts (big numbers) and long answers so they fit the card.
 
 ---
 
