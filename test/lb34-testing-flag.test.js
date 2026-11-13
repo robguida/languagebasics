@@ -115,7 +115,7 @@ test("LB-36: retired UI is gone from index.html (switch, card order, quiz count,
   }
   assert.ok(!fs.existsSync(path.join(SRC, "leitner.js")), "leitner.js retired");
   assert.ok(!fs.existsSync(path.join(SRC, "mastery.js")), "mastery.js retired");
-  for (const s of ["progress.js", "game.js", "streak.js"]) {
+  for (const s of ["progress.js", "game.js", "streak.js", "counter.js"]) {
     assert.ok(INDEX_HTML.includes('<script src="' + s + '">'), s + " loaded");
   }
 });

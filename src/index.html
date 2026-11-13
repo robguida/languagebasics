@@ -300,6 +300,7 @@
   <script src="hint.js"></script>
   <script src="engine.js"></script>
   <script src="settings.js"></script>
+  <script src="counter.js"></script>
   <script>
     // Kick off once the data file + engine are both parsed.
     document.addEventListener("DOMContentLoaded", function () {
@@ -373,6 +374,12 @@
       renderStreak();
       wireTestMe();
 
+      // LB-36: page counter (src/counter.js). Ships dark: sends nothing until a
+      // GoatCounter code is set there. One ping per page load, with the
+      // resolved (whitelisted) lesson id only.
+      if (window.LBCounter && typeof window.LBCounter.ping === "function" && window.LB_LESSON) {
+        window.LBCounter.ping(window.LB_LESSON.id);
+      }
     });
   </script>
 </body>
