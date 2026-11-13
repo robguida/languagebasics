@@ -80,6 +80,7 @@ test("full 10-card test: ratings + best stored under languagebasics.progress; re
   assert.equal(streak.current, 1, "the first rating marked today");
 
   // Practice round: updates known, never the best.
+  h.advance(500); // the results buttons ignore input for 500 ms
   h.click("resultPracticeBtn");
   play(h, [true, true, true]);
   assert.equal(h.elements.resultTitle.textContent, "Practice results");
@@ -122,9 +123,11 @@ test("a smaller lesson (3 cards) tests 3; the best is 'of 3'", () => {
   const best = JSON.parse(storage.getItem("languagebasics.progress")).lessons["sq/lesson-4"].best;
   assert.equal(best.of, 3);
   // Tie on the next full test keeps the old one.
+  h.advance(500);
   h.click("resultAgainBtn");
   play(h, [true, false, true]);
   assert.equal(h.elements.resultBest.textContent, "You matched your best.");
+  h.advance(500);
   h.click("resultAgainBtn");
   play(h, [false, false, true]);
   assert.equal(h.elements.resultBest.textContent, "Your best: 2 of 3.");

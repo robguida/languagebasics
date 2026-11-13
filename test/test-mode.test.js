@@ -276,6 +276,7 @@ test("practice these again: only the missed cards; never counts for the personal
   runAll(h, [false, true, false, true, true]);
   const missed = h.calls.record.filter((r) => !r.knew).map((r) => r.prompt).sort();
   assert.equal(h.calls.best.length, 1);
+  h.advance(LOCK); // the results buttons ignore input for 500 ms
   h.click("resultPracticeBtn");
   assert.equal(h.resultOpen(), false, "modal closes for the round");
   assert.equal(h.elements.testProgress.textContent, "Card 1 of 2", "only the 2 missed cards");
@@ -292,6 +293,7 @@ test("practice these again: only the missed cards; never counts for the personal
   assert.equal(h.elements.resultBest.hidden, true, "no personal-best line on practice");
   assert.equal(h.elements.resultScore.textContent, "You knew 1 of 2.");
   // It may repeat until nothing is missed.
+  h.advance(LOCK);
   h.click("resultPracticeBtn");
   assert.equal(h.elements.testProgress.textContent, "Card 1 of 1");
   revealAndUnlock(h);
@@ -305,6 +307,7 @@ test("Test me again starts a fresh full test (counts for the personal best)", ()
   const h = env();
   h.engine.startTest(lessonOf(3));
   runAll(h, [true, true, false]);
+  h.advance(LOCK);
   h.click("resultAgainBtn");
   assert.equal(h.elements.testProgress.textContent, "Card 1 of 3");
   runAll(h, [true, true, true]);
@@ -318,6 +321,7 @@ test("Done / X / Esc / backdrop all return to study", () => {
     h.engine.startTest(lessonOf(2), () => { exits++; });
     runAll(h, [true, false]);
     assert.ok(h.resultOpen());
+    h.advance(LOCK);
     if (how === "done") h.click("resultDoneBtn");
     if (how === "x") h.click("resultClose");
     if (how === "esc") h.keydown("Escape", null);
@@ -344,14 +348,88 @@ test("Stop test: ratings given stay; no results screen; no personal best", () =>
   assert.equal(h.elements.testHint.hidden, false);
   assert.equal(h.elements.studyHint.hidden, true);
   runAll(h, [true, false]);
+  // Card 3 is in its prompt phase: grab the TEST's own reveal timer.
+  const testTimer = h.lastTimer();
+  assert.ok(testTimer, "card 3's test timer is running");
   h.click("stopTestBtn");
   assert.equal(h.calls.record.length, 2, "ratings already given stay");
   assert.equal(h.calls.best.length, 0, "recordTestResult called 0 times");
   assert.equal(h.resultOpen(), false, "no results screen");
   assert.equal(exits, 1);
-  assert.equal(h.timerPending(), true, "study's own timer is running again");
-  h.fireTimer();
+  assert.equal(h.isTimerPending(testTimer.id), false, "Stop test cleared the test's timer");
+  assert.equal(h.pendingTimerCount(), 1, "only study's own timer is running");
+  // Even if that old callback still fired, it must not rate the card.
+  testTimer.fn();
   assert.equal(h.calls.record.length, 2, "the old test timer cannot rate after stopping");
+  assert.equal(h.elements.label.textContent, "", "no 'Time's up' after stopping");
+});
+
+/* --------------------------- results input lock ---------------------------- */
+
+test("results: focus goes to the dialog title, not a button", () => {
+  const h = env();
+  h.engine.startTest(lessonOf(2));
+  runAll(h, [true, false]);
+  assert.ok(h.resultOpen());
+  assert.equal(h.focused, h.elements.resultTitle, "focus on the title");
+  const html = require("node:fs").readFileSync(require("node:path").resolve(__dirname, "..", "src", "index.html"), "utf8");
+  assert.ok(html.includes('<h2 id="resultTitle" class="modal-title" tabindex="-1">'), "the title can take focus");
+});
+
+test("results: buttons and backdrop ignore input for 500 ms after opening; Esc stays live", () => {
+  for (const [id, after] of [
+    ["resultAgainBtn", (h) => h.elements.testProgress.textContent === "Card 1 of 2"],
+    ["resultPracticeBtn", (h) => h.elements.testProgress.textContent === "Card 1 of 1"],
+    ["resultDoneBtn", (h) => h.elements.testMeWrap.hidden === false],
+    ["resultClose", (h) => h.elements.testMeWrap.hidden === false],
+    ["backdrop", (h) => h.elements.testMeWrap.hidden === false],
+  ]) {
+    const h = env();
+    h.engine.startTest(lessonOf(2));
+    runAll(h, [true, false]);
+    const press = () => (id === "backdrop"
+      ? h.elements.resultModal.onclick({ target: h.elements.resultModal })
+      : h.click(id));
+    press();                                   // +0 ms: the double-click's 2nd click
+    assert.ok(h.resultOpen(), id + " at +0 ms: results stay open");
+    h.advance(LOCK - 1);
+    press();                                   // +499 ms
+    assert.ok(h.resultOpen(), id + " at +499 ms: results stay open");
+    assert.equal(h.calls.best.length, 1, id + ": no new round started");
+    h.advance(1);
+    press();                                   // +500 ms
+    assert.equal(h.resultOpen(), false, id + " at +500 ms: acts");
+    assert.ok(after(h), id + ": did its job");
+  }
+  // Esc is never locked.
+  const h = env();
+  h.engine.startTest(lessonOf(2));
+  runAll(h, [true, false]);
+  h.keydown("Escape", null);
+  assert.equal(h.resultOpen(), false, "Esc closes at +0 ms");
+});
+
+test("results: a held Enter from the last 'Next card' cannot start a round", () => {
+  const h = env();
+  h.engine.startTest(lessonOf(1));
+  h.fireTimer();                                   // time's up on the only card
+  h.keydown("Enter", h.elements.toggleBtn);        // Next card -> results
+  assert.ok(h.resultOpen());
+  // The auto-repeat Enter now lands on the focused title, not a button.
+  assert.equal(h.focused, h.elements.resultTitle);
+  h.keydown("Enter", h.focused, { repeat: true });
+  h.keydown("Enter", h.focused, { repeat: true });
+  assert.ok(h.resultOpen(), "results stay open");
+  assert.equal(h.calls.record.length, 1, "no practice round started");
+});
+
+test("results: a clock that jumps backwards does not keep the buttons locked", () => {
+  const h = env();
+  h.engine.startTest(lessonOf(2));
+  runAll(h, [true, false]);
+  h.advance(-3600 * 1000);
+  h.click("resultDoneBtn");
+  assert.equal(h.resultOpen(), false);
 });
 
 test("no-storage footer when progress cannot be saved", () => {

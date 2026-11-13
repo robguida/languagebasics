@@ -580,6 +580,7 @@
     var phase = "idle";   // "prompt" | "rating" | "timeout" | "done" | "idle"
     var lockUntil = 0;
     var resultOpen = false;
+    var resultOpenedAt = 0;
     var lastMissed = [];
 
     function knownMapNow() {
@@ -850,8 +851,25 @@
 
       resultModal.classList.add("open");
       resultOpen = true;
+      resultOpenedAt = nowMs();
       document.addEventListener("keydown", onResultKeydown, true);
-      focusEl(anyMissed ? practiceBtn : (againBtn || doneBtn || resultModal));
+      // Focus the dialog title, not a button, so a held Enter or a second
+      // click from the last card cannot start a round before the score is read.
+      focusEl(resultTitleEl || resultModal);
+    }
+
+    // The results buttons and backdrop ignore input for RATING_LOCK_MS after
+    // the modal opens (a double-click on the last card lands nowhere). Esc
+    // stays live. A device clock that jumps backwards does not keep it locked.
+    function resultLocked() {
+      var now = nowMs();
+      return now < resultOpenedAt + RATING_LOCK_MS && now >= resultOpenedAt;
+    }
+    function unlocked(fn) {
+      return function (event) {
+        if (resultOpen && resultLocked()) return;
+        fn(event);
+      };
     }
 
     function closeResultModal() {
@@ -891,7 +909,10 @@
         if (!els.length) return;
         var first = els[0], last = els[els.length - 1];
         var active = document.activeElement;
-        if (event.shiftKey && (active === first || !resultModal.contains(active))) {
+        // Focus starts on the title (not in the button list): Shift+Tab from
+        // there wraps to the last button instead of leaving the dialog.
+        var inList = els.indexOf(active) !== -1;
+        if (event.shiftKey && (active === first || !inList)) {
           event.preventDefault(); focusEl(last);
         } else if (!event.shiftKey && (active === last || !resultModal.contains(active))) {
           event.preventDefault(); focusEl(first);
@@ -925,11 +946,11 @@
     if (knewBtn) knewBtn.onclick = function () { rate(true); };
     if (notYetBtn) notYetBtn.onclick = function () { rate(false); };
     if (stopBtn) stopBtn.onclick = function () { exitToStudy(); };
-    if (resultCloseX) resultCloseX.onclick = exitToStudy;
-    if (doneBtn) doneBtn.onclick = exitToStudy;
-    if (againBtn) againBtn.onclick = function () { beginRound(null); };
-    if (practiceBtn) practiceBtn.onclick = function () { beginRound(lastMissed.slice()); };
-    if (resultModal) resultModal.onclick = onBackdrop;
+    if (resultCloseX) resultCloseX.onclick = unlocked(exitToStudy);
+    if (doneBtn) doneBtn.onclick = unlocked(exitToStudy);
+    if (againBtn) againBtn.onclick = unlocked(function () { beginRound(null); });
+    if (practiceBtn) practiceBtn.onclick = unlocked(function () { beginRound(lastMissed.slice()); });
+    if (resultModal) resultModal.onclick = unlocked(onBackdrop);
     document.addEventListener("keydown", onTestKeydown);
 
     activeTestTeardown = function () {
