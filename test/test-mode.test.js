@@ -615,19 +615,49 @@ test("test: a held Enter on Next card does not also reveal the next card", () =>
   assert.equal(h.elements.stopTestBtn.hidden, false, "still in the test");
 });
 
-test("after Done / Esc / Stop test, focus moves to Test me", () => {
-  for (const how of ["done", "esc", "stop"]) {
+/* Leave a test by one of the five exits. */
+const EXITS = ["done", "x", "esc", "backdrop", "stop"];
+function exitBy(h, how) {
+  if (how === "stop") { h.click("stopTestBtn"); return; }
+  runAll(h, [true, false]);
+  h.advance(LOCK);
+  if (how === "done") h.click("resultDoneBtn");
+  if (how === "x") h.click("resultClose");
+  if (how === "esc") h.keydown("Escape", null);
+  if (how === "backdrop") h.elements.resultModal.onclick({ target: h.elements.resultModal });
+}
+
+test("after Done / X / Esc / backdrop / Stop test, focus moves to the study card button (not Test me)", () => {
+  for (const how of EXITS) {
     const h = env();
     h.engine.startTest(lessonOf(2));
-    if (how === "stop") {
-      h.click("stopTestBtn");
-    } else {
-      runAll(h, [true, false]);
-      h.advance(LOCK);
-      if (how === "done") h.click("resultDoneBtn");
-      else h.keydown("Escape", null);
-    }
-    assert.equal(h.focused, h.elements.testMeBtn, how);
+    exitBy(h, how);
+    assert.equal(h.focused, h.elements.toggleBtn, how + ": focus on the card button");
+    assert.notEqual(h.focused, h.elements.testMeBtn, how + ": never on Test me");
+  }
+});
+
+test("after any exit, the next Space reveals the study card: no test starts, nothing recorded", () => {
+  for (const how of EXITS) {
+    const h = env();
+    h.engine.startTest(lessonOf(2));
+    exitBy(h, how);
+    const records = h.calls.record.length;
+    const bests = h.calls.best.length;
+    const marks = h.calls.mark;
+    assert.equal(h.elements.word.hidden, true, how + ": study card starts hidden");
+    // The learner presses Space on whatever has focus (the card button).
+    assert.equal(h.keydown(" ", h.focused), true, how + ": Space is used by study");
+    assert.equal(h.elements.word.hidden, false, how + ": the study card reveals");
+    assert.equal(h.elements.stopTestBtn.hidden, true, how + ": no test started");
+    assert.equal(h.elements.testMeWrap.hidden, false, how + ": still in study");
+    assert.equal(h.elements.testProgress.hidden, true, how + ": no test card counter");
+    assert.equal(h.elements.rateControls.hidden, true, how + ": no rating buttons");
+    // Let the study timer run out too: still nothing is rated.
+    h.fireTimer();
+    assert.equal(h.calls.record.length, records, how + ": no rating recorded");
+    assert.equal(h.calls.best.length, bests, how + ": no personal-best write");
+    assert.equal(h.calls.mark, marks + 1, how + ": one study reveal = one practice mark, no more");
   }
 });
 

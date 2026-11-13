@@ -904,8 +904,10 @@
       if (exitCallback) {
         try { exitCallback(); } catch (err) { /* ignore */ }
       }
-      // Focus leaves the closed dialog / hidden Stop test for "Test me".
-      focusEl(byId("testMeBtn"));
+      // Focus leaves the closed dialog / hidden Stop test for the study card
+      // button, so the next Space/Enter reveals the study card as usual. It
+      // never lands on "Test me": a test starts only from a deliberate press.
+      focusEl(toggleBtn);
     }
 
     function onResultKeydown(event) {
