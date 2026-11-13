@@ -11,9 +11,10 @@
  *                      modal, the "This lesson: N of M known." readout and
  *                      the streak display. No rating or streak is recorded.
  *                      Plain flashcard study is unchanged.
- *   true            => all of it comes back. The code is all still here.
+ *   true (shipped)  => all of it is on (LB-36: the score mode where the
+ *                      learner rates each card).
  *
- * TO TURN TESTING BACK ON: change `testing: false` to `testing: true` below.
+ * TO TURN TESTING OFF AGAIN: change `testing: true` to `testing: false` below.
  * Nothing else needs to change.
  *
  * HOW "OFF" WORKS: markup tagged data-feature="testing" in index.html is
@@ -29,7 +30,7 @@
 (function () {
   "use strict";
 
-  var features = { testing: false };
+  var features = { testing: true };
   if (typeof window !== "undefined") {
     window.LB_FEATURES = features;
   }

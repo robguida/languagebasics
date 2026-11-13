@@ -1,6 +1,7 @@
 /* LB-34: the "testing" feature flag + parked number lessons.
  *
  * Proves, with Node built-ins only (no deps):
+ *   - LB-36: the flag now ships ON; OFF is still fully supported.
  *   - flag OFF: every testing/scoring piece of markup is removed from the
  *     page and the engine cannot start a test (LB-36: Leitner order, the Test
  *     mode switch and the quiz-count setting are retired, not just hidden);
@@ -20,6 +21,8 @@ const { loadLesson, loadManifest, parkedDir, contentDir } = require("./helpers/l
 
 const SRC = path.resolve(__dirname, "..", "src");
 const FEATURES_SRC = fs.readFileSync(path.join(SRC, "features.js"), "utf8");
+// LB-36: the shipped source is ON; the OFF variant is the same file flipped.
+const FEATURES_OFF_SRC = FEATURES_SRC.replace("{ testing: true }", "{ testing: false }");
 const ENGINE_SRC = fs.readFileSync(path.join(SRC, "engine.js"), "utf8");
 const INDEX_HTML = fs.readFileSync(path.join(SRC, "index.html"), "utf8");
 
@@ -61,23 +64,23 @@ function runFeatures(src, doc) {
 
 /* ---------------------------- flag default + markup ----------------------- */
 
-test("features.js ships with testing OFF", () => {
+test("LB-36: features.js ships with testing ON", () => {
   const w = runFeatures(FEATURES_SRC, fakeDocument([]));
-  assert.equal(w.LB_FEATURES.testing, false);
-  assert.equal(w.LBFeatures.isOn("testing"), false);
+  assert.equal(w.LB_FEATURES.testing, true);
+  assert.equal(w.LBFeatures.isOn("testing"), true);
+  assert.notEqual(FEATURES_OFF_SRC, FEATURES_SRC, "the one switch can still be flipped off");
 });
 
 test("flag OFF: all data-feature=testing markup is removed (unreachable)", () => {
   const doc = fakeDocument(TESTING_IDS.map((id) => ({ id })));
-  runFeatures(FEATURES_SRC, doc);
+  const w = runFeatures(FEATURES_OFF_SRC, doc);
+  assert.equal(w.LBFeatures.isOn("testing"), false);
   assert.equal(doc.live.length, 0, "no testing node may remain in the page");
 });
 
 test("flag ON: the same markup stays in the page (recoverable)", () => {
   const doc = fakeDocument(TESTING_IDS.map((id) => ({ id })));
-  const on = FEATURES_SRC.replace("{ testing: false }", "{ testing: true }");
-  assert.notEqual(on, FEATURES_SRC, "flip must change the source");
-  const w = runFeatures(on, doc);
+  const w = runFeatures(FEATURES_SRC, doc);
   assert.equal(w.LBFeatures.isOn("testing"), true);
   assert.equal(doc.live.length, TESTING_IDS.length, "nothing removed when on");
 });
@@ -91,7 +94,7 @@ test("a missing flag object counts as ON (other environments unchanged)", () => 
 test("a node that fails to detach does not abort removal of the rest", () => {
   const doc = fakeDocument([{ id: "a" }, { id: "b" }, { id: "c" }]);
   doc.live[0].parentNode = { removeChild() { throw new Error("boom"); } };
-  runFeatures(FEATURES_SRC, doc);
+  runFeatures(FEATURES_OFF_SRC, doc);
   assert.deepEqual(doc.live.map((n) => n.id), ["a"], "only the failing node remains");
 });
 
