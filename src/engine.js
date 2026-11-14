@@ -919,7 +919,7 @@
       }
       if (event.key === "Tab" && resultModal && typeof resultModal.querySelectorAll === "function") {
         // Keep focus inside the dialog.
-        var nodes = resultModal.querySelectorAll("button");
+        var nodes = resultModal.querySelectorAll("button, a[href]");
         var els = [];
         for (var i = 0; i < nodes.length; i++) if (!nodes[i].hidden) els.push(nodes[i]);
         if (!els.length) return;
