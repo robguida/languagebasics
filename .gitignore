@@ -31,7 +31,7 @@ package-lock.json
 *.docx
 ~$*
 # Linguistics dataset review notes — reference only, never ship (contains working notes)
-docs/alan-*.md
+docs/dataset-review-*.md
 
 # NOTE: bengusa_web/ is intentionally NOT ignored. It is out of scope for
 # edits but should remain tracked/visible if/when it is added.
