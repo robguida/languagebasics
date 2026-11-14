@@ -10,7 +10,7 @@
  *
  * Coverage:
  *   - public surface: VERSION, KEYS, persistent
- *   - round-trip get/set for each of the 4 namespace keys
+ *   - round-trip get/set for each of the 3 namespace keys
  *   - key isolation (writing one key doesn't bleed into another)
  *   - unknown key: get -> fallback, set -> false
  *   - corrupt JSON -> fallback, never throws
@@ -26,7 +26,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { loadStore, makeLocalStorage } = require("./helpers/local-storage-shim.js");
 
-const KEYS = ["lb.prefs", "lb.leitner", "lb.mastery", "lb.streak"];
+const KEYS = ["languagebasics.prefs", "languagebasics.progress", "languagebasics.streak"];
 
 /* ----------------------------- public surface ----------------------------- */
 
@@ -39,7 +39,7 @@ test("LBStore: loads and exposes the public surface", () => {
   // LBStore.KEYS is an array from the vm realm, so prototype-strict deepEqual
   // would fail on the realm boundary; compare contents via join instead.
   assert.ok(Array.isArray(LBStore.KEYS), "KEYS must be an array");
-  assert.equal(LBStore.KEYS.join(","), KEYS.join(","), "KEYS must be the 4 namespace keys in order");
+  assert.equal(LBStore.KEYS.join(","), KEYS.join(","), "KEYS must be the 3 namespace keys in order");
 });
 
 test("LBStore: persistent is true when localStorage is usable", () => {
@@ -73,18 +73,18 @@ for (const key of KEYS) {
 
 /* ------------------------------ key isolation ----------------------------- */
 
-test("LBStore: keys are isolated — writing lb.prefs does not affect lb.mastery", () => {
+test("LBStore: keys are isolated — writing languagebasics.prefs does not affect languagebasics.progress", () => {
   const { LBStore } = loadStore();
 
-  LBStore.set("lb.prefs", { revealMs: 7000 });
-  // lb.mastery was never written.
-  assert.equal(LBStore.get("lb.mastery"), null, "unwritten key returns fallback (null)");
-  assert.equal(LBStore.get("lb.mastery", "DEFAULT"), "DEFAULT", "unwritten key returns provided fallback");
+  LBStore.set("languagebasics.prefs", { revealMs: 7000 });
+  // languagebasics.progress was never written.
+  assert.equal(LBStore.get("languagebasics.progress"), null, "unwritten key returns fallback (null)");
+  assert.equal(LBStore.get("languagebasics.progress", "DEFAULT"), "DEFAULT", "unwritten key returns provided fallback");
 
   // Writing a second key must not disturb the first.
-  LBStore.set("lb.mastery", { scored: 3 });
-  assert.equal(LBStore.get("lb.prefs").revealMs, 7000, "lb.prefs survived the lb.mastery write");
-  assert.equal(LBStore.get("lb.mastery").scored, 3, "lb.mastery holds its own value");
+  LBStore.set("languagebasics.progress", { scored: 3 });
+  assert.equal(LBStore.get("languagebasics.prefs").revealMs, 7000, "languagebasics.prefs survived the languagebasics.progress write");
+  assert.equal(LBStore.get("languagebasics.progress").scored, 3, "languagebasics.progress holds its own value");
 });
 
 /* ------------------------------ unknown key ------------------------------- */
@@ -103,11 +103,11 @@ test("LBStore: corrupt JSON -> get returns fallback and does NOT throw", () => {
   const { LBStore, storage } = loadStore();
 
   // Plant raw, unparseable bytes directly under a valid key.
-  storage.seedRaw("lb.prefs", "{not valid json:::");
+  storage.seedRaw("languagebasics.prefs", "{not valid json:::");
 
   let got;
   assert.doesNotThrow(() => {
-    got = LBStore.get("lb.prefs", "FALLBACK");
+    got = LBStore.get("languagebasics.prefs", "FALLBACK");
   }, "corrupt JSON must never throw out of get");
   assert.equal(got, "FALLBACK", "corrupt JSON returns the fallback");
 });
@@ -116,24 +116,24 @@ test("LBStore: corrupt JSON -> get returns fallback and does NOT throw", () => {
 
 test("LBStore: version mismatch (v:2) -> fallback", () => {
   const { LBStore, storage } = loadStore();
-  storage.seedRaw("lb.streak", JSON.stringify({ count: 5, v: 2 }));
-  assert.equal(LBStore.get("lb.streak", "OLD"), "OLD", "v:2 record is not trusted -> fallback");
+  storage.seedRaw("languagebasics.streak", JSON.stringify({ count: 5, v: 2 }));
+  assert.equal(LBStore.get("languagebasics.streak", "OLD"), "OLD", "v:2 record is not trusted -> fallback");
 });
 
 test("LBStore: missing version (no v) -> fallback", () => {
   const { LBStore, storage } = loadStore();
-  storage.seedRaw("lb.streak", JSON.stringify({ count: 5 }));
-  assert.equal(LBStore.get("lb.streak", "OLD"), "OLD", "unversioned record is not trusted -> fallback");
+  storage.seedRaw("languagebasics.streak", JSON.stringify({ count: 5 }));
+  assert.equal(LBStore.get("languagebasics.streak", "OLD"), "OLD", "unversioned record is not trusted -> fallback");
 });
 
 /* ----------------------------- bad set input ------------------------------ */
 
 test("LBStore: non-object / null values -> set returns false", () => {
   const { LBStore } = loadStore();
-  assert.equal(LBStore.set("lb.prefs", null), false, "null -> false");
-  assert.equal(LBStore.set("lb.prefs", undefined), false, "undefined -> false");
-  assert.equal(LBStore.set("lb.prefs", 5), false, "number -> false");
-  assert.equal(LBStore.set("lb.prefs", "string"), false, "string -> false");
+  assert.equal(LBStore.set("languagebasics.prefs", null), false, "null -> false");
+  assert.equal(LBStore.set("languagebasics.prefs", undefined), false, "undefined -> false");
+  assert.equal(LBStore.set("languagebasics.prefs", 5), false, "number -> false");
+  assert.equal(LBStore.set("languagebasics.prefs", "string"), false, "string -> false");
 });
 
 /* ------------------ graceful degradation: storage throws ------------------ */
@@ -152,12 +152,12 @@ test("LBStore: blocked storage -> set returns false but in-memory mirror still s
 
   let wrote;
   assert.doesNotThrow(() => {
-    wrote = LBStore.set("lb.leitner", { box: 3, due: 12 });
+    wrote = LBStore.set("languagebasics.progress", { box: 3, due: 12 });
   }, "set must not throw even when storage is blocked");
   assert.equal(wrote, false, "blocked write -> set returns false (memory only)");
 
   // Within the same session the in-memory mirror must still return the value.
-  const got = LBStore.get("lb.leitner");
+  const got = LBStore.get("languagebasics.progress");
   assert.ok(got, "get serves the value from the in-memory mirror");
   assert.equal(got.box, 3, "mirrored payload round-trips");
   assert.equal(got.due, 12, "mirrored payload round-trips");
@@ -187,13 +187,13 @@ test("LBStore: backend that starts throwing mid-session -> set returns false, no
   const LBStore = windowShim.LBStore;
 
   assert.equal(LBStore.persistent, true, "backend healthy at init -> persistent true");
-  assert.equal(LBStore.set("lb.streak", { count: 1 }), true, "healthy write -> true");
+  assert.equal(LBStore.set("languagebasics.streak", { count: 1 }), true, "healthy write -> true");
 
   // Now the backend starts throwing on writes (e.g. quota hit mid-session).
   storage.throwOnSet = true;
   let wrote;
   assert.doesNotThrow(() => {
-    wrote = LBStore.set("lb.streak", { count: 2 });
+    wrote = LBStore.set("languagebasics.streak", { count: 2 });
   }, "set must not throw when backend fails mid-session");
   assert.equal(wrote, false, "failed mid-session write -> false");
 
@@ -202,7 +202,7 @@ test("LBStore: backend that starts throwing mid-session -> set returns false, no
   // count:2. If a future ticket wants memory to win here, that's a code change
   // to rawGet() + an update to this assertion.
   assert.equal(
-    LBStore.get("lb.streak").count,
+    LBStore.get("languagebasics.streak").count,
     1,
     "backend read shadows the memory mirror after a failed mid-session write"
   );
@@ -214,7 +214,7 @@ test("LBStore: set does not mutate the caller's object", () => {
   const { LBStore } = loadStore();
 
   const input = { revealMs: 5000, mode: "leitner" };
-  LBStore.set("lb.prefs", input);
+  LBStore.set("languagebasics.prefs", input);
 
   assert.equal("v" in input, false, "caller object must NOT gain a v field");
   assert.deepEqual(
@@ -222,4 +222,68 @@ test("LBStore: set does not mutate the caller's object", () => {
     { revealMs: 5000, mode: "leitner" },
     "caller object is unchanged after set (shallow-clone before stamping)"
   );
+});
+
+/* ------------------- LB-36: only languagebasics.* keys -------------------- */
+
+test("LB-36: every key uses the languagebasics. prefix (PREFIX exposed)", () => {
+  const { LBStore } = loadStore();
+  assert.equal(LBStore.PREFIX, "languagebasics.");
+  for (const k of LBStore.KEYS) {
+    assert.ok(k.startsWith("languagebasics."), k + " must carry the prefix");
+  }
+});
+
+test("LB-36: old lb.* keys are never read, written or deleted", () => {
+  const { LBStore, storage } = loadStore();
+  // Another app on the shared origin owns these.
+  storage.seedRaw("lb.prefs", JSON.stringify({ v: 1, lessons: { x: { revealMs: 9000 } } }));
+  storage.seedRaw("lb.mastery", JSON.stringify({ v: 1, other: true }));
+
+  const reads = [];
+  const writes = [];
+  const removes = [];
+  const realGet = storage.getItem.bind(storage);
+  const realSet = storage.setItem.bind(storage);
+  const realRemove = storage.removeItem.bind(storage);
+  storage.getItem = (k) => { reads.push(String(k)); return realGet(k); };
+  storage.setItem = (k, v) => { writes.push(String(k)); return realSet(k, v); };
+  storage.removeItem = (k) => { removes.push(String(k)); return realRemove(k); };
+
+  for (const k of ["lb.prefs", "lb.mastery", "lb.leitner", "lb.streak"]) {
+    assert.equal(LBStore.get(k, "FB"), "FB", k + " get -> fallback");
+    assert.equal(LBStore.set(k, { a: 1 }), false, k + " set -> refused");
+  }
+  LBStore.set("languagebasics.prefs", { lessons: {} });
+  LBStore.get("languagebasics.prefs");
+
+  const touchedLb = reads.concat(writes, removes).filter((k) => k.startsWith("lb."));
+  assert.equal(touchedLb.length, 0, "no storage call may name an lb.* key");
+  assert.equal(removes.length, 0, "the store never deletes anything");
+  assert.equal(realGet("lb.prefs"), JSON.stringify({ v: 1, lessons: { x: { revealMs: 9000 } } }),
+    "the other app's lb.prefs is untouched");
+});
+
+test("LB-36: a prototype name like 'toString' is not a valid key", () => {
+  const { LBStore } = loadStore();
+  assert.equal(LBStore.get("toString", "FB"), "FB");
+  assert.equal(LBStore.set("toString", { a: 1 }), false);
+});
+
+/* ------------------------- LB-36: the probe key --------------------------- */
+
+test("LBStore: the storage probe uses languagebasics.__probe__ and leaves nothing behind", () => {
+  const fs = require("node:fs");
+  const vm = require("node:vm");
+  const { makeStoreSandbox, STORE_SRC } = require("./helpers/local-storage-shim.js");
+  const ctx = makeStoreSandbox();
+  const seen = [];
+  const realSet = ctx.storage.setItem.bind(ctx.storage);
+  ctx.storage.setItem = (k, v) => { seen.push(k); return realSet(k, v); };
+  vm.runInContext(fs.readFileSync(STORE_SRC, "utf8"), ctx.sandbox, { filename: STORE_SRC });
+  assert.deepEqual(seen, ["languagebasics.__probe__"], "only the namespaced probe key is written at load");
+  assert.equal(ctx.storage.getItem("languagebasics.__probe__"), null, "the probe is removed");
+  assert.equal(ctx.storage.getItem("__lbstore_probe__"), null, "the old probe key is never used");
+  assert.equal(ctx.window.LBStore.set("languagebasics.__probe__", { a: 1 }), false,
+    "the probe key is not a data key (not in the whitelist)");
 });

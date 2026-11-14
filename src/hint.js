@@ -3,13 +3,13 @@
  * Vanilla JS, no build step, no fetch, no framework. Works on file://.
  *
  * One global: window.LBHint. Pure logic, DOM-free, so it is unit-testable in a
- * node:vm sandbox directly (same convention as leitner.js / mastery.js / game.js).
+ * node:vm sandbox directly (same convention as game.js / progress.js).
  *
  * WHY THIS EXISTS (LB-18 alphabet section):
  *   Alphabet cards put the phonetic SOUND in `answer` and pack THREE example
  *   words into `hint` (the inverse of the number cards). We want the learner to
  *   see ONE example per view and to cycle through all three across repeated
- *   views of the same card — without picking by pool position (Leitner reorders
+ *   views of the same card — without picking by pool position (study is random
  *   and test mode reshuffles, so position is not stable). The engine therefore
  *   keys a per-card cycle counter on CARD IDENTITY (lessonId:prompt) and asks
  *   this module which example to show for a given cycle index.

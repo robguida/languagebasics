@@ -4,13 +4,17 @@
  *
  * One global: window.LBStore. A tiny, JSON-safe, version-tagged wrapper over
  * localStorage that the personalize/gamify tickets read and write through.
- * This ticket ONLY adds the module — nothing in engine.js consumes it yet.
  *
- * Namespaced top-level localStorage keys the app uses:
- *   lb.prefs    -> user preferences (reveal timer, card-order mode, etc.)
- *   lb.leitner  -> Leitner box state per card
- *   lb.mastery  -> per-card mastery / self-rating data
- *   lb.streak   -> streak counters
+ * Namespaced top-level localStorage keys the app uses (LB-36: one prefix,
+ * "languagebasics.", so nothing collides with another app on a shared origin):
+ *   languagebasics.prefs    -> user preferences (per-lesson reveal timer)
+ *   languagebasics.progress -> per-card "knew / not yet" ratings + personal best
+ *   languagebasics.streak   -> streak counters
+ *
+ * LB-36: old "lb.*" keys are NEVER read, written or deleted. They may belong to
+ * another app on the same origin, and the old mastery data was scored by
+ * reveal speed, so it is not carried over. The KEYS whitelist below rejects
+ * anything that is not one of the three keys above.
  *
  * Design notes:
  *  - VERSIONING: every stored object carries "v": 1. On read, a missing or
@@ -30,13 +34,19 @@
   // Current storage schema version. Bump only alongside a real migrator.
   var VERSION = 1;
 
+  // LB-36: the one key prefix. Every key the app stores starts with it.
+  var PREFIX = "languagebasics.";
+
   // The allowed namespace keys. Kept as a lookup so a typo'd key is obvious.
-  var KEYS = {
-    "lb.prefs": true,
-    "lb.leitner": true,
-    "lb.mastery": true,
-    "lb.streak": true
-  };
+  var KEYS = {};
+  KEYS[PREFIX + "prefs"] = true;
+  KEYS[PREFIX + "progress"] = true;
+  KEYS[PREFIX + "streak"] = true;
+
+  // Own-property check, so a key like "toString" can never pass the whitelist.
+  function isKnownKey(key) {
+    return typeof key === "string" && Object.prototype.hasOwnProperty.call(KEYS, key);
+  }
 
   // In-memory fallback bucket. Used for the whole session when localStorage
   // is unavailable, and also as a best-effort mirror so a get() right after a
@@ -48,7 +58,7 @@
    * on write — so we probe with a real set/remove inside try/catch. */
   var backend = (function detectBackend() {
     try {
-      var probe = "__lbstore_probe__";
+      var probe = PREFIX + "__probe__";
       window.localStorage.setItem(probe, "1");
       window.localStorage.removeItem(probe);
       return window.localStorage;
@@ -102,7 +112,7 @@
    * `fallback` defaults to null when omitted. */
   function get(key, fallback) {
     if (fallback === undefined) fallback = null;
-    if (!KEYS[key]) {
+    if (!isKnownKey(key)) {
       console.warn("[store] get: unknown key '" + key + "'");
       return fallback;
     }
@@ -141,7 +151,7 @@
    * The stored object always carries v: VERSION. If the caller's value already
    * has a `v`, ours wins — the store owns the version field. */
   function set(key, value) {
-    if (!KEYS[key]) {
+    if (!isKnownKey(key)) {
       console.warn("[store] set: unknown key '" + key + "'");
       return false;
     }
@@ -174,6 +184,7 @@
     get: get,
     set: set,
     VERSION: VERSION,
+    PREFIX: PREFIX,
     persistent: persistent,
     // The known namespace keys, exposed read-only-ish for callers/tests.
     KEYS: Object.keys(KEYS)
