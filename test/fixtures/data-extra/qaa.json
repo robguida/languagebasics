@@ -1,0 +1,160 @@
+{
+  "format": "languagebasics-lessons",
+  "formatVersion": 1,
+  "language": {
+    "code": "qaa",
+    "name": "Made-up test language",
+    "order": 999,
+    "defaultLesson": "lesson-1"
+  },
+  "notes": [
+    "TEST FIXTURE ONLY. Never built into src/: the tests generate it in memory, next to the real data/*.json files.",
+    "It proves a 5th language works with no test edits, and that hostile text survives the build exactly.",
+    "qaa is an ISO 639 code reserved for local use, so no real language will take it. order 999 keeps it after any real language."
+  ],
+  "retiredCardIds": [
+    "lesson-1.004"
+  ],
+  "groups": [
+    {
+      "label": "Numbers",
+      "notes": [],
+      "lessons": [
+        {
+          "slug": "lesson-1",
+          "label": "Lesson 1 — 1–3",
+          "title": "Made-up Numbers: 1–3",
+          "revealMs": 5000,
+          "rollup": true,
+          "cards": [
+            {
+              "id": "lesson-1.001",
+              "prompt": 1,
+              "answer": "blip",
+              "hint": "Blip"
+            },
+            {
+              "id": "lesson-1.002",
+              "prompt": 2,
+              "answer": "blop | ブロプ",
+              "hint": "Blop"
+            },
+            {
+              "id": "lesson-1.003",
+              "prompt": 3,
+              "answer": "blup",
+              "hint": "Bloop",
+              "audio": ""
+            }
+          ]
+        },
+        {
+          "slug": "lesson-2",
+          "parked": true,
+          "label": "Lesson 2 — 10, 20",
+          "title": "Made-up Numbers: 10, 20",
+          "revealMs": 10000,
+          "rollup": true,
+          "cards": [
+            {
+              "id": "lesson-2.001",
+              "prompt": "10",
+              "answer": "blipty",
+              "hint": "Blip tee"
+            },
+            {
+              "id": "lesson-2.002",
+              "prompt": "20",
+              "answer": "blopty",
+              "hint": "Blop tee"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "Script",
+      "lessons": [
+        {
+          "slug": "letters-1",
+          "label": "Letters",
+          "title": "Made-up Letters",
+          "revealMs": 5000,
+          "rollup": true,
+          "cards": [
+            {
+              "id": "letters-1.001",
+              "prompt": "ꙮ",
+              "answer": "multiocular o",
+              "hint": "Oh"
+            },
+            {
+              "id": "letters-1.002",
+              "prompt": "ᚠ",
+              "answer": "fehu",
+              "hint": "Fay hoo"
+            }
+          ]
+        },
+        {
+          "slug": "letters-all",
+          "label": "All letters",
+          "title": "Made-up Letters: all",
+          "revealMs": 5000,
+          "rollup": false,
+          "cardRefs": [
+            "letters-1.002",
+            "letters-1.001"
+          ]
+        }
+      ]
+    },
+    {
+      "label": "Parked only",
+      "lessons": [
+        {
+          "slug": "lesson-3",
+          "parked": true,
+          "label": "Lesson 3 — 100",
+          "title": "Made-up Numbers: 100",
+          "rollup": true,
+          "cards": [
+            {
+              "id": "lesson-3.001",
+              "prompt": 100,
+              "answer": "blipdred",
+              "hint": "Blip dred"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "Words <b>&amp;</b> \"Phrases\"",
+      "lessons": [
+        {
+          "slug": "words-1",
+          "label": "Words </script> 1",
+          "title": "Hostile text: </script><script>alert(1)</script>",
+          "revealMs": 5000,
+          "rollup": false,
+          "recallPrompt": "Say it </script>\u2028\u2029",
+          "cards": [
+            {
+              "id": "words-1.001",
+              "prompt": "</script><script>alert(1)</script>",
+              "answer": "<!-- --> <b>bold</b> | </SCRIPT >",
+              "hint": "line\u2028para\u2029end"
+            },
+            {
+              "id": "words-1.002",
+              "prompt": "quotes \" ' ` ${x}  backslash",
+              "answer": "tab\tand\nnewline",
+              "hint": "emoji 😀, é, بلا"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
