@@ -238,3 +238,22 @@ test("results Tab trap: Shift+Tab on Close wraps to the link; Tab on Done is lef
   const prevented = t.h.keydown("Tab", null, { shiftKey: false });
   assert.equal(prevented, false, "Done is no longer last, so the browser moves focus on to the link itself");
 });
+
+test("index.html: Done button comes before the results privacy link (the Tab order the trap tests assume)", () => {
+  const html = read("index.html");
+  const done = html.indexOf('id="resultDoneBtn"');
+  const link = html.indexOf('id="resultsPrivacyLink"');
+  assert.ok(done > -1 && link > -1, "both ids exist");
+  assert.ok(done < link, "resultDoneBtn precedes resultsPrivacyLink");
+});
+
+test("styles.css: .privacy-link-modal hover/focus colour is set and is not white", () => {
+  const css = read("styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
+  const rules = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)].filter((m) =>
+    /\.privacy-link-modal:(hover|focus-visible)/.test(m[1]) && /(^|;|\s)color\s*:/.test(m[2]));
+  assert.ok(rules.length >= 1, "a .privacy-link-modal :hover/:focus-visible rule sets a colour");
+  for (const m of rules) {
+    const col = m[2].match(/(?:^|;|\s)color\s*:\s*([^;]+)/)[1].trim().toLowerCase();
+    assert.ok(!/^(#fff|#ffffff|white)$/.test(col), "hover/focus colour must not be white, got " + col);
+  }
+});

@@ -388,6 +388,9 @@ button.secondary { background: #475569; }
 .privacy-page a:focus-visible { outline: 3px solid var(--accent2); outline-offset: 3px; }
 .setting-privacy { margin: 16px 0 0; font-size: .9rem; }
 .privacy-link-modal { color: var(--accent); text-decoration: underline; border-radius: 4px; }
+/* On the white dialogs, hover and focus go DARKER (the page-level .privacy-link:hover is white and would vanish). */
+.privacy-link-modal:hover,
+.privacy-link-modal:focus-visible { color: #1d4ed8; }
 
 .privacy-body { display: block; padding: 18px; }
 .privacy-page {
