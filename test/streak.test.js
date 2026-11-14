@@ -3,7 +3,7 @@
  * Run:  node --test
  *
  * streak.js is an IIFE that, at load, assigns window.LBStreak and reads/writes
- * streak state THROUGH window.LBStore (LB-8) under the `lb.streak` namespace.
+ * streak state THROUGH window.LBStore (LB-8) under the `languagebasics.streak` namespace.
  * To exercise the real persistence round-trip we load BOTH store.js and
  * streak.js into ONE shared node:vm sandbox backed by the reusable LB-8
  * localStorage shim — so LBStreak talks to a genuine LBStore over a genuine
@@ -50,7 +50,7 @@ const { makeStoreSandbox, STORE_SRC } = require("./helpers/local-storage-shim.js
 const STREAK_SRC_PATH = path.resolve(__dirname, "..", "src", "streak.js");
 const STREAK_SRC = fs.readFileSync(STREAK_SRC_PATH, "utf8");
 
-const KEY = "lb.streak";
+const KEY = "languagebasics.streak";
 
 /* Load store.js + streak.js into one fresh sandbox so LBStreak round-trips
  * through a real LBStore over the LB-8 shim. Returns the live LBStreak/LBStore
@@ -78,7 +78,7 @@ function loadStreakNoStore() {
   return { LBStreak: sandbox.window.LBStreak, window: sandbox.window };
 }
 
-/* Read the raw persisted lb.streak record straight off the LBStore (the truth on
+/* Read the raw persisted languagebasics.streak record straight off the LBStore (the truth on
  * disk), independent of any LBStreak read path. Returns null if absent. */
 function rawStored(LBStore) {
   return LBStore.get(KEY, null);
@@ -328,9 +328,9 @@ test("persistence: a second LBStreak over the SAME storage sees the prior run", 
 
   // New sandbox sharing the SAME backing storage map: re-point a fresh sandbox
   // at the same store by seeding the raw record the first run persisted.
-  const raw = first.storage.getItem("lb.streak");
+  const raw = first.storage.getItem("languagebasics.streak");
   const second = loadStreak();
-  second.storage.seedRaw("lb.streak", raw);
+  second.storage.seedRaw("languagebasics.streak", raw);
 
   assert.equal(second.LBStreak.getLongest(), 2,
     "a fresh LBStreak reads the persisted longest from storage");

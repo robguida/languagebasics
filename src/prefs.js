@@ -1,69 +1,65 @@
-/* LanguageBasics per-lesson preferences (LB-9).
+/* LanguageBasics per-lesson preferences (LB-9, trimmed in LB-36).
  *
  * Vanilla JS, no build step, no fetch, no framework. Works on file://.
  *
  * One global: window.LBPrefs. A tiny, lesson-keyed read/write layer over
- * window.LBStore (LB-8) for the `lb.prefs` namespace. The settings modal
+ * window.LBStore for the `languagebasics.prefs` namespace. The settings modal
  * writes through it; the engine reads through it at deck/card build.
  *
- * Stored shape under lb.prefs:
+ * Stored shape under languagebasics.prefs:
  *   {
  *     v: 1,                                  // stamped by LBStore, not us
- *     quizCount: 10,                         // GLOBAL: # of questions per quiz
  *     lessons: {
- *       "sq/lesson-1": { revealMs: 5000, order: "random" },
- *       "sq/lesson-6": { revealMs: 10000, order: "leitner" }
+ *       "sq/lesson-1": { revealMs: 5000 },
+ *       "sq/alphabet-all": { revealMs: 10000 }
  *     }
  *   }
  *
- * NOTE: quizCount is a GLOBAL preference (one value for all lessons), not a
- * per-lesson field. It lives at the top level of lb.prefs alongside `lessons`.
- * Test mode uses it as the N-card count for whatever lesson is active.
+ * LB-36: the reveal timer is the ONLY setting. The card-order (Random/Leitner)
+ * and the global quiz-count settings were retired with the old score mode; a
+ * test is always min(10, lesson card count) cards.
  *
  * Units: revealMs is stored in MILLISECONDS (matches the engine + lesson data).
  * The UI shows/edits seconds and converts at the boundary — not here.
  *
- * CRITICAL CONTRACT (keeps the existing engine tests green): when there is NO
- * stored value for a lesson, getRevealMs() returns null and getOrder() returns
- * null. The engine treats null as "no override" and falls back to the lesson's
- * hardcoded revealMs / default exactly as before. A missing or blocked LBStore
- * also yields null, so the no-store path is identical to today's behavior.
+ * CRITICAL CONTRACT (keeps the engine tests green): when there is NO stored
+ * value for a lesson, getRevealMs() returns null. The engine treats null as
+ * "no override" and falls back to the lesson's hardcoded revealMs / default.
+ * A missing or blocked LBStore also yields null.
  */
 (function () {
   "use strict";
 
-  var STORE_KEY = "lb.prefs";
+  var STORE_KEY = "languagebasics.prefs";
 
-  // Defaults the UI uses when a lesson has never been configured. These are NOT
-  // applied by the getters (which return null for "unset") — the engine owns
-  // the real fallback. The modal reads these to seed its controls.
+  // Defaults the UI uses when a lesson has never been configured. NOT applied
+  // by the getters (which return null for "unset") — the engine owns the real
+  // fallback. The modal reads these to seed its controls.
   var DEFAULTS = {
-    revealMs: 5000,     // 5s
-    order: "random",    // "random" | "leitner"
-    quizCount: 10       // GLOBAL: default # of questions for quizzes
+    revealMs: 5000      // 5s
   };
 
   var MIN_SECONDS = 1;
   var MAX_SECONDS = 20;
 
-  // The fixed quiz-count choices the settings UI offers (mirrors LBGame's
-  // COUNT_CHOICES). Stored here so prefs validation has one source of truth.
-  var QUIZ_COUNTS = [5, 10, 20];
-
-  /* Is LBStore present this session? A missing store (e.g. the engine unit
-   * tests, or store.js not loaded) means "no overrides" — every getter returns
-   * null so the engine keeps its original behavior. Never throws. */
+  /* Is LBStore present this session? Never throws. */
   function hasStore() {
     return !!(typeof window !== "undefined" && window.LBStore &&
       typeof window.LBStore.get === "function" &&
       typeof window.LBStore.set === "function");
   }
 
-  /* Read the whole lb.prefs object, or a safe empty shape. Never throws. */
+  /* Read the whole prefs object, or a safe empty shape. Never throws. */
   function readAll() {
     if (!hasStore()) return { lessons: {} };
-    var obj = window.LBStore.get(STORE_KEY, null);
-    if (obj == null || typeof obj !== "object" || typeof obj.lessons !== "object" || obj.lessons == null) {
+    var obj = null;
+    try {
+      obj = window.LBStore.get(STORE_KEY, null);
+    } catch (err) {
+      obj = null;
+    }
+    if (obj == null || typeof obj !== "object" || typeof obj.lessons !== "object" ||
+        obj.lessons == null || Array.isArray(obj.lessons)) {
       return { lessons: {} };
     }
     return obj;
@@ -71,14 +67,15 @@
 
   /* The stored prefs object for one lesson, or null if none. Never throws. */
   function getLesson(lessonId) {
-    if (!lessonId) return null;
+    // "__proto__" is never a lesson key (it would swap the map's prototype).
+    if (!lessonId || lessonId === "__proto__") return null;
     var all = readAll();
+    if (!Object.prototype.hasOwnProperty.call(all.lessons, lessonId)) return null;
     var entry = all.lessons[lessonId];
     return (entry && typeof entry === "object") ? entry : null;
   }
 
-  /* getRevealMs(lessonId) -> stored override in ms, or null if unset/invalid.
-   * null is the "no override" signal the engine falls back from. */
+  /* getRevealMs(lessonId) -> stored override in ms, or null if unset/invalid. */
   function getRevealMs(lessonId) {
     var entry = getLesson(lessonId);
     if (!entry) return null;
@@ -87,74 +84,38 @@
     return ms;
   }
 
-  /* getOrder(lessonId) -> "random" | "leitner", or null if unset/invalid. */
-  function getOrder(lessonId) {
-    var entry = getLesson(lessonId);
-    if (!entry) return null;
-    var order = entry.order;
-    if (order !== "random" && order !== "leitner") return null;
-    return order;
-  }
-
-  /* Merge a partial patch ({ revealMs?, order? }) into one lesson's prefs and
-   * persist. No-op (returns false) when LBStore is missing. Returns whatever
+  /* Merge a partial patch ({ revealMs? }) into one lesson's prefs and persist.
+   * No-op (returns false) when LBStore is missing. Returns whatever
    * LBStore.set returns (true = reached localStorage, false = memory only). */
   function setLesson(lessonId, patch) {
-    if (!lessonId || !patch || typeof patch !== "object") return false;
+    if (!lessonId || lessonId === "__proto__" || !patch || typeof patch !== "object") return false;
     if (!hasStore()) return false;
 
     var all = readAll();
-    var entry = (all.lessons[lessonId] && typeof all.lessons[lessonId] === "object")
-      ? all.lessons[lessonId]
-      : {};
+    var prev = Object.prototype.hasOwnProperty.call(all.lessons, lessonId)
+      ? all.lessons[lessonId] : null;
+    var entry = {};
+    if (prev && typeof prev === "object" && typeof prev.revealMs === "number" &&
+        isFinite(prev.revealMs) && prev.revealMs > 0) {
+      entry.revealMs = prev.revealMs;
+    }
 
     if (patch.revealMs != null && typeof patch.revealMs === "number" &&
         isFinite(patch.revealMs) && patch.revealMs > 0) {
       entry.revealMs = patch.revealMs;
     }
-    if (patch.order === "random" || patch.order === "leitner") {
-      entry.order = patch.order;
-    }
 
     all.lessons[lessonId] = entry;
-    // LBStore stamps v:VERSION itself; pass the lessons map through. Preserve the
-    // GLOBAL quizCount field if one is stored so a per-lesson write never drops it.
-    var out = { lessons: all.lessons };
-    if (all.quizCount != null) out.quizCount = all.quizCount;
-    return window.LBStore.set(STORE_KEY, out);
+    try {
+      // LBStore stamps v:VERSION itself; pass the lessons map through.
+      return window.LBStore.set(STORE_KEY, { lessons: all.lessons });
+    } catch (err) {
+      return false;
+    }
   }
 
   function setRevealMs(lessonId, ms) {
     return setLesson(lessonId, { revealMs: ms });
-  }
-
-  function setOrder(lessonId, order) {
-    return setLesson(lessonId, { order: order });
-  }
-
-  /* getQuizCount() -> the GLOBAL quiz question count (one of QUIZ_COUNTS), or
-   * the default (10) when nothing valid is stored. Unlike the per-lesson getters
-   * this returns a usable value (never null) because the count always has a
-   * sensible default and is not a per-lesson "no override" signal. Never throws. */
-  function getQuizCount() {
-    var all = readAll();
-    var n = Number(all.quizCount);
-    if (!isFinite(n) || QUIZ_COUNTS.indexOf(Math.floor(n)) === -1) {
-      return DEFAULTS.quizCount;
-    }
-    return Math.floor(n);
-  }
-
-  /* setQuizCount(count) -> persist the GLOBAL quiz count. Only the offered
-   * choices (QUIZ_COUNTS) are accepted; anything else is ignored (returns false).
-   * Preserves the existing lessons map. No-op without LBStore. Never throws. */
-  function setQuizCount(count) {
-    if (!hasStore()) return false;
-    var n = Math.floor(Number(count));
-    if (!isFinite(n) || QUIZ_COUNTS.indexOf(n) === -1) return false;
-    var all = readAll();
-    // LBStore stamps v:VERSION itself; pass quizCount + the lessons map through.
-    return window.LBStore.set(STORE_KEY, { quizCount: n, lessons: all.lessons });
   }
 
   // Seconds <-> ms helpers + clamping for the UI boundary.
@@ -168,18 +129,13 @@
 
   window.LBPrefs = {
     getRevealMs: getRevealMs,
-    getOrder: getOrder,
     setRevealMs: setRevealMs,
-    setOrder: setOrder,
-    getQuizCount: getQuizCount,
-    setQuizCount: setQuizCount,
     setLesson: setLesson,
     getLesson: getLesson,
     clampSeconds: clampSeconds,
     DEFAULTS: DEFAULTS,
     MIN_SECONDS: MIN_SECONDS,
     MAX_SECONDS: MAX_SECONDS,
-    QUIZ_COUNTS: QUIZ_COUNTS,
     STORE_KEY: STORE_KEY
   };
 })();

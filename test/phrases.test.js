@@ -14,9 +14,11 @@
  *
  *     1. DATA: every pair card's answer splits into the expected number of
  *        NON-EMPTY Albanian parts (no empty stack lines, no stray separators).
- *     2. ENGINE: the REAL renderAnswer path (via LBEngine.start -> nextCard ->
- *        wordEl.innerHTML) turns a " | " answer into the right <br>-joined HTML,
- *        and leaves a single-part answer with NO <br>.
+ *     2. ENGINE: the REAL answer render (via LBEngine.start -> nextCard ->
+ *        setAnswer) turns a " | " answer into text nodes split by <br>
+ *        elements (LB-36: built from DOM nodes, never innerHTML), and leaves a
+ *        single-part answer with NO <br>. The test serializes those nodes back
+ *        to "a<br>b" to compare.
  *     3. HINT GUARD: no hint on any of the 32 new cards contains " | " or " / "
  *        (either would break raw-hint render / trigger alphabet rotation). The
  *        " / " in a card PROMPT is intentional and out of scope (only hints
@@ -125,17 +127,28 @@ const ENGINE_PATH = path.resolve(__dirname, "..", "src", "engine.js");
 const ENGINE_SRC = fs.readFileSync(ENGINE_PATH, "utf8");
 
 /* Minimal DOM + window shim (same approach as loop-resilience.test.js). The
- * engine's nextCard() sets wordEl.innerHTML = renderAnswer(answer) the moment a
- * card is shown (even while hidden), so a single-card deck lets us read the REAL
- * rendered HTML after start() with no timer/click needed. */
+ * engine's nextCard() builds the answer into wordEl the moment a card is shown
+ * (even while hidden), so a single-card deck lets us read the REAL rendered
+ * nodes after start() with no timer/click needed. Element nodes keep a child
+ * list; text nodes are { nodeType: 3, data }. */
+function makeNode(tag) {
+  return {
+    tagName: tag, children: [],
+    get firstChild() { return this.children[0] || null; },
+    appendChild(c) { this.children.push(c); return c; },
+    removeChild(c) { const i = this.children.indexOf(c); if (i >= 0) this.children.splice(i, 1); return c; },
+  };
+}
 function makeDomShim() {
   const elements = {};
   const ids = ["number", "word", "pronunciation", "label", "recall", "bar", "toggleBtn", "title"];
   for (const id of ids) {
-    elements[id] = { id, style: {}, hidden: false, textContent: "", innerHTML: "", offsetWidth: 0, addEventListener() {} };
+    elements[id] = Object.assign(makeNode("DIV"), { id, style: {}, hidden: false, textContent: "", innerHTML: "", offsetWidth: 0, addEventListener() {} });
   }
   const documentShim = {
     getElementById: (id) => elements[id] || null,
+    createElement: (tag) => makeNode(String(tag).toUpperCase()),
+    createTextNode: (data) => ({ nodeType: 3, data: String(data) }),
     addEventListener() {},
     set title(v) { this._title = v; },
     get title() { return this._title; },
@@ -162,7 +175,11 @@ function renderAnswerViaEngine(answer) {
     revealMs: 5000,
     cards: [{ prompt: "X", answer, hint: "hh", audio: "" }],
   });
-  return String(elements.word.innerHTML);
+  // innerHTML must stay unused (the answer is never parsed as HTML).
+  assert.equal(elements.word.innerHTML, "", "the engine never writes innerHTML");
+  return elements.word.children
+    .map((c) => (c.nodeType === 3 ? c.data : c.tagName === "BR" ? "<br>" : "?"))
+    .join("");
 }
 
 test("engine renderAnswer: a single 2-part answer becomes <br>-joined HTML", () => {

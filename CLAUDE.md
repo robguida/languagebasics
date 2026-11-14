@@ -8,7 +8,7 @@ Read this first to orient on the codebase: what it is, the stack, layout, conven
 
 LanguageBasics is a hobby **language flashcard web app**. RandBMedia-owned (Rob's own product surface).
 
-- **Live at:** `languagebasics.robguida.com`
+- **Live at:** `https://bengusa.pro/languagebasics/` (on bengusa.pro's Lightsail box). For the old address, see "Old host" under Deploy.
 - **4 languages:** Albanian (`sq`, Tosk), Spanish (`es`), Japanese (`ja`), Bengali (`bn`). Each has number lessons, an Alphabet / script section, and Words + Phrases decks.
 - **Live number lessons (each language, 108 cards):**
   1. Lesson 1 — Numbers 0–10 (11 cards)
@@ -39,7 +39,10 @@ src/
   engine.js               # shared flashcard engine (window.LBEngine)
   manifest.js             # picker / whitelist / count helpers over the manifest
   settings.js, prefs.js, store.js     # settings modal + localStorage prefs
-  game.js, leitner.js, mastery.js, streak.js  # testing/scoring code (flag-gated)
+  game.js                 # score-mode test logic (pure, no DOM)
+  progress.js             # LB-36: per-card ratings, "N of M known", personal best
+  streak.js               # calm streak
+  counter.js              # LB-36: page counter (ships dark, see "Page counter")
   hint.js                 # hint rotation
   styles.css              # all styling
   content/
@@ -51,23 +54,49 @@ parked/                   # LB-34 parked lessons — NOT served, never deploys
 test/                     # node --test suite (NOT served)
   schema.test.js          # per-lesson schema + card-count checks (incl. parked)
   lb34-testing-flag.test.js  # testing flag + parked-lesson checks
-  ...                     # engine, manifest, mastery, leitner, game, etc.
+  ...                     # engine, manifest, game, progress, streak, counter,
+                          # test-mode, score-integration, etc.
   helpers/load-lesson.js  # vm sandbox loader (src/content or parked/content)
 docs/                     # concept/source files, NOT served (see Docs)
 package.json              # name, test script — no deps
 ```
 
-### Testing features are switched OFF (LB-34)
+### Score mode (LB-36) — built and ON
 
-- One switch: `src/features.js`, `window.LB_FEATURES = { testing: false }`.
-- Off (shipped): the Test mode switch, quiz-count setting, results modal, mastery and streak readouts, and the Random/Leitner card-order setting are **removed from the page** (markup tagged `data-feature="testing"`). The engine always uses random order and `startTest` does nothing. Saved localStorage state is kept, just ignored.
-- **To turn testing back on:** change `testing: false` to `testing: true` in `src/features.js`. Nothing else.
+- One switch: `src/features.js`, `window.LB_FEATURES = { testing: true }` (shipped ON).
+- **How it works for the learner:**
+  1. A **"Test me"** button starts a test (10 cards, or the whole lesson if smaller). Cards not yet known come first.
+  2. **Revealing a card never scores.** Only the learner's own rating counts: **"I knew it"** or **"Not yet"**. The rating buttons ignore clicks for 500 ms after the reveal.
+  3. If the timer runs out, the card counts as **"Not yet"**.
+  4. The results screen lists the missed cards and offers **"Practice these again"**. A practice round never counts toward the personal best.
+  5. Each lesson shows **"N of M known"** near the picker (a card is known when its last rating was "I knew it"). The **personal best** shows on the results screen only.
+  6. A **calm streak** is marked on the first manual reveal or rating of a day, never on page load.
+- **Storage:** browser `localStorage` only. Data lives in three keys: `languagebasics.prefs`, `languagebasics.progress`, `languagebasics.streak`. At start-up the store also writes and then removes one test key, `languagebasics.__probe__`, to check that storage works; it holds no data. ⛔ Never read, write or delete any `lb.*` key — bengusa.pro shares browser storage across its apps.
+- **Retired in LB-36:** `mastery.js`, `leitner.js`, the quiz-count setting, speed levels, the overall rollup and the Test mode switch.
+- **To turn testing off:** change `testing: true` to `testing: false` in `src/features.js`. The testing markup (tagged `data-feature="testing"`) is then removed from the page, and nothing is recorded. Saved progress stays and comes back when it is turned on again.
+
+### Page counter (LB-36) — built, ships DARK
+
+- `src/counter.js` counts page views with GoatCounter, using one plain image request. No cookies.
+- It is **off**: `GOATCOUNTER_CODE` is empty, so it sends nothing.
+- It only ever sends the lesson page name and, for visitors from another site, that site's name. Never the query string.
+- **To turn it on later, all of these are needed:**
+  1. The site code set in `GOATCOUNTER_CODE` (one line).
+  2. The page's image rules (CSP `img-src` for `/languagebasics/`) updated to allow the GoatCounter host.
+  3. A Referrer-Policy header set.
+  4. A line added to the privacy page.
+  5. The owner's go.
+- This repo is public. Never write account names, emails, server paths, addresses or keys here.
 
 ### Parked lessons (LB-34)
 
-- Number lessons 5 and 6 (all 4 languages) live in `parked/content/<lang>/`, outside `src/`, so they never deploy. They are out of `content/languages.js`, so they are not in the picker, the `?lesson=` whitelist or the mastery counts.
+- Number lessons 5 and 6 (all 4 languages) live in `parked/content/<lang>/`, outside `src/`, so they never deploy. They are out of `content/languages.js`, so they are not in the picker, the `?lesson=` whitelist or the "N of M known" counts.
 - The tests still run the full schema checks on them, so they stay valid.
-- **To bring one back:** `git mv` it into `src/content/<lang>/`, re-add its manifest entry in `content/languages.js`, and move its row from `PARKED` to `EXPECTED` in `test/schema.test.js` (plus the count tests that change).
+- **To bring one back:**
+  1. Move the file back into `src/content/<lang>/`.
+  2. Re-add its row (with its `count`) in `src/content/languages.js`.
+  3. In `test/schema.test.js`, `PARKED` is built by a **loop** over the four languages. Add a **literal row** for the lesson to `EXPECTED`, and change the loop so it stops generating that lesson.
+  4. Update the tests that expect it parked: `test/count-parity.test.js` (lesson total, 72), `test/manifest.test.js` (lessons per group, lesson total 72, and the "ids byte-identical" test, whose locked id list must now include the lesson), `test/notation-audit.test.js` (parked file list) and `test/lb34-testing-flag.test.js` (parked-lesson checks).
 
 ### How a lesson loads (no fetch, file:// safe)
 
@@ -75,7 +104,13 @@ package.json              # name, test script — no deps
 
 ### Adding a language
 
-`sq` is the Albanian namespace. A new language is new data files under `content/<lang>/` plus picker/whitelist entries in `index.html` — **no engine change**. The engine is language-agnostic.
+`sq` is the Albanian namespace. A new language is new data files under `src/content/<lang>/` plus one entry in `src/content/languages.js` — **no engine change and no edit to `index.html`**. The picker, the `?lesson=` whitelist, the default lesson and the card counts all come from that file. The engine is language-agnostic.
+
+Then update the tests that count languages and lessons:
+- `test/manifest.test.js` — language count (4), lessons per group, lesson total (72), the language option list, and the "ids byte-identical" id list.
+- `test/count-parity.test.js` — lesson total (72).
+- `test/schema.test.js` — add the language's rows to `EXPECTED`, and add the language to the `PARKED` loop if it has parked lessons.
+- `test/lb34-testing-flag.test.js` — the `LANGS` list.
 
 ---
 
@@ -88,7 +123,7 @@ window.LB_LESSON = {
   id: "sq/lesson-1",                 // string, matches the ?lesson= value
   title: "Albanian Tosk Numbers: 0–10",
   revealMs: 5000,                    // optional; engine default 5000 (lesson 6 = 10000)
-  // recallPrompt: "...",            // optional lesson-level override of the recall copy
+  // recallPrompt: "...",            // reserved: accepted, never read or shown today
   cards: [
     { prompt: 0, answer: "zero", hint: "Zeh rō", audio: "" },
     // ...
@@ -102,14 +137,14 @@ window.LB_LESSON = {
 | Field    | Type          | Required | Notes |
 |----------|---------------|----------|-------|
 | `prompt` | string\|number | yes      | the number shown first |
-| `answer` | string         | yes      | Albanian word(s); `" \| "` splits into stacked lines |
+| `answer` | string         | yes      | the target-language word(s); `" \| "` splits into stacked lines |
 | `hint`   | string         | optional* | pronunciation (plain-English syllables) |
 | `audio`  | string         | optional  | reserved future slot; currently `""` |
-| `recallPrompt` | string   | optional  | per-card override of the recall copy |
+| `recallPrompt` | string   | optional  | reserved: the engine accepts it but never shows it today |
 
-\* The engine treats `hint`/`audio` as optional, but the **current dataset fills `hint` on every card** and the schema test enforces non-empty hints app-wide (including lesson 6).
+\* The engine treats `hint`/`audio` as optional, but the **current dataset fills `hint` on every card** and the schema test enforces non-empty hints app-wide (including the parked lessons).
 
-**Multi-part answers:** lessons 2 and 6 use `" | "` as a line separator; the engine renders it as `<br>`. The engine also auto-shrinks the font for long prompts (big numbers) and long answers so they fit the card.
+**Multi-part answers:** `sq/lesson-2` and every Japanese (`ja`) and Bengali (`bn`) numbers, words and phrases deck use `" | "` as a line separator, as do the parked lesson 6 in all 4 languages and the parked `ja`/`bn` lesson 5; the engine renders it as `<br>`. The engine also auto-shrinks the font for long prompts (big numbers) and long answers so they fit the card.
 
 ---
 
@@ -120,26 +155,33 @@ npm test          # runs: node --test  (Node built-in runner, no deps)
 ```
 
 - Tests live in `test/` and load the real `src/` files (engine + lesson data) inside a `node:vm` sandbox with a minimal `window`/DOM shim — Node built-ins only (`node:test`, `node:assert`, `node:fs`, `node:vm`, `node:path`).
-- Coverage: per-lesson schema + exact card counts, the reveal/next toggle state machine, and loop-resilience (one bad card is skipped, never aborts the deck).
-- **Card-count source of truth** is `EXPECTED` (live lessons) and `PARKED` (parked lessons 5 and 6) in `test/schema.test.js`. If you change a lesson's card count, update that map or the test fails.
+- Coverage: per-lesson schema + exact card counts, the reveal/next toggle state machine, loop-resilience (one bad card is skipped, never aborts the deck), score mode (ratings, the 500 ms lock, results, practice rounds, personal best), progress, streak, prefs, store and the page counter.
+- **Card-count source of truth** is `EXPECTED` (live lessons) and `PARKED` (parked lessons 5 and 6) in `test/schema.test.js`. If you change a lesson's card count, update that map **and** the lesson's `count` in `src/content/languages.js`, or the tests fail.
 
 ---
 
 ## How to deploy
 
-**Only the contents of `src/` ship to the live site.** Nothing else (`package.json`, `test/`, `docs/`, `parked/`) reaches the docroot.
+**Only the contents of `src/` ship to the live site.** `parked/`, `test/`, `docs/` and `package.json` never ship.
 
-Deploy flow:
+Live address: `https://bengusa.pro/languagebasics/`.
+
+How a deploy works:
 1. Pull `main` into a local checkout.
-2. `rsync` the **contents of `src/`** to the Lightsail docroot:
-   `/home/bitnami/htdocs/languagebasics.robguida.com/public_html/` over SSH (`.pem` key).
-3. `npm install` on the server for parity — a no-op (no deps).
+2. Upload the **contents of `src/`** to the Lightsail box as a new dated release folder. The app has its own folder there, outside bengusa.pro's own release folder, so bengusa.pro deploys never touch it.
+3. A `current` link points at the live release. **Rollback = point `current` back at the previous release folder.**
+4. After upload, the deploy checks the files from outside. If a check fails, it rolls back on its own.
+
+The deploy script is not kept in the repo yet. Moving it into `./scripts` is tracked as follow-up ticket LB-37. Every deploy needs the owner's go.
 
 No backend, no server-side build. Static files only.
+
+**Old host (as of 2026-11-13):** `languagebasics.robguida.com` still exists but is not where releases go, and it currently fails with an untrusted-certificate error.
 
 ### Hosting
 
 - **RandBMedia AWS Lightsail** — Lightsail instance + Lightsail-managed networking/DNS. **NOT standard AWS** (no EC2/ALB/Route53 here). A Lightsail LB looks like standard AWS from outside (`awselb`, `awsdns`, ACM cert) — it is still Lightsail. Manage infra in the Lightsail console.
+- A CDN sits in front of bengusa.pro. It does not pass `?lesson=` to the server. That is fine: the browser reads `?lesson=` itself. Files are served with `Cache-Control: no-cache`.
 
 ---
 
@@ -147,7 +189,8 @@ No backend, no server-side build. Static files only.
 
 ### Branch / PR flow
 - Branch off **`development`**. One ticket → one branch. Branch name prefixed with the ticket (e.g. `LB-9-...` or `issue-...`).
-- `main` = production. PRs merge to `development`, then promote to `main`.
+- `main` = production. Ticket PRs go to `development`. A release PR then goes `development` → `main`.
+- **`development` must never be deleted** (it is protected). Delete a ticket branch only after its PR shows Merged.
 
 ### Language correctness (Albanian)
 - Phonetics use **Rob's own plain-English-syllable notation** (e.g. `Nyuh`, `Jyosht`), **Tosk dialect only**.
@@ -156,8 +199,8 @@ No backend, no server-side build. Static files only.
 ### Loop resilience
 - Per-item loops (e.g. the engine's deck builder) **skip a bad item and continue** — one malformed card never aborts the deck. New/modified loops follow continue-on-error; see `loop-resilience.test.js`.
 
-### Owner accessibility convention
-- Rob (project owner) has **ADHD + dyslexia**. Any user-facing copy and any response/summary should **lead with the answer** and **stay concise** — short sentences, scannable structure, no preamble. Treat this as a real project convention.
+### User-facing copy
+- Lead with the answer. Short sentences, scannable structure.
 
 ---
 
@@ -172,9 +215,10 @@ These are reference/history. They never deploy.
 
 ---
 
-## Personalize/gamify features (built; testing parts switched off)
+## Status — personalize/gamify features (all built)
 
 All **client-side** (browser `localStorage`; no accounts, no backend, no pricing — personal use):
 - A **settings modal**, opened from a hamburger menu — live.
 - A **per-lesson reveal timer** (1–20s, default 5s) — live.
-- A card-order toggle **Random ↔ Leitner**, a **self-rated game/test mode**, mastery and streak — built, but **switched off** by the LB-34 testing flag (see "Testing features are switched OFF").
+- **Score mode** ("Test me", self-rated, "N of M known", personal best, calm streak) — built and ON (LB-36). See "Score mode".
+- **Page counter** — built, ships dark (LB-36). See "Page counter".
