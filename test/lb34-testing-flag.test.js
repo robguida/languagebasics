@@ -6,9 +6,10 @@
  *     page and the engine cannot start a test (LB-36: Leitner order, the Test
  *     mode switch and the quiz-count setting are retired, not just hidden);
  *   - flag ON: the markup stays and the engine paths work again (recoverable);
- *   - lessons 5 and 6 are gone from the picker, whitelist and rollup counts in
- *     all four languages, and a typed ?lesson= for them is rejected, while
- *     their data files stay recoverable in parked/.
+ *   - parked lessons ("parked": true in data/<code>.json; today lessons 5 and
+ *     6) are gone from the picker, whitelist and rollup counts in every
+ *     language, and a typed ?lesson= for them is rejected, while their data
+ *     files stay recoverable in parked/ (LB-42: read from the data, not typed in).
  */
 "use strict";
 
@@ -17,7 +18,8 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
-const { loadLesson, loadManifest, parkedDir, contentDir } = require("./helpers/load-lesson.js");
+const { parkedDir } = require("./helpers/load-lesson.js");
+const { repoWorld, fixtureWorld } = require("./helpers/load-data.js");
 
 const SRC = path.resolve(__dirname, "..", "src");
 const FEATURES_SRC = fs.readFileSync(path.join(SRC, "features.js"), "utf8");
@@ -224,46 +226,63 @@ test("LB-36: Leitner is retired — a stored order and an LBLeitner global are n
   assert.ok(["1", "2"].includes(String(elements.number.textContent)), "plain random study");
 });
 
-/* ---------------------------- parked lessons 5 and 6 ---------------------- */
+/* ---------------------------- parked lessons ------------------------------ */
 
-const LANGS = ["sq", "es", "ja", "bn"];
+/* LB-42: which lessons are parked, and in which languages, comes from the data
+ * ("parked": true in data/<code>.json). Each check runs on the repo and on the
+ * repo plus the made-up language fixture, which always holds parked lessons, so
+ * the parked path stays tested even if the repo has none. */
+for (const world of [repoWorld(), fixtureWorld()]) {
+  const T = world.tag;
+  const LANGS = world.data.languages.map((l) => l.code);
+  const PARKED = world.data.parked;
 
-test("lessons 5 and 6 are not in the manifest, picker, whitelist or counts (all 4 languages)", () => {
-  const { languages, LBManifest } = loadManifest();
-  const allowed = LBManifest.buildAllowedMap(languages);
-  const counts = LBManifest.buildLessonCounts(languages);
-  for (const lang of LANGS) {
-    for (const n of [5, 6]) {
-      const id = lang + "/lesson-" + n;
-      assert.ok(!allowed[id], id + " must be rejected by the ?lesson= whitelist");
-      assert.equal(counts[id], undefined, id + " must have no count");
+  if (world.name === "fixture") {
+    test(`${T}the fixture holds parked lessons, so the checks below are not empty`, () => {
+      assert.ok(PARKED.some((l) => l.code === "qaa"), "the made-up language has parked lessons");
+      assert.ok(LANGS.length >= 2, "the fixture adds a language to the real ones");
+    });
+  }
+
+  test(`${T}parked lessons are not in the manifest, picker, whitelist or counts (every language)`, () => {
+    const { languages, LBManifest } = world.loadManifest();
+    const allowed = LBManifest.buildAllowedMap(languages);
+    const counts = LBManifest.buildLessonCounts(languages);
+    for (const row of PARKED) {
+      assert.ok(!allowed[row.id], row.id + " must be rejected by the ?lesson= whitelist");
+      assert.equal(counts[row.id], undefined, row.id + " must have no count");
     }
-    const values = LBManifest.buildPickerModel(languages, lang)
-      .groups.flatMap((g) => g.options.map((o) => o.value));
-    assert.ok(!values.some((v) => /lesson-[56]$/.test(v)), lang + " picker must not list lessons 5/6");
-    assert.ok(values.includes(lang + "/lesson-4"), lang + " lesson 4 stays");
-  }
-});
-
-test("rollup still adds up: 4 counted number decks per language, none from 5/6", () => {
-  const { languages, LBManifest } = loadManifest();
-  for (const lang of LANGS) {
-    const rows = LBManifest.listLessonsForLanguage(languages, lang);
-    const numbers = rows.filter((r) => /\/lesson-\d$/.test(r.id));
-    assert.equal(numbers.length, 4, lang + ": 4 number lessons");
-    assert.ok(numbers.every((r) => r.rollup === true));
-  }
-});
-
-test("lessons 5 and 6 data files are parked, recoverable, and not under src/", () => {
-  for (const lang of LANGS) {
-    for (const n of [5, 6]) {
-      assert.ok(!fs.existsSync(path.join(contentDir(lang), "lesson-" + n + ".js")),
-        lang + "/lesson-" + n + ".js must not ship in src/");
-      const { lesson } = loadLesson("lesson-" + n + ".js", lang, { parked: true });
-      assert.equal(lesson.id, lang + "/lesson-" + n, "parked file still loads and keeps its id");
-      assert.equal(lesson.cards.length, n === 5 ? 56 : 6, lang + "/lesson-" + n + " card count intact");
+    for (const lang of LANGS) {
+      const values = LBManifest.buildPickerModel(languages, lang)
+        .groups.flatMap((g) => g.options.map((o) => o.value));
+      const parkedIds = PARKED.filter((l) => l.code === lang).map((l) => l.id);
+      assert.deepEqual([...values].filter((v) => parkedIds.includes(v)), [], lang + " picker must not list parked lessons");
+      for (const live of world.data.live.filter((l) => l.code === lang)) {
+        assert.ok(values.includes(live.id), live.id + " (live) stays in the picker");
+      }
     }
-  }
-  assert.ok(parkedDir("sq").includes("parked"));
-});
+  });
+
+  test(`${T}rollup still adds up: every live lesson counted as in the data, none from parked lessons`, () => {
+    const { languages, LBManifest } = world.loadManifest();
+    for (const lang of LANGS) {
+      const rows = LBManifest.listLessonsForLanguage(languages, lang);
+      const want = world.data.live.filter((l) => l.code === lang);
+      assert.deepEqual([...rows].map((r) => r.id), want.map((l) => l.id), lang + ": exactly the live lessons");
+      assert.deepEqual([...rows].map((r) => r.rollup), want.map((l) => l.rollup), lang + ": rollup as in the data");
+      const parkedIds = new Set(PARKED.map((l) => l.id));
+      assert.ok(!rows.some((r) => parkedIds.has(r.id)), lang + ": no parked lesson counted");
+    }
+  });
+
+  test(`${T}parked lesson files are parked, recoverable, and not under src/`, () => {
+    for (const row of PARKED) {
+      assert.ok(!world.exists(`src/content/${row.code}/${row.file}`), row.id + " must not ship in src/");
+      assert.ok(world.exists(`parked/content/${row.code}/${row.file}`), row.id + " must sit in parked/content");
+      const { lesson } = world.loadLesson(row);
+      assert.equal(lesson.id, row.id, "parked file still loads and keeps its id");
+      assert.equal(lesson.cards.length, row.count, row.id + " card count intact (as in the data)");
+    }
+    assert.ok(parkedDir("sq").includes("parked"));
+  });
+}
