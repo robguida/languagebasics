@@ -11,9 +11,14 @@
  * 4. Card ids are unique, valid, not retired, and never written to src/.
  * 5. cardRefs resolve to the real cards.
  * 6. write()/check(): unchanged files are left alone, CRLF and BOM compare
- *    equal, a failed temp write changes nothing, and only banner-carrying stale
- *    files are deleted. These use an in-memory fake file system (no temp
- *    folders on disk).
+ *    equal, a failed temp write changes nothing, a file without the banner at
+ *    a generated path is never overwritten, a failed rename or stale delete is
+ *    reported while the rest go on, leftover .tmp files count as stale, and
+ *    only banner-carrying stale files are deleted. These use an in-memory fake
+ *    file system (no temp folders on disk).
+ * 7. LB-42: "<", U+2028 and U+2029 are written as escapes, and the hostile text
+ *    in the made-up language fixture (test/fixtures/data-extra/) round-trips
+ *    exactly.
  * Built-ins only.
  */
 "use strict";
@@ -115,7 +120,7 @@ test("generated files: banner, LF only, no BOM, newline at the end, deterministi
   for (const [rel, text] of Object.entries(a)) {
     assert.ok(text.startsWith(BANNER), `${rel} must start with the GENERATED banner`);
     assert.ok(!text.includes("\r"), `${rel} must use LF endings`);
-    assert.ok(!text.startsWith("﻿"), `${rel} must have no BOM`);
+    assert.ok(!text.startsWith("\uFEFF"), `${rel} must have no BOM`);
     assert.ok(text.endsWith("\n") && !text.endsWith("\n\n"), `${rel} must end with one newline`);
   }
 });
@@ -257,8 +262,10 @@ for (const [name, mutate, place] of RULES) {
     assert.equal(r.failed, 1, "the file must fail");
     assert.equal(r.succeeded, 0);
     assert.deepEqual(r.files, {}, "a failed file produces no output");
-    const hit = r.errors.find((e) => e.startsWith(`data/xx.json ${place}`));
-    assert.ok(hit, `an error must name "data/xx.json ${place}"; got:\n${r.errors.join("\n")}`);
+    // Exact place: "<file> <place>: <message>", so an error at a child place
+    // (e.g. ...lessons[1].cards) can never satisfy a rule about the parent.
+    const hit = r.errors.find((e) => e.startsWith(`data/xx.json ${place}: `));
+    assert.ok(hit, `an error must name exactly "data/xx.json ${place}: "; got:\n${r.errors.join("\n")}`);
   });
 }
 
@@ -269,16 +276,20 @@ test("validator: the good fixture passes", () => {
   assert.equal(r.failed, 0);
 });
 
-test("validator: invalid JSON fails with the file name", () => {
-  const r = build.generateFromSources([{ name: "xx.json", text: "{ not json" }]);
+test("validator: invalid JSON fails with the file name, without stopping the rest", () => {
+  const r = build.generateFromSources([{ name: "aa.json", text: "{ not json" }, src("bb.json", fixture("bb", 1))]);
   assert.equal(r.failed, 1);
-  assert.match(r.errors[0], /^data\/xx\.json: not valid JSON/);
+  assert.equal(r.succeeded, 1, "the good file after the bad one is still read");
+  assert.match(r.errors[0], /^data\/aa\.json: not valid JSON/);
+  assert.ok(r.files["src/content/bb/lesson-1.js"], "the good file is still generated");
 });
 
-test("validator: a file name that is not a language code fails", () => {
-  const r = build.generateFromSources([src("Bad Name.json", fixture("xx", 1))]);
+test("validator: a file name that is not a language code fails, without stopping the rest", () => {
+  const r = build.generateFromSources([src("Bad Name.json", fixture("xx", 1)), src("bb.json", fixture("bb", 1))]);
   assert.equal(r.failed, 1);
+  assert.equal(r.succeeded, 1, "the good file after the bad one is still read");
   assert.match(r.errors[0], /^data\/Bad Name\.json: the file name/);
+  assert.ok(r.files["src/content/bb/lesson-1.js"], "the good file is still generated");
 });
 
 test("validator: an unreadable file fails without stopping the rest", () => {
@@ -289,7 +300,7 @@ test("validator: an unreadable file fails without stopping the rest", () => {
 });
 
 test("validator: a BOM or CRLF in a data file is accepted", () => {
-  const text = "﻿" + JSON.stringify(fixture("xx", 1), null, 2).replace(/\n/g, "\r\n");
+  const text = "\uFEFF" + JSON.stringify(fixture("xx", 1), null, 2).replace(/\n/g, "\r\n");
   const r = build.generateFromSources([{ name: "xx.json", text }]);
   assert.deepEqual(r.errors, []);
 });
@@ -316,9 +327,9 @@ test("per-card loop continues: every bad card in one file is reported", () => {
   cardAt(doc, 1).answer = "";
   lessonAt(doc, 2, 0).cards[0].prompt = null;
   const r = genOne(doc);
-  assert.ok(r.errors.some((e) => e.startsWith("data/xx.json groups[0].lessons[0].cards[0].hint")));
-  assert.ok(r.errors.some((e) => e.startsWith("data/xx.json groups[0].lessons[0].cards[1].answer")));
-  assert.ok(r.errors.some((e) => e.startsWith("data/xx.json groups[2].lessons[0].cards[0].prompt")));
+  assert.ok(r.errors.some((e) => e.startsWith("data/xx.json groups[0].lessons[0].cards[0].hint: ")));
+  assert.ok(r.errors.some((e) => e.startsWith("data/xx.json groups[0].lessons[0].cards[1].answer: ")));
+  assert.ok(r.errors.some((e) => e.startsWith("data/xx.json groups[2].lessons[0].cards[0].prompt: ")));
 });
 
 test("2 bad files + 1 good: failed 2, succeeded 1, write() never called, exit 1", () => {
@@ -463,7 +474,7 @@ const GEN_B = BANNER + "b\n";
 
 test("check: CRLF and a BOM compare equal; missing and stale are listed", () => {
   const f = fakeFs({
-    "src/content/xx/a.js": "﻿" + GEN_A.replace(/\n/g, "\r\n"),
+    "src/content/xx/a.js": "\uFEFF" + GEN_A.replace(/\n/g, "\r\n"),
     "src/content/xx/old.js": BANNER + "old\n",
   });
   const c = build.check({ "src/content/xx/a.js": GEN_A, "src/content/xx/b.js": GEN_B }, FAKE_ROOT, f);
@@ -475,7 +486,8 @@ test("check: CRLF and a BOM compare equal; missing and stale are listed", () => 
 test("write: only changed files are written, via temp files then rename", () => {
   const f = fakeFs({
     "src/content/xx/a.js": GEN_A.replace(/\n/g, "\r\n"),
-    "src/content/xx/b.js": "old text\n",
+    // An older generated file (it carries the banner), so it may be replaced.
+    "src/content/xx/b.js": BANNER + "old text\n",
   });
   const w = build.write({ "src/content/xx/a.js": GEN_A, "src/content/xx/b.js": GEN_B, "parked/content/xx/c.js": GEN_A }, FAKE_ROOT, f);
   assert.deepEqual(w.written, ["parked/content/xx/c.js", "src/content/xx/b.js"]);
@@ -485,14 +497,100 @@ test("write: only changed files are written, via temp files then rename", () => 
   assert.equal(f.get("parked/content/xx/c.js"), GEN_A);
   assert.equal(f.get("src/content/xx/a.js"), GEN_A.replace(/\n/g, "\r\n"), "an unchanged file is not rewritten");
   assert.ok(![...f.files.keys()].some((k) => k.endsWith(".tmp")), "no temp files are left");
+  assert.deepEqual(w.errors, []);
+  assert.deepEqual(w.failed, []);
 });
 
 test("write: a failed temp write removes the temps and leaves the originals", () => {
-  const f = fakeFs({ "src/content/xx/a.js": "old a\n", "src/content/xx/b.js": "old b\n" }, { failOnWrite: 2 });
-  assert.throws(() => build.write({ "src/content/xx/a.js": GEN_A, "src/content/xx/b.js": GEN_B }, FAKE_ROOT, f), /nothing was changed/);
-  assert.equal(f.get("src/content/xx/a.js"), "old a\n");
-  assert.equal(f.get("src/content/xx/b.js"), "old b\n");
+  const OLD_A = BANNER + "old a\n";
+  const OLD_B = BANNER + "old b\n";
+  const f = fakeFs({ "src/content/xx/a.js": OLD_A, "src/content/xx/b.js": OLD_B }, { failOnWrite: 2 });
+  assert.throws(() => build.write({ "src/content/xx/a.js": GEN_A, "src/content/xx/b.js": GEN_B }, FAKE_ROOT, f),
+    /could not write a temp file, nothing was changed/);
+  assert.equal(f.get("src/content/xx/a.js"), OLD_A);
+  assert.equal(f.get("src/content/xx/b.js"), OLD_B);
   assert.ok(![...f.files.keys()].some((k) => k.endsWith(".tmp")), "temps are removed");
+});
+
+test("write: a file with no GENERATED banner at a generated path is never overwritten (nothing is written)", () => {
+  const f = fakeFs({
+    "src/content/xx/a.js": BANNER + "old a\n",
+    "src/content/xx/hand.js": "/* hand-written */\n",
+    "src/content/xx/hand2.js": "\uFEFF// also hand-written\r\n",
+  });
+  assert.throws(
+    () => build.write({
+      "src/content/xx/a.js": GEN_A,
+      "src/content/xx/hand.js": GEN_B,
+      "src/content/xx/hand2.js": GEN_B,
+      "src/content/xx/new.js": GEN_A,
+    }, FAKE_ROOT, f),
+    (e) => /nothing was changed/.test(e.message) &&
+      e.message.includes("src/content/xx/hand.js") && e.message.includes("src/content/xx/hand2.js") &&
+      !e.message.includes("src/content/xx/a.js"));
+  assert.deepEqual(f.written, [], "no temp file is even started");
+  assert.equal(f.get("src/content/xx/hand.js"), "/* hand-written */\n");
+  assert.equal(f.get("src/content/xx/a.js"), BANNER + "old a\n", "the generated file is not replaced either");
+  assert.equal(f.get("src/content/xx/new.js"), undefined, "no new file is created");
+});
+
+test("write: a rename that fails is reported, its temp removed, and the other renames still happen", () => {
+  const f = fakeFs({
+    "src/content/xx/a.js": BANNER + "old a\n",
+    "src/content/xx/b.js": BANNER + "old b\n",
+    "src/content/xx/c.js": BANNER + "old c\n",
+  });
+  let renames = 0;
+  const realRename = f.renameSync;
+  f.renameSync = (a, b) => {
+    renames++;
+    if (renames === 2) throw new Error("EBUSY: file is locked");
+    realRename(a, b);
+  };
+  const w = build.write({
+    "src/content/xx/a.js": GEN_A, "src/content/xx/b.js": GEN_B, "src/content/xx/c.js": GEN_A,
+  }, FAKE_ROOT, f);
+  assert.equal(renames, 3, "every rename is tried");
+  assert.deepEqual(w.written, ["src/content/xx/a.js", "src/content/xx/c.js"]);
+  assert.deepEqual(w.failed, ["src/content/xx/b.js"]);
+  assert.equal(w.errors.length, 1);
+  assert.match(w.errors[0], /could not replace src\/content\/xx\/b\.js \(EBUSY/);
+  assert.equal(f.get("src/content/xx/a.js"), GEN_A);
+  assert.equal(f.get("src/content/xx/b.js"), BANNER + "old b\n", "the locked file is left as it was");
+  assert.equal(f.get("src/content/xx/c.js"), GEN_A);
+  assert.ok(![...f.files.keys()].some((k) => k.endsWith(".tmp")), "no temp file is left behind");
+});
+
+test("write: a stale delete that fails is reported and the other stale files are still deleted", () => {
+  const f = fakeFs({
+    "src/content/xx/a.js": GEN_A,
+    "src/content/xx/gone1.js": BANNER + "1\n",
+    "src/content/xx/gone2.js": BANNER + "2\n",
+    "src/content/xx/gone3.js": BANNER + "3\n",
+  });
+  const realUnlink = f.unlinkSync;
+  f.unlinkSync = (p) => {
+    if (p.endsWith("gone1.js")) throw new Error("EPERM");
+    realUnlink(p);
+  };
+  const w = build.write({ "src/content/xx/a.js": GEN_A }, FAKE_ROOT, f);
+  assert.deepEqual(w.deleted, ["src/content/xx/gone2.js", "src/content/xx/gone3.js"]);
+  assert.equal(w.errors.length, 1);
+  assert.match(w.errors[0], /could not delete the stale file src\/content\/xx\/gone1\.js \(EPERM\)/);
+  assert.ok(f.get("src/content/xx/gone1.js"));
+});
+
+test("check/write: a leftover .tmp in an output folder is listed as stale, and deleted if it carries the banner", () => {
+  const f = fakeFs({
+    "src/content/xx/a.js": GEN_A,
+    "src/content/xx/a.js.123.tmp": BANNER + "half\n",
+    "parked/content/xx/b.js.9.tmp": "not ours\n",
+  });
+  const c = build.check({ "src/content/xx/a.js": GEN_A }, FAKE_ROOT, f);
+  assert.deepEqual(c.stale, ["parked/content/xx/b.js.9.tmp", "src/content/xx/a.js.123.tmp"]);
+  const w = build.write({ "src/content/xx/a.js": GEN_A }, FAKE_ROOT, f);
+  assert.deepEqual(w.deleted, ["src/content/xx/a.js.123.tmp"]);
+  assert.deepEqual(w.keptStale, ["parked/content/xx/b.js.9.tmp"]);
 });
 
 test("write: a stale file is deleted only if it carries the GENERATED banner", () => {
@@ -517,4 +615,120 @@ test("main: a stale hand-written file makes build:data exit 1 after writing", ()
     error() {},
   });
   assert.equal(code, 1);
+});
+
+test("main: a failed rename or stale delete makes build:data exit 1 and say how many were replaced", () => {
+  const errors = [];
+  const code = build.main([], {
+    readSources: () => [src("xx.json", fixture("xx", 1))],
+    write: () => ({
+      written: ["a"], failed: ["b"], unchanged: [], deleted: [], keptStale: [],
+      errors: ["could not replace b (EBUSY); it was left as it was"],
+    }),
+    log() {},
+    error: (s) => errors.push(s),
+  });
+  assert.equal(code, 1);
+  assert.ok(errors.some((s) => s.includes("could not replace b")), errors.join("\n"));
+  assert.ok(errors.some((s) => s.includes("Replaced 1 of 2 changed files")), errors.join("\n"));
+});
+
+test("main: a failed stale delete alone exits 1 without a \"Replaced N of M\" line", () => {
+  const errors = [];
+  const code = build.main([], {
+    readSources: () => [src("xx.json", fixture("xx", 1))],
+    write: () => ({
+      written: ["a"], failed: [], unchanged: [], deleted: [], keptStale: [],
+      errors: ["could not delete the stale file c (EPERM)"],
+    }),
+    log() {},
+    error: (s) => errors.push(s),
+  });
+  assert.equal(code, 1);
+  assert.ok(errors.some((s) => s.includes("could not delete the stale file c")), errors.join("\n"));
+  assert.ok(!errors.some((s) => s.includes("Replaced")), errors.join("\n"));
+  assert.ok(errors.some((s) => s.includes("run: npm run build:data again")), errors.join("\n"));
+});
+
+test("main: --check reports an error reading the files instead of crashing", () => {
+  const errors = [];
+  const code = build.main(["--check"], {
+    readSources: () => [src("xx.json", fixture("xx", 1))],
+    check: () => { throw new Error("EACCES: permission denied"); },
+    log() {},
+    error: (s) => errors.push(s),
+  });
+  assert.equal(code, 1);
+  assert.ok(errors.some((s) => s.includes("could not compare the generated files (EACCES")), errors.join("\n"));
+});
+
+/* ------------------------------- 7. hostile text survives the build exactly */
+
+const FIXTURE_DIR = path.join(__dirname, "fixtures", "data-extra");
+const LS = String.fromCharCode(0x2028);
+const PS = String.fromCharCode(0x2029);
+
+test("escaping: <, U+2028 and U+2029 inside strings are written as escapes", () => {
+  const text = build.renderLesson("xx", {
+    slug: "a", title: "</script>" + LS + PS, rollup: true,
+    cards: [{ prompt: "<b>", answer: "a" + LS + "b", hint: "c" + PS, audio: "" }],
+  });
+  assert.ok(!text.includes("<"), "no raw < in the file");
+  assert.ok(!text.includes(LS) && !text.includes(PS), "no raw U+2028 / U+2029 in the file");
+  assert.ok(text.includes('title: "\\u003c/script>\\u2028\\u2029"'), text);
+  const back = runLesson(text);
+  assert.equal(back.lesson.title, "</script>" + LS + PS);
+  assert.deepEqual(back.lesson.cards, [{ prompt: "<b>", answer: "a" + LS + "b", hint: "c" + PS, audio: "" }]);
+});
+
+test("hostile-text fixture: every string round-trips exactly, and no file holds a raw <, U+2028 or U+2029", () => {
+  const docs = build.readSources(FIXTURE_DIR).map((s) => JSON.parse(s.text));
+  const all = JSON.stringify(docs);
+  // The fixture must really hold the hostile text, or this test proves nothing.
+  assert.ok(all.includes("</script><script>"), "fixture holds </script>");
+  assert.ok(docs.some((d) => JSON.stringify(d).includes(LS)), "fixture parses to a real U+2028");
+  assert.ok(docs.some((d) => JSON.stringify(d).includes(PS)), "fixture parses to a real U+2029");
+  // A real backslash, and the six characters \u003c as plain text (not a "<"):
+  // the escaping must neither double-escape nor un-escape either one.
+  const strings = docs.flatMap((d) => d.groups.flatMap((g) => g.lessons.flatMap((l) =>
+    (l.cards || []).flatMap((c) => [c.prompt, c.answer, c.hint].map(String)))));
+  assert.ok(strings.some((s) => s.includes("backslash \\ and")), "fixture holds a real backslash");
+  assert.ok(strings.some((s) => s.includes("\\u003c") && !s.includes("<")), "fixture holds the literal text \\u003c");
+
+  const r = build.generate(FIXTURE_DIR);
+  assert.deepEqual(r.errors, []);
+  for (const [rel, text] of Object.entries(r.files)) {
+    assert.ok(!text.includes("<"), `${rel}: no raw <`);
+    assert.ok(!text.includes(LS) && !text.includes(PS), `${rel}: no raw U+2028 / U+2029`);
+  }
+
+  let checked = 0;
+  for (const doc of docs) {
+    const byId = new Map();
+    for (const g of doc.groups) for (const l of g.lessons) for (const c of l.cards || []) byId.set(c.id, c);
+    for (const g of doc.groups) {
+      for (const l of g.lessons) {
+        const base = l.parked ? "parked/content" : "src/content";
+        const { lesson, index } = runLesson(r.files[`${base}/${doc.language.code}/${l.slug}.js`]);
+        assert.equal(lesson.title, l.title);
+        assert.equal(lesson.recallPrompt, l.recallPrompt);
+        assert.equal(index[0].title, l.title);
+        const want = (l.cards || l.cardRefs.map((id) => byId.get(id)))
+          .map((c) => ({ prompt: c.prompt, answer: c.answer, hint: c.hint, audio: c.audio || "" }));
+        assert.deepEqual(lesson.cards, want, `${doc.language.code}/${l.slug}: cards round-trip exactly`);
+        checked++;
+      }
+    }
+    // Language name and labels round-trip through languages.js too.
+    const w = {};
+    const sandbox = { window: w };
+    vm.createContext(sandbox);
+    vm.runInContext(r.files["src/content/languages.js"], sandbox);
+    const lang = structuredClone(w.LB_LANGUAGES).find((x) => x.code === doc.language.code);
+    assert.equal(lang.name, doc.language.name);
+    const liveLabels = doc.groups.flatMap((g) => g.lessons.filter((l) => !l.parked).map((l) => l.label));
+    assert.deepEqual(lang.groups.flatMap((g) => g.lessons.map((l) => l.label)), liveLabels);
+    assert.ok(lang.groups.some((g) => g.label.includes("<b>")), "a hostile group label round-trips");
+  }
+  assert.ok(checked >= 5, "every fixture lesson was checked");
 });

@@ -127,7 +127,9 @@ test("referrer: only a cross-site ORIGIN, never a path or query", () => {
 
 test("lesson id must be whitelisted (manifest) and well-formed", () => {
   const { C, images } = load(withCode("lbtest"), { manifest: true });
-  for (const bad of ["sq/lesson-5", "../../etc", "sq/lesson-1?x=1", "sq/<script>", "", null, 42, "zz/lesson-1"]) {
+  // "sq/no-such-lesson" is well-formed but never a lesson (LB-42: not a parked
+  // lesson id, so bringing a parked lesson back needs no edit here).
+  for (const bad of ["sq/no-such-lesson", "../../etc", "sq/lesson-1?x=1", "sq/<script>", "", null, 42, "zz/lesson-1"]) {
     assert.equal(C.ping(bad), false, String(bad));
   }
   assert.equal(images.length, 0);

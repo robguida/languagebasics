@@ -25,12 +25,15 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { loadLesson } = require("./helpers/load-lesson.js");
+const { loadData } = require("./helpers/load-data.js");
 
 // Number decks in scope. The alphabet decks (alphabet-*.js) were already
 // corrected to "Gyosht" under LB-18 and are intentionally out of scope here.
 // LB-34: lessons 5 and 6 are parked (parked/content/sq) but their notation is
 // still audited so the data is correct whenever they are brought back.
-const PARKED_FILES = new Set(["lesson-5.js", "lesson-6.js"]);
+// LB-42: which files are parked comes from data/sq.json ("parked": true), so
+// bringing a lesson back needs no edit here.
+const PARKED_FILES = new Set(loadData().parked.filter((l) => l.code === "sq").map((l) => l.file));
 const load = (file) => loadLesson(file, "sq", { parked: PARKED_FILES.has(file) });
 
 const LESSON_FILES = [

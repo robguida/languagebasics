@@ -19,7 +19,8 @@
  *   - a fixed 2-line GENERATED banner that holds no data text
  *   - the same key order the app has always used; rollup:false and
  *     recallPrompt appear only when set
- *   - every value written with JSON.stringify, one card per line
+ *   - every value written with JSON.stringify, one card per line; inside
+ *     strings, "<", U+2028 and U+2029 are written as escapes (same value)
  *   - LF line endings, UTF-8 with no BOM, a newline at the end, no timestamps
  *     and no paths
  *   - card ids, notes and retired ids stay in the JSON; they are never written
@@ -28,10 +29,12 @@
  * Error handling: every data file and every card is checked, and checking goes
  * on after an error so one run lists them all, each with its file and place
  * (e.g. data/sq.json groups[2].lessons[4].cards[3].hint). If any data file
- * fails, NOTHING is written and the exit code is 1. Writes go to temp files
- * first and are then renamed into place. A stale .js in an output folder is
- * deleted only if it starts with the GENERATED banner; any other stale file is
- * reported and left alone.
+ * fails, NOTHING is written and the exit code is 1. A file at a generated path
+ * that lacks the GENERATED banner is never overwritten (nothing is written).
+ * Writes go to temp files first and are then renamed into place; a rename that
+ * fails is reported, its temp removed, and the rest go on (exit 1). A stale .js
+ * or leftover .tmp in an output folder is deleted only if it starts with the
+ * GENERATED banner; any other stale file is reported and left alone.
  *
  * Node built-ins only.
  */
@@ -82,9 +85,17 @@ function isPositiveInt(v) {
   return Number.isInteger(v) && v > 0;
 }
 
+const BOM = String.fromCharCode(0xfeff);
+
 /** Turn CRLF into LF and drop a leading BOM, so a Windows checkout compares equal. */
 function normalize(text) {
-  return String(text).replace(/^﻿/, "").replace(/\r\n/g, "\n");
+  const s = String(text);
+  return (s.startsWith(BOM) ? s.slice(1) : s).replace(/\r\n/g, "\n");
+}
+
+/** True when a file's text starts with the GENERATED banner (CRLF/BOM tolerant). */
+function hasBanner(text) {
+  return normalize(text).startsWith(BANNER_LINE_1 + "\n");
 }
 
 /* --------------------------------------------------------------- validation */
@@ -292,7 +303,18 @@ function validateLanguage(where, fileCode, doc) {
 
 /* ---------------------------------------------------------------- rendering */
 
-const S = JSON.stringify;
+/* Every value is written with JSON.stringify, which is a valid JS literal. On
+ * top of that, three characters inside strings are written as \u escapes:
+ * "<" (so "</script>" can never close a script tag if a generated file is ever
+ * inlined into HTML) and the line/paragraph separators U+2028 and U+2029 (raw
+ * line terminators in older JS engines). The value read back is the same. No
+ * shipped string holds any of them today, so this changes no committed byte. */
+const UNSAFE_IN_SCRIPT = new RegExp("[<" + String.fromCharCode(0x2028, 0x2029) + "]", "g");
+
+function S(value) {
+  return JSON.stringify(value).replace(UNSAFE_IN_SCRIPT,
+    (ch) => "\\" + "u" + ch.charCodeAt(0).toString(16).padStart(4, "0"));
+}
 
 function renderLesson(code, lesson) {
   const id = code + "/" + lesson.slug;
@@ -365,12 +387,13 @@ function readSources(dataDir, fsImpl) {
 }
 
 /**
- * Pure core: turn data file texts into output files.
+ * Pure core, part 1: parse and check data file texts. The tests read the data
+ * through this same function, so they see exactly what the build sees.
  * @param {Array<{name: string, text?: string, readError?: string}>} sources
- * @returns {{ files: Object<string,string>, succeeded: number, failed: number, errors: string[] }}
- *   files maps a repo-relative path (forward slashes) to its full text.
+ * @returns {{ models: object[], succeeded: number, failed: number, errors: string[] }}
+ *   models are the languages that passed, sorted by language.order.
  */
-function generateFromSources(sources) {
+function parseSources(sources) {
   const errors = [];
   const results = []; // { name, where, model|null }
 
@@ -419,8 +442,20 @@ function generateFromSources(sources) {
 
   const good = results.filter((r) => r.model);
   const failed = results.length - good.length;
-  const files = {};
   const models = good.map((r) => r.model).sort((a, b) => a.order - b.order);
+  if (results.length === 0) errors.push("data/: no *.json data files found");
+  return { models, succeeded: good.length, failed, errors };
+}
+
+/**
+ * Pure core, part 2: turn data file texts into output files.
+ * @param {Array<{name: string, text?: string, readError?: string}>} sources
+ * @returns {{ files: Object<string,string>, succeeded: number, failed: number, errors: string[] }}
+ *   files maps a repo-relative path (forward slashes) to its full text.
+ */
+function generateFromSources(sources) {
+  const { models, succeeded, failed, errors } = parseSources(sources);
+  const files = {};
   for (const m of models) {
     for (const g of m.groups) {
       for (const l of g.lessons) {
@@ -430,9 +465,8 @@ function generateFromSources(sources) {
     }
   }
   if (failed === 0 && models.length > 0) files[MANIFEST_FILE] = renderManifest(models);
-  if (results.length === 0) errors.push("data/: no *.json data files found");
 
-  return { files, succeeded: good.length, failed, errors };
+  return { files, succeeded, failed, errors };
 }
 
 /** Read data/*.json from disk and generate. */
@@ -440,19 +474,30 @@ function generate(dataDir, fsImpl) {
   return generateFromSources(readSources(dataDir || DATA_DIR, fsImpl));
 }
 
+/** Read data/*.json from disk and parse (no output files). */
+function parse(dataDir, fsImpl) {
+  return parseSources(readSources(dataDir || DATA_DIR, fsImpl));
+}
+
 /* ------------------------------------------------------- comparing / writing */
 
-/** Every .js file in the output folders (each root and its sub-folders). */
-function listOutputJs(root, f) {
+/** A file the output folders may hold: a lesson .js, or a leftover temp file. */
+function isOutputName(name) {
+  return name.endsWith(".js") || name.endsWith(".tmp");
+}
+
+/** Every .js and .tmp file in the output folders (each root and its sub-folders).
+ *  A .tmp is never generated, so it always shows up as stale. */
+function listOutputFiles(root, f) {
   const out = [];
   for (const rel of OUTPUT_ROOTS) {
     const dir = path.join(root, rel);
     if (!f.existsSync(dir)) continue;
     for (const ent of f.readdirSync(dir, { withFileTypes: true })) {
-      if (ent.isFile() && ent.name.endsWith(".js")) out.push(`${rel}/${ent.name}`);
+      if (ent.isFile() && isOutputName(ent.name)) out.push(`${rel}/${ent.name}`);
       if (ent.isDirectory()) {
         for (const sub of f.readdirSync(path.join(dir, ent.name), { withFileTypes: true })) {
-          if (sub.isFile() && sub.name.endsWith(".js")) out.push(`${rel}/${ent.name}/${sub.name}`);
+          if (sub.isFile() && isOutputName(sub.name)) out.push(`${rel}/${ent.name}/${sub.name}`);
         }
       }
     }
@@ -479,16 +524,22 @@ function check(files, root, fsImpl) {
     if (now === null) missing.push(rel);
     else if (normalize(now) !== files[rel]) differs.push(rel);
   }
-  const stale = listOutputJs(r, f).filter((rel) => !Object.prototype.hasOwnProperty.call(files, rel));
+  const stale = listOutputFiles(r, f).filter((rel) => !Object.prototype.hasOwnProperty.call(files, rel));
   return { differs, missing, stale };
 }
 
 /**
- * Write the generated files. Unchanged files are left alone. All changed files
- * go to temp files first; if any temp write fails, the temps are removed, the
- * originals are untouched, and the error is thrown. Then every temp is renamed
- * into place. Stale .js files are deleted only if they carry the banner.
- * @returns {{ written: string[], unchanged: string[], deleted: string[], keptStale: string[] }}
+ * Write the generated files. Unchanged files are left alone.
+ *   1. A file already at a generated path that does NOT carry the banner is
+ *      never replaced: the whole write is refused (thrown), nothing changes.
+ *   2. All changed files go to temp files first; if any temp write fails, the
+ *      temps are removed, the originals are untouched, and the error is thrown.
+ *   3. Every temp is renamed into place. A rename that fails is reported, its
+ *      temp is removed, and the rest still go on (errors + failed list it).
+ *   4. Stale .js / .tmp files are deleted only if they carry the banner; a
+ *      delete that fails is reported and the rest still go on.
+ * @returns {{ written: string[], failed: string[], unchanged: string[],
+ *   deleted: string[], keptStale: string[], errors: string[] }}
  */
 function write(files, root, fsImpl) {
   const f = fsImpl || fs;
@@ -497,6 +548,22 @@ function write(files, root, fsImpl) {
   const changed = [...missing, ...differs].sort();
   const unchanged = Object.keys(files).filter((rel) => !changed.includes(rel)).sort();
 
+  // 1. Never overwrite a file this script did not write. Every one is checked
+  //    (one unreadable file does not stop the rest) before anything is touched.
+  const refused = [];
+  for (const rel of differs) {
+    try {
+      if (!hasBanner(f.readFileSync(path.join(r, rel), "utf8"))) refused.push(rel);
+    } catch (e) {
+      refused.push(`${rel} (${e.message})`);
+    }
+  }
+  if (refused.length) {
+    throw new Error("nothing was changed: these files sit where generated files go but have no GENERATED banner, " +
+      `so they are not overwritten: ${refused.join(", ")}. Move or delete them by hand, then run npm run build:data again`);
+  }
+
+  // 2. Temp files first.
   const temps = [];
   try {
     for (const rel of changed) {
@@ -504,7 +571,7 @@ function write(files, root, fsImpl) {
       f.mkdirSync(path.dirname(full), { recursive: true });
       const tmp = `${full}.${process.pid}.tmp`;
       f.writeFileSync(tmp, files[rel], "utf8");
-      temps.push({ tmp, full });
+      temps.push({ rel, tmp, full });
     }
   } catch (e) {
     for (const t of temps) {
@@ -512,21 +579,44 @@ function write(files, root, fsImpl) {
     }
     throw new Error(`could not write a temp file, nothing was changed (${e.message})`);
   }
-  for (const t of temps) f.renameSync(t.tmp, t.full);
 
+  // 3. Rename into place. Continue on error: one locked file must not leave
+  //    the remaining temps behind or the remaining files unreplaced.
+  const errors = [];
+  const written = [];
+  const failed = [];
+  for (const t of temps) {
+    try {
+      f.renameSync(t.tmp, t.full);
+      written.push(t.rel);
+    } catch (e) {
+      failed.push(t.rel);
+      errors.push(`could not replace ${t.rel} (${e.message}); it was left as it was`);
+      try {
+        f.unlinkSync(t.tmp);
+      } catch (e2) {
+        errors.push(`could not remove the temp file for ${t.rel} (${e2.message}); delete it by hand`);
+      }
+    }
+  }
+
+  // 4. Stale files. Continue on error.
   const deleted = [];
   const keptStale = [];
   for (const rel of stale) {
     const full = path.join(r, rel);
-    const text = normalize(f.readFileSync(full, "utf8"));
-    if (text.startsWith(BANNER_LINE_1 + "\n")) {
-      f.unlinkSync(full);
-      deleted.push(rel);
-    } else {
-      keptStale.push(rel);
+    try {
+      if (hasBanner(f.readFileSync(full, "utf8"))) {
+        f.unlinkSync(full);
+        deleted.push(rel);
+      } else {
+        keptStale.push(rel);
+      }
+    } catch (e) {
+      errors.push(`could not delete the stale file ${rel} (${e.message})`);
     }
   }
-  return { written: changed, unchanged, deleted, keptStale };
+  return { written, failed, unchanged, deleted, keptStale, errors };
 }
 
 /* --------------------------------------------------------------------- CLI */
@@ -571,7 +661,14 @@ function main(argv, deps) {
   }
 
   if (checkOnly) {
-    const c = d.check(result.files, d.root);
+    let c;
+    try {
+      c = d.check(result.files, d.root);
+    } catch (e) {
+      d.error(`  ERROR could not compare the generated files (${e.message})`);
+      d.error("check:data FAILED.");
+      return 1;
+    }
     const total = Object.keys(result.files).length;
     for (const rel of c.differs) d.error("  DIFFERS " + rel);
     for (const rel of c.missing) d.error("  MISSING " + rel);
@@ -594,17 +691,32 @@ function main(argv, deps) {
   d.log(`build:data: ${w.written.length} written, ${w.unchanged.length} unchanged, ${w.deleted.length} stale deleted.`);
   for (const rel of w.written) d.log("  wrote   " + rel);
   for (const rel of w.deleted) d.log("  deleted " + rel);
+  let code = 0;
+  const writeErrors = w.errors || [];
+  if (writeErrors.length) {
+    for (const e of writeErrors) d.error("  ERROR " + e);
+    const failedCount = (w.failed || []).length;
+    // The count only means something when a replace failed; a failed stale
+    // delete alone leaves every changed file replaced.
+    if (failedCount > 0) {
+      d.error(`Replaced ${w.written.length} of ${w.written.length + failedCount} changed files.`);
+    }
+    d.error("Fix the cause, then run: npm run build:data again");
+    code = 1;
+  }
   if (w.keptStale.length) {
     for (const rel of w.keptStale) d.error("  STALE (not generated, left alone) " + rel);
     d.error("Some stale files are not generated files, so they were not deleted. Move or delete them by hand.");
-    return 1;
+    code = 1;
   }
-  return 0;
+  return code;
 }
 
 module.exports = {
   generate,
   generateFromSources,
+  parse,
+  parseSources,
   readSources,
   validateLanguage,
   renderLesson,
