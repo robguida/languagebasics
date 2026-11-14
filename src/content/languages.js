@@ -1,39 +1,5 @@
-/* LanguageBasics — language + lesson MANIFEST (LB-23).
- *
- * Vanilla JS, no build step, no fetch, file:// safe. Loaded as a plain <script>
- * global BEFORE the picker bootstrap in index.html and before engine.js.
- *
- * SINGLE SOURCE OF TRUTH for lesson wiring. Before LB-23 the same lesson list
- * lived in THREE hand-maintained spots in index.html — the <optgroup> markup,
- * the ALLOWED whitelist, and the LESSON_COUNTS map — plus a hidden FOURTH: the
- * "rollup:false" decks were only described in code comments. This manifest
- * consolidates all of it. Each lesson entry carries its picker group, display
- * label, card count, and an EXPLICIT rollup flag. index.html derives the
- * whitelist, default lesson, and per-lesson counts from here; manifest.js
- * renders the picker from here.
- *
- * SELF-REGISTRATION: each language pushes itself onto window.LB_LANGUAGES — the
- * SAME pattern the lesson data files use for window.LB_LESSONS. Adding a
- * language is a new content/<lang>/ tree plus one push here; no engine change,
- * and the language <select> appears automatically once a 2nd language registers.
- *
- * rollup: true  => the deck COUNTS toward the "X of N lessons mastered" rollup.
- * rollup: false => EXCLUDED from that rollup (non-number or already-counted
- *                  decks: the combined alphabet deck, every words deck, every
- *                  phrases deck). This MUST match the rollup flag each data file
- *                  puts on its window.LB_LESSONS push — the manifest-integrity
- *                  test cross-checks the two so they can never drift.
- *
- * LB-34: the number decks "Lesson 5 — Big Number Roots" and "Lesson 6 — Number
- * Builder" are PARKED for all four languages: removed from this manifest (so
- * they are not in the picker, whitelist or rollup counts) and their data files
- * moved to parked/content/<lang>/ at the repo root (never deployed). To bring
- * them back: move the file back to src/content/<lang>/ and re-add its row here.
- *
- * Lesson IDs / ?lesson= values here are BYTE-IDENTICAL to the shipped ids:
- * localStorage mastery / Leitner / streak state is keyed on them, so they never
- * change during this refactor.
- */
+/* GENERATED FILE - DO NOT EDIT. Built by scripts/build-data.js from data/*.json.
+ * To change it, edit the JSON file and run: npm run build:data */
 (function () {
   "use strict";
 
@@ -42,7 +8,6 @@
   window.LB_LANGUAGES.push({
     code: "sq",
     name: "Albanian",
-    // Default lesson when no (valid) ?lesson= is present.
     defaultLesson: "sq/lesson-1",
     groups: [
       {
@@ -60,15 +25,10 @@
           { id: "sq/alphabet-vowels", label: "Lesson 1 — Vowels", count: 7, rollup: true },
           { id: "sq/alphabet-consonants", label: "Lesson 2 — Consonants", count: 20, rollup: true },
           { id: "sq/alphabet-digraphs", label: "Lesson 3 — Digraphs", count: 9, rollup: true },
-          // Combined 36-letter deck: already counted via the 3 group decks, so
-          // it is rollup-excluded (would otherwise double-count the denominator).
           { id: "sq/alphabet-all", label: "Lesson 4 — Full set (36)", count: 36, rollup: false }
         ]
       },
       {
-        // Each topic's single-word deck (words-N) is interleaved BEFORE its
-        // phrase deck (phrases-N). Per-group "Lesson N" labels restart at 1 and
-        // are DISPLAY-ONLY; the ids are the shipped values, unchanged.
         label: "Words & Phrases",
         lessons: [
           { id: "sq/words-1", label: "Lesson 1 — Hello: Words", count: 9, rollup: false },
@@ -86,15 +46,9 @@
     ]
   });
 
-  // LB-25: Spanish (es) — the 2nd language. A full 6-lesson number deck applied
-  // verbatim from the Spanish linguistics dataset review. Same number RANGES and
-  // card counts as the Albanian number decks (11/9/8/80/56/6), all rollup:true.
-  // Registering a 2nd language auto-reveals the language <select>
-  // (shouldShowLanguageDropdown flips true at 2 languages). No engine change.
   window.LB_LANGUAGES.push({
     code: "es",
     name: "Spanish",
-    // Default lesson when no (valid) ?lesson= is present for this language.
     defaultLesson: "es/lesson-1",
     groups: [
       {
@@ -107,11 +61,6 @@
         ]
       },
       {
-        // LB-31: Spanish Alphabet — mirrors the sq Alphabet group. The 3 discrete
-        // decks (vowels/consonants/digraphs) are rollup:true and ADD to the es
-        // per-language mastery denominator (6 numbers -> 9). The combined 30-letter
-        // "Full set" deck is rollup:false — already counted via the 3 group decks,
-        // so counting it would double-count the denominator.
         label: "Alphabet",
         lessons: [
           { id: "es/alphabet-vowels", label: "Lesson 1 — Vowels", count: 5, rollup: true },
@@ -121,12 +70,6 @@
         ]
       },
       {
-        // LB-29: Spanish Words & Phrases — mirrors the sq/ja group. Each topic's
-        // single-word deck (words-N) is interleaved BEFORE its phrase deck
-        // (phrases-N). Per-group "Lesson N" labels restart at 1 and are
-        // DISPLAY-ONLY; the ids are the shipped values. All rollup:false.
-        // Help: Words is the dataset's 17 minus one dropped silent-punctuation
-        // card = 16 (a say-it-aloud card can't be a spoken-less ¿ ¡ mark).
         label: "Words & Phrases",
         lessons: [
           { id: "es/words-1", label: "Lesson 1 — Hello: Words", count: 11, rollup: false },
@@ -144,15 +87,9 @@
     ]
   });
 
-  // LB-24: Japanese (ja) — the 3rd language. A full 6-lesson number deck applied
-  // verbatim from the Japanese linguistics dataset review. Sino-Japanese (on'yomi)
-  // counting; big numbers grouped by MYRIAD (万/億/兆), not Western thousands. Same
-  // number RANGES and card counts as the sq/es number decks (11/9/8/80/56/6), all
-  // rollup:true. No engine change.
   window.LB_LANGUAGES.push({
     code: "ja",
     name: "Japanese",
-    // Default lesson when no (valid) ?lesson= is present for this language.
     defaultLesson: "ja/lesson-1",
     groups: [
       {
@@ -165,12 +102,6 @@
         ]
       },
       {
-        // LB-32: Japanese "Alphabet" (kana) — the two syllabic scripts, base
-        // gojuon only. All 4 discrete script decks are rollup:true and ADD to the
-        // ja per-language mastery denominator (6 numbers -> 10). Unlike sq/es,
-        // there is NO combined full-set kana deck, so every deck here is discrete
-        // and rollup-counted (standardizing on rollup:true for discrete alphabet
-        // decks across all languages). prompt = kana char, answer = the sound.
         label: "Alphabet",
         lessons: [
           { id: "ja/alphabet-hiragana-1", label: "Lesson 1 — Hiragana (Part 1)", count: 25, rollup: true },
@@ -180,10 +111,6 @@
         ]
       },
       {
-        // LB-28: Japanese Words & Phrases — mirrors the sq group. Each topic's
-        // single-word deck (words-N) is interleaved BEFORE its phrase deck
-        // (phrases-N). Per-group "Lesson N" labels restart at 1 and are
-        // DISPLAY-ONLY; the ids are the shipped values. All rollup:false.
         label: "Words & Phrases",
         lessons: [
           { id: "ja/words-1", label: "Lesson 1 — Hello: Words", count: 9, rollup: false },
@@ -201,16 +128,9 @@
     ]
   });
 
-  // LB-26: Bengali (bn) — the 4th language. A full 6-lesson number deck applied
-  // verbatim from the Bengali linguistics dataset review. Standard Bangladeshi
-  // Bengali; ANSWER stacks native Bangla script | romanization via " | "; big
-  // numbers use the authentic South Asian lakh/koti system (no Western "million").
-  // 1–99 are all irregular hand-authored words. Same number RANGES and card counts
-  // as the sq/es/ja number decks (11/9/8/80/56/6), all rollup:true. No engine change.
   window.LB_LANGUAGES.push({
     code: "bn",
     name: "Bengali",
-    // Default lesson when no (valid) ?lesson= is present for this language.
     defaultLesson: "bn/lesson-1",
     groups: [
       {
@@ -223,12 +143,6 @@
         ]
       },
       {
-        // LB-33: Bengali "Alphabet" (script) — the traditional varnamala base
-        // letters + signs, taught across 4 progressive decks. All 4 are
-        // rollup:true and ADD to the bn per-language mastery denominator (6
-        // numbers -> 10). Like ja, there is NO combined full-set deck, so every
-        // deck here is discrete and rollup-counted. prompt = Bengali char,
-        // answer = the sound (inherent-vowel form, e.g. "Kô (k)" for consonants).
         label: "Alphabet",
         lessons: [
           { id: "bn/alphabet-vowels", label: "Lesson 1 — Vowels", count: 11, rollup: true },
@@ -238,12 +152,6 @@
         ]
       },
       {
-        // LB-30: Bengali Words & Phrases — mirrors the sq/es/ja group. Each
-        // topic's single-word deck (words-N) is interleaved BEFORE its phrase
-        // deck (phrases-N). Per-group "Lesson N" labels restart at 1 and are
-        // DISPLAY-ONLY; the ids are the shipped values. All rollup:false. ANSWER
-        // stacks native Bangla script | romanization via " | " (apni register,
-        // Standard Bangladeshi Bengali). Last language of the phrases phase.
         label: "Words & Phrases",
         lessons: [
           { id: "bn/words-1", label: "Lesson 1 — Hello: Words", count: 9, rollup: false },
