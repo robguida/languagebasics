@@ -22,7 +22,8 @@ LanguageBasics is a hobby **language flashcard web app**. RandBMedia-owned (Rob'
 
 ## Stack
 
-- **Vanilla JavaScript. No build step. No framework. No runtime dependencies.**
+- **Vanilla JavaScript. No deploy-time build. No framework. No runtime dependencies.**
+- Lesson data lives in **`data/<code>.json`** (one file per language). The lesson files under `src/content/` and `parked/content/` and `src/content/languages.js` are **generated** from it by `npm run build:data` and **committed**, so a deploy just uploads `src/` as before (LB-41).
 - Served as **static files**. Works on `file://` (double-click `index.html` and it runs) and over HTTP identically.
 - No backend, no server-side rendering, no fetch — lesson data loads as plain `<script>` globals.
 
@@ -46,20 +47,26 @@ src/
   counter.js              # LB-36: page counter (ships dark, see "Page counter")
   hint.js                 # hint rotation
   styles.css              # all styling
-  content/
-    languages.js          # the manifest: every language + lesson (id, count, rollup)
-    sq/ es/ ja/ bn/       # per-language lesson data (window.LB_LESSON):
+  content/                # GENERATED from data/*.json — do not hand-edit
+    languages.js          # GENERATED manifest: every language + live lesson (id, count, rollup)
+    sq/ es/ ja/ bn/       # GENERATED per-language lesson files (window.LB_LESSON):
                           #   lesson-1..4, alphabet-*, words-1..5, phrases-1..5
-parked/                   # LB-34 parked lessons — NOT served, never deploys
+data/                     # LB-41: lesson data, one JSON file per language — edit HERE. NOT served
+  sq.json es.json ja.json bn.json
+scripts/                  # dev tools, NOT served
+  build-data.js           # data/*.json -> src/content + parked/content (build:data / check:data)
+  convert-js-to-json.js   # LB-41 one-off: old .js -> JSON + --verify proof (deleted in LB-42)
+parked/                   # LB-34 parked lessons — GENERATED, NOT served, never deploys
   content/<lang>/lesson-5.js, lesson-6.js
 test/                     # node --test suite (NOT served)
   schema.test.js          # per-lesson schema + card-count checks (incl. parked)
+  build-data.test.js      # LB-41: generated files match the JSON; validator rules
   lb34-testing-flag.test.js  # testing flag + parked-lesson checks
   ...                     # engine, manifest, game, progress, streak, counter,
                           # test-mode, score-integration, etc.
   helpers/load-lesson.js  # vm sandbox loader (src/content or parked/content)
 docs/                     # concept/source files, NOT served (see Docs)
-package.json              # name, test script — no deps
+package.json              # name, test / build:data / check:data scripts — no deps
 ```
 
 ### Score mode (LB-36) — built and ON
@@ -91,12 +98,12 @@ package.json              # name, test script — no deps
 
 ### Parked lessons (LB-34)
 
-- Number lessons 5 and 6 (all 4 languages) live in `parked/content/<lang>/`, outside `src/`, so they never deploy. They are out of `content/languages.js`, so they are not in the picker, the `?lesson=` whitelist or the "N of M known" counts.
+- Number lessons 5 and 6 (all 4 languages) are marked `"parked": true` in `data/<code>.json` (kept in their group, so they come back in the same place). The build writes them to `parked/content/<lang>/`, outside `src/`, so they never deploy. They are left out of `content/languages.js`, so they are not in the picker, the `?lesson=` whitelist or the "N of M known" counts.
 - The tests still run the full schema checks on them, so they stay valid.
 - **To bring one back:**
-  1. Move the file back into `src/content/<lang>/`.
-  2. Re-add its row (with its `count`) in `src/content/languages.js`.
-  3. In `test/schema.test.js`, `PARKED` is built by a **loop** over the four languages. Add a **literal row** for the lesson to `EXPECTED`, and change the loop so it stops generating that lesson.
+  1. Set `"parked": false` on the lesson in `data/<code>.json`.
+  2. Run `npm run build:data` (it moves the file to `src/content/<lang>/` and adds its row, with its count, to `languages.js`).
+  3. Until LB-42 makes the tests read the data, also do the test edits below. In `test/schema.test.js`, `PARKED` is built by a **loop** over the four languages. Add a **literal row** for the lesson to `EXPECTED`, and change the loop so it stops generating that lesson.
   4. Update the tests that expect it parked: `test/count-parity.test.js` (lesson total, 72), `test/manifest.test.js` (lessons per group, lesson total 72, and the "ids byte-identical" test, whose locked id list must now include the lesson), `test/notation-audit.test.js` (parked file list) and `test/lb34-testing-flag.test.js` (parked-lesson checks).
 
 ### How a lesson loads (no fetch, file:// safe)
@@ -105,9 +112,9 @@ package.json              # name, test script — no deps
 
 ### Adding a language
 
-`sq` is the Albanian namespace. A new language is new data files under `src/content/<lang>/` plus one entry in `src/content/languages.js` — **no engine change and no edit to `index.html`**. The picker, the `?lesson=` whitelist, the default lesson and the card counts all come from that file. The engine is language-agnostic.
+`sq` is the Albanian namespace. A new language is **one new file, `data/<code>.json`**, then `npm run build:data` — **no engine change and no edit to `index.html`**. The build writes its lesson files and its entry in `src/content/languages.js`; the picker, the `?lesson=` whitelist, the default lesson and the card counts all come from that file. `language.order` sets where it sits in the language list. The engine is language-agnostic.
 
-Then update the tests that count languages and lessons:
+Until LB-42 makes the tests read the data, also update the tests that count languages and lessons:
 - `test/manifest.test.js` — language count (4), lessons per group, lesson total (72), the language option list, and the "ids byte-identical" id list.
 - `test/count-parity.test.js` — lesson total (72).
 - `test/schema.test.js` — add the language's rows to `EXPECTED`, and add the language to the `PARKED` loop if it has parked lessons.
@@ -117,7 +124,27 @@ Then update the tests that count languages and lessons:
 
 ## Card-data schema
 
-Each lesson file assigns one global and pushes one registry entry:
+**Edits happen in `data/<code>.json`, never in the generated `.js` files.** One JSON file per language:
+
+```json
+{ "format": "languagebasics-lessons", "formatVersion": 1,
+  "language": { "code": "sq", "name": "Albanian", "order": 1, "defaultLesson": "lesson-1" },
+  "notes": [], "retiredCardIds": [],
+  "groups": [ { "label": "Numbers", "notes": [], "lessons": [
+    { "slug": "lesson-1", "label": "Lesson 1 — 0–10", "title": "Albanian Tosk Numbers: 0–10",
+      "revealMs": 5000, "rollup": true, "notes": ["..."],
+      "cards": [ { "id": "lesson-1.001", "prompt": 0, "answer": "zero", "hint": "Zeh rō" } ] } ] } ] }
+```
+
+- Lesson id = `code/slug`; the output file is `<slug>.js`. The picker count is the number of cards.
+- `code` must match `^[a-z][a-z0-9]{1,7}$` and equal the file name; `slug` must match `^[a-z0-9]+(-[a-z0-9]+)*$` and be unique in the file. They are strict because the lesson id is written into a script tag. Unknown keys fail (catches typos).
+- `order` is a unique positive number and sets the language order. `defaultLesson` must be a live (not parked) lesson. `rollup` is required (true/false). `revealMs`, `recallPrompt`, `parked` and `notes` are optional.
+- Each lesson has exactly one of `cards` or `cardRefs`. The combined alphabet decks (`alphabet-all`) use `cardRefs`: a list of card ids from the other alphabet decks, so their cards are never copied.
+- **Card `id`** (JSON only, never written to `src/`): `<slug>.<NNN>`, NNN = the card's place when the data was converted, padded to 3 digits. It is never taken from the card text and is frozen: rewording or moving a card keeps its id. A new card gets the highest NNN used for that slug (counting retired ids) + 1. A deleted card's id goes into `retiredCardIds` and is never reused.
+- `notes` hold the comments that used to sit in the `.js` files. They are never written to `src/`.
+- After editing, run `npm run build:data`. If any data file has an error, the build lists every error with its file and place and writes nothing.
+
+Each generated lesson file assigns one global and pushes one registry entry:
 
 ```js
 window.LB_LESSON = {
@@ -140,7 +167,8 @@ window.LB_LESSON = {
 | `prompt` | string\|number | yes      | the number shown first |
 | `answer` | string         | yes      | the target-language word(s); `" \| "` splits into stacked lines |
 | `hint`   | string         | optional* | pronunciation (plain-English syllables) |
-| `audio`  | string         | optional  | reserved future slot; currently `""` |
+| `audio`  | string         | optional  | reserved future slot; currently `""`. May be left out of the JSON (written as `""`) |
+| `id`     | string         | yes (JSON only) | stable card id; never written to the `.js` files |
 | `recallPrompt` | string   | optional  | reserved: the engine accepts it but never shows it today |
 
 \* The engine treats `hint`/`audio` as optional, but the **current dataset fills `hint` on every card** and the schema test enforces non-empty hints app-wide (including the parked lessons).
@@ -153,17 +181,23 @@ window.LB_LESSON = {
 
 ```bash
 npm test          # runs: node --test  (Node built-in runner, no deps)
+npm run check:data   # the generated files match data/*.json (writes nothing)
+npm run build:data   # regenerate after editing data/ — then commit the JSON AND the generated files
 ```
+
+- **Run `npm run build:data` after every edit in `data/`.** `npm test` includes the same check (`test/build-data.test.js`), so a stale generated file fails the tests.
 
 - Tests live in `test/` and load the real `src/` files (engine + lesson data) inside a `node:vm` sandbox with a minimal `window`/DOM shim — Node built-ins only (`node:test`, `node:assert`, `node:fs`, `node:vm`, `node:path`).
 - Coverage: per-lesson schema + exact card counts, the reveal/next toggle state machine, loop-resilience (one bad card is skipped, never aborts the deck), score mode (ratings, the 500 ms lock, results, practice rounds, personal best), progress, streak, prefs, store and the page counter.
-- **Card-count source of truth** is `EXPECTED` (live lessons) and `PARKED` (parked lessons 5 and 6) in `test/schema.test.js`. If you change a lesson's card count, update that map **and** the lesson's `count` in `src/content/languages.js`, or the tests fail.
+- **Card counts:** the cards in `data/<code>.json` are the truth; `npm run build:data` writes each lesson's `count` into `languages.js`. Until LB-42, the tests still keep their own copy in `EXPECTED` (live lessons) and `PARKED` (parked lessons 5 and 6) in `test/schema.test.js`. If you change a lesson's card count, edit the JSON, rebuild, **and** update that map, or the tests fail.
 
 ---
 
 ## How to deploy
 
-**Only the contents of `src/` ship to the live site.** `parked/`, `test/`, `docs/` and `package.json` never ship.
+**Only the contents of `src/` ship to the live site.** `data/`, `scripts/`, `parked/`, `test/`, `docs/` and `package.json` never ship.
+
+Before upload, run `npm test` and `npm run check:data` on the **exact** commit being deployed. Both must pass.
 
 Live address: `https://bengusa.pro/languagebasics/`.
 
@@ -196,6 +230,7 @@ No backend, no server-side build. Static files only.
 ### Language correctness (Albanian)
 - Phonetics use **Rob's own plain-English-syllable notation** (e.g. `Nyuh`, `Jyosht`), **Tosk dialect only**.
 - The Albanian-language truth (spellings, forms, pronunciations) is **owned by the linguistics advisor**. Engineers **apply** the dataset — they do **not** invent or alter Albanian forms. Dataset changes flow from the linguistics review, not from code.
+- The linguist (any language) edits **`data/<code>.json`**; then `npm run build:data` writes the app files.
 
 ### Loop resilience
 - Per-item loops (e.g. the engine's deck builder) **skip a bad item and continue** — one malformed card never aborts the deck. New/modified loops follow continue-on-error; see `loop-resilience.test.js`.
