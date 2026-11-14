@@ -35,6 +35,7 @@ Served files live under **`src/`** — only `src/` reaches the live site (see De
 ```
 src/
   index.html              # the single shell: lesson picker + card UI + bootstrap
+  privacy.html            # LB-39: static privacy note (no script), linked from the study screen + Settings
   features.js             # LB-34 feature flags (window.LB_FEATURES) — loads first
   engine.js               # shared flashcard engine (window.LBEngine)
   manifest.js             # picker / whitelist / count helpers over the manifest
