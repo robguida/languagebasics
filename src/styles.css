@@ -83,6 +83,7 @@ h1 { font-size: 1.25rem; font-weight: 700; margin: 0 0 14px; }
   color: var(--text);
   font-weight: 600;
   cursor: pointer;
+  max-width: 100%; /* LB-39: long option text must not widen the page at 320px */
 }
 
 .card {
