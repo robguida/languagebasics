@@ -256,4 +256,14 @@ test("styles.css: .privacy-link-modal hover/focus colour is set and is not white
     const col = m[2].match(/(?:^|;|\s)color\s*:\s*([^;]+)/)[1].trim().toLowerCase();
     assert.ok(!/^(#fff|#ffffff|white)$/.test(col), "hover/focus colour must not be white, got " + col);
   }
+  // Same specificity as the page-level white .privacy-link:hover, so the modal
+  // rule only wins if it comes LATER in the file. Moving it above brings the
+  // invisible white link back.
+  const pageHover = css.lastIndexOf(".privacy-link:hover");
+  assert.ok(pageHover > -1, "the page-level .privacy-link:hover rule exists");
+  const modalHover = rules.filter((m) => /\.privacy-link-modal:hover/.test(m[1]));
+  assert.ok(modalHover.length >= 1, "a .privacy-link-modal:hover rule sets a colour");
+  for (const m of modalHover) {
+    assert.ok(m.index > pageHover, ".privacy-link-modal:hover must come after .privacy-link:hover in styles.css");
+  }
 });

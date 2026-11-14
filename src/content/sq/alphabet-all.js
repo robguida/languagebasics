@@ -1,13 +1,5 @@
-/* sq / alphabet-all — Albanian Tosk Basics: Full Alphabet (36 letters)
- *
- * GENERATED, DO NOT HAND-EDIT. This file is the canonical-order union of the
- * three LB-18 group decks (alphabet-vowels, alphabet-consonants,
- * alphabet-digraphs). Regenerate with scratchpad/gen-alphabet-all.js whenever a
- * group deck changes; test/alphabet-combined.test.js enforces it stays in sync.
- *
- * ROLLUP SKIP: this combined deck carries rollup:false on its LB_LESSONS entry
- * so the "X of N lessons mastered" readout COUNTS it in neither numerator nor
- * denominator (its cards already count once via the 3 group decks). */
+/* GENERATED FILE - DO NOT EDIT. Built by scripts/build-data.js from data/*.json.
+ * To change it, edit the JSON file and run: npm run build:data */
 window.LB_LESSON = {
   id: "sq/alphabet-all",
   title: "Albanian Tosk Basics: Full Alphabet",

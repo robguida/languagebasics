@@ -1,18 +1,5 @@
-/* es / alphabet-all — Spanish Alphabet: Full Set (30 letters)
- *
- * LB-31 alphabet section. The canonical-order union of the three group decks
- * (alphabet-vowels, alphabet-consonants, alphabet-digraphs): all 27 letters of
- * the modern Spanish alphabet + the 3 digraphs (ch, ll, rr), each placed after
- * its base letter's neighborhood as a learner meets it. Cards are byte-identical
- * to their group-deck source.
- *
- * ROLLUP SKIP: this combined deck carries rollup:false on its LB_LESSONS entry
- * so the "X of N lessons mastered" readout COUNTS it in neither numerator nor
- * denominator (its cards already count once via the 3 group decks).
- *
- * Spanish forms + phonetics are owned by the Spanish linguistics dataset review
- * and applied VERBATIM here — engineers do not invent or alter them.
- * Dialect: Latin American, seseo. */
+/* GENERATED FILE - DO NOT EDIT. Built by scripts/build-data.js from data/*.json.
+ * To change it, edit the JSON file and run: npm run build:data */
 window.LB_LESSON = {
   id: "es/alphabet-all",
   title: "Spanish Alphabet: Full Set",

@@ -2,8 +2,10 @@
   "name": "languagebasics",
   "version": "0.0.0",
   "private": true,
-  "description": "Static Albanian-numbers flashcard app. No build, no deps. Tests use Node's built-in test runner only.",
+  "description": "Static language flashcard app. Lesson data lives in data/*.json; npm run build:data writes the committed src/content files (no deploy-time build, no deps). Tests use Node's built-in test runner only.",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "build:data": "node scripts/build-data.js",
+    "check:data": "node scripts/build-data.js --check"
   }
 }
