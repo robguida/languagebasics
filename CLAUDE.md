@@ -199,8 +199,8 @@ No backend, no server-side build. Static files only.
 ### Loop resilience
 - Per-item loops (e.g. the engine's deck builder) **skip a bad item and continue** — one malformed card never aborts the deck. New/modified loops follow continue-on-error; see `loop-resilience.test.js`.
 
-### Owner accessibility convention
-- Rob (project owner) has **ADHD + dyslexia**. Any user-facing copy and any response/summary should **lead with the answer** and **stay concise** — short sentences, scannable structure, no preamble. Treat this as a real project convention.
+### User-facing copy
+- Lead with the answer. Short sentences, scannable structure.
 
 ---
 
