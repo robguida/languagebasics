@@ -696,8 +696,12 @@ function main(argv, deps) {
   if (writeErrors.length) {
     for (const e of writeErrors) d.error("  ERROR " + e);
     const failedCount = (w.failed || []).length;
-    d.error(`Replaced ${w.written.length} of ${w.written.length + failedCount} changed files. ` +
-      "Fix the cause, then run: npm run build:data again");
+    // The count only means something when a replace failed; a failed stale
+    // delete alone leaves every changed file replaced.
+    if (failedCount > 0) {
+      d.error(`Replaced ${w.written.length} of ${w.written.length + failedCount} changed files.`);
+    }
+    d.error("Fix the cause, then run: npm run build:data again");
     code = 1;
   }
   if (w.keptStale.length) {

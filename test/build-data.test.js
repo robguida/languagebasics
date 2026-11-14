@@ -633,6 +633,23 @@ test("main: a failed rename or stale delete makes build:data exit 1 and say how 
   assert.ok(errors.some((s) => s.includes("Replaced 1 of 2 changed files")), errors.join("\n"));
 });
 
+test("main: a failed stale delete alone exits 1 without a \"Replaced N of M\" line", () => {
+  const errors = [];
+  const code = build.main([], {
+    readSources: () => [src("xx.json", fixture("xx", 1))],
+    write: () => ({
+      written: ["a"], failed: [], unchanged: [], deleted: [], keptStale: [],
+      errors: ["could not delete the stale file c (EPERM)"],
+    }),
+    log() {},
+    error: (s) => errors.push(s),
+  });
+  assert.equal(code, 1);
+  assert.ok(errors.some((s) => s.includes("could not delete the stale file c")), errors.join("\n"));
+  assert.ok(!errors.some((s) => s.includes("Replaced")), errors.join("\n"));
+  assert.ok(errors.some((s) => s.includes("run: npm run build:data again")), errors.join("\n"));
+});
+
 test("main: --check reports an error reading the files instead of crashing", () => {
   const errors = [];
   const code = build.main(["--check"], {
@@ -671,6 +688,12 @@ test("hostile-text fixture: every string round-trips exactly, and no file holds 
   assert.ok(all.includes("</script><script>"), "fixture holds </script>");
   assert.ok(docs.some((d) => JSON.stringify(d).includes(LS)), "fixture parses to a real U+2028");
   assert.ok(docs.some((d) => JSON.stringify(d).includes(PS)), "fixture parses to a real U+2029");
+  // A real backslash, and the six characters \u003c as plain text (not a "<"):
+  // the escaping must neither double-escape nor un-escape either one.
+  const strings = docs.flatMap((d) => d.groups.flatMap((g) => g.lessons.flatMap((l) =>
+    (l.cards || []).flatMap((c) => [c.prompt, c.answer, c.hint].map(String)))));
+  assert.ok(strings.some((s) => s.includes("backslash \\ and")), "fixture holds a real backslash");
+  assert.ok(strings.some((s) => s.includes("\\u003c") && !s.includes("<")), "fixture holds the literal text \\u003c");
 
   const r = build.generate(FIXTURE_DIR);
   assert.deepEqual(r.errors, []);

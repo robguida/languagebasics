@@ -20,8 +20,14 @@
  *     test/lb34-testing-flag.test.js.
  * Per data file:
  *   - card ids leave no gaps: for each slug, the ids in use plus the retired ids
- *     are exactly 1..max. A card deleted from the JSON without retiring its id
- *     fails here (the typed-in counts that used to catch it are gone).
+ *     are exactly 1..max. This catches a card deleted from the middle of a
+ *     lesson without retiring its id. On its own it cannot see a deleted LAST
+ *     card (the max just drops), so:
+ *   - locked ids: every id in test/fixtures/card-id-high-marks.json (each
+ *     lesson's highest card id) is on a card or in retiredCardIds. With the
+ *     no-gaps check, that locks every card id up to it. Deleting any locked
+ *     card, the last one included, without retiring its id fails here.
+ *     Adding cards needs no edit; deleting a card AND retiring its id passes.
  *
  * Every check runs twice: on the repo, and on the repo plus the made-up
  * language fixture (test/fixtures/data-extra/), built in memory.
@@ -32,7 +38,20 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { repoWorld, fixtureWorld } = require("./helpers/load-data.js");
+const { repoWorld, fixtureWorld, cardIdHighMarks } = require("./helpers/load-data.js");
+
+const ID_RE = /^[a-z0-9]+(-[a-z0-9]+)*\.\d{3}$/;
+
+test("card-id-high-marks.json is a real list of card ids, one per lesson", () => {
+  const marks = cardIdHighMarks();
+  assert.ok(marks && typeof marks === "object" && Object.keys(marks).length > 0, "must list languages");
+  for (const [code, ids] of Object.entries(marks)) {
+    assert.ok(Array.isArray(ids) && ids.length > 0, `${code}: must list ids`);
+    const prefixes = ids.map((id) => id.slice(0, id.lastIndexOf(".")));
+    assert.equal(new Set(prefixes).size, prefixes.length, `${code}: one id per lesson`);
+    for (const id of ids) assert.match(id, ID_RE, `${code}: bad card id ${id}`);
+  }
+});
 
 for (const world of [repoWorld(), fixtureWorld()]) {
   test(`${world.tag}the data lists lessons`, () => {
@@ -111,7 +130,7 @@ for (const world of [repoWorld(), fixtureWorld()]) {
     });
   }
 
-  test(`${world.tag}card ids: per slug, ids in use + retired ids are exactly 1..max (no silent deletes)`, () => {
+  test(`${world.tag}card ids: per slug, ids in use + retired ids are exactly 1..max (no gap below the highest id)`, () => {
     for (const doc of world.data.docs) {
       const code = doc.language.code;
       const used = new Map(); // slug prefix -> Set of numbers
@@ -136,4 +155,20 @@ for (const world of [repoWorld(), fixtureWorld()]) {
       }
     }
   });
+
+  test(`${world.tag}card ids: every locked id (card-id-high-marks.json) is on a card or retired (no silent delete of a last card)`, () => {
+    const docs = new Map(world.data.docs.map((d) => [d.language.code, d]));
+    const problems = [];
+    for (const [code, locked] of Object.entries(cardIdHighMarks())) {
+      const doc = docs.get(code);
+      if (!doc) { problems.push(`${code}: data/${code}.json is gone, but its card ids are locked`); continue; }
+      const known = new Set(doc.retiredCardIds || []);
+      for (const g of doc.groups) for (const l of g.lessons) for (const c of l.cards || []) known.add(c.id);
+      for (const id of locked) if (!known.has(id)) problems.push(`${code}: ${id}`);
+    }
+    assert.deepEqual(problems, [],
+      "locked card ids are neither used nor in retiredCardIds: " + problems.join(", ") +
+      ". A deleted card's id must go into retiredCardIds.");
+  });
+
 }

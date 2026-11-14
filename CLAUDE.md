@@ -66,6 +66,7 @@ test/                     # node --test suite (NOT served)
   helpers/load-lesson.js  # vm sandbox loader (src/content or parked/content)
   helpers/load-data.js    # LB-42: reads data/*.json with the build's own parser
   fixtures/shipped-lesson-ids.json  # lesson ids that have shipped (see "Adding a language")
+  fixtures/card-id-high-marks.json  # each lesson's highest card id, locked (see "Card counts")
   fixtures/data-extra/    # a made-up test language; proves a new language needs no test edits
 docs/                     # concept/source files, NOT served (see Docs)
 package.json              # name, test / build:data / check:data scripts — no deps
@@ -190,7 +191,7 @@ npm run build:data   # regenerate after editing data/ — then commit the JSON A
 
 - Tests live in `test/` and load the real `src/` files (engine + lesson data) inside a `node:vm` sandbox with a minimal `window`/DOM shim — Node built-ins only (`node:test`, `node:assert`, `node:fs`, `node:vm`, `node:path`).
 - Coverage: per-lesson schema + exact card counts, the reveal/next toggle state machine, loop-resilience (one bad card is skipped, never aborts the deck), score mode (ratings, the 500 ms lock, results, practice rounds, personal best), progress, streak, prefs, store and the page counter.
-- **Card counts:** the cards in `data/<code>.json` are the truth; `npm run build:data` writes each lesson's `count` into `languages.js`, and the tests read the same counts from the JSON (LB-42), so changing a lesson's cards needs no test edit. To delete a card, put its `id` in `retiredCardIds`; a gap in a lesson's card ids fails `test/schema.test.js`.
+- **Card counts:** the cards in `data/<code>.json` are the truth; `npm run build:data` writes each lesson's `count` into `languages.js`, and the tests read the same counts from the JSON (LB-42), so changing a lesson's cards needs no test edit. **To delete a card, put its `id` in `retiredCardIds`.** `test/schema.test.js` guards this two ways: the "no gap below the highest id" test fails on a card deleted from the middle of a lesson, and the "every locked id" test fails on any deleted card up to the lesson's locked highest id in `test/fixtures/card-id-high-marks.json`, the last card included. Adding cards needs no edit there. Once new cards ship, raise that lesson's id in the file to its new highest one (add a line for a new lesson or language). Only ever raise or add; never lower or remove a line.
 
 ---
 

@@ -28,6 +28,7 @@ const ROOT = build.ROOT;
 const DATA_DIR = build.DATA_DIR;
 const FIXTURE_DATA_DIR = path.resolve(__dirname, "..", "fixtures", "data-extra");
 const SHIPPED_IDS_FILE = path.resolve(__dirname, "..", "fixtures", "shipped-lesson-ids.json");
+const CARD_ID_MARKS_FILE = path.resolve(__dirname, "..", "fixtures", "card-id-high-marks.json");
 const MANIFEST_JS = path.join(ROOT, "src", "manifest.js");
 
 /** Every data source from the given folders, in folder order. */
@@ -171,14 +172,21 @@ function shippedLessonIds() {
   return JSON.parse(fs.readFileSync(SHIPPED_IDS_FILE, "utf8")).ids;
 }
 
+/** The locked highest card ids (test/fixtures/card-id-high-marks.json): { code: [id, ...] }. */
+function cardIdHighMarks() {
+  return JSON.parse(fs.readFileSync(CARD_ID_MARKS_FILE, "utf8")).highest;
+}
+
 module.exports = {
   loadData,
   repoWorld,
   fixtureWorld,
   shippedLessonIds,
+  cardIdHighMarks,
   generatedPath,
   runLessonText,
   DATA_DIR,
   FIXTURE_DATA_DIR,
   SHIPPED_IDS_FILE,
+  CARD_ID_MARKS_FILE,
 };

@@ -148,7 +148,7 @@
             },
             {
               "id": "words-1.002",
-              "prompt": "quotes \" ' ` ${x}  backslash",
+              "prompt": "quotes \" ' ` ${x} backslash \\ and \\u003c",
               "answer": "tab\tand\nnewline",
               "hint": "emoji 😀, é, بلا"
             }
