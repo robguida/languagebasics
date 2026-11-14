@@ -98,6 +98,9 @@
 
     <div class="hint" id="studyHint">Say it out loud, then reveal. When the timer ends, the answer shows.</div>
     <div class="hint" id="testHint" data-feature="testing" hidden>Say it out loud, then reveal. Tap "I knew it" only if you got it right.</div>
+
+    <!-- LB-39: always-visible link to the privacy note. Not a testing-flag item. -->
+    <p class="privacy-link-wrap"><a id="privacyLink" class="privacy-link" href="privacy.html">Privacy</a></p>
   </main>
 
   <!-- Settings modal: STATIC markup, hidden by default. settings.js toggles the
@@ -132,6 +135,7 @@
           </p>
         </div>
 
+        <p class="setting-privacy"><a id="settingsPrivacyLink" class="privacy-link-modal" href="privacy.html">Privacy: what's saved</a></p>
       </div>
     </div>
   </div>
@@ -165,6 +169,8 @@
           <button id="resultDoneBtn" type="button" class="secondary">Done</button>
         </div>
         <p id="resultFooter" class="result-footer"></p>
+        <!-- LB-39: privacy link inside the dialog (the page link is behind the overlay) -->
+        <p class="setting-privacy"><a id="resultsPrivacyLink" class="privacy-link privacy-link-modal" href="privacy.html">Privacy</a></p>
       </div>
     </div>
   </div>

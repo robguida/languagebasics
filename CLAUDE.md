@@ -35,6 +35,7 @@ Served files live under **`src/`** — only `src/` reaches the live site (see De
 ```
 src/
   index.html              # the single shell: lesson picker + card UI + bootstrap
+  privacy.html            # LB-39: static privacy note (no script), linked from the study and test screens, the results dialog and Settings
   features.js             # LB-34 feature flags (window.LB_FEATURES) — loads first
   engine.js               # shared flashcard engine (window.LBEngine)
   manifest.js             # picker / whitelist / count helpers over the manifest
@@ -84,7 +85,7 @@ package.json              # name, test script — no deps
   1. The site code set in `GOATCOUNTER_CODE` (one line).
   2. The page's image rules (CSP `img-src` for `/languagebasics/`) updated to allow the GoatCounter host.
   3. A Referrer-Policy header set.
-  4. A line added to the privacy page.
+  4. The privacy page updated: add the line saying visits are counted, and remove "It is never sent to us or anyone else." (it stops being true). `test/lb39-privacy.test.js` guards this pairing and fails until both are done.
   5. The owner's go.
 - This repo is public. Never write account names, emails, server paths, addresses or keys here.
 
