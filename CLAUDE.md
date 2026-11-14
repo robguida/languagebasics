@@ -55,16 +55,18 @@ data/                     # LB-41: lesson data, one JSON file per language — e
   sq.json es.json ja.json bn.json
 scripts/                  # dev tools, NOT served
   build-data.js           # data/*.json -> src/content + parked/content (build:data / check:data)
-  convert-js-to-json.js   # LB-41 one-off: old .js -> JSON + --verify proof (deleted in LB-42)
 parked/                   # LB-34 parked lessons — GENERATED, NOT served, never deploys
   content/<lang>/lesson-5.js, lesson-6.js
 test/                     # node --test suite (NOT served)
-  schema.test.js          # per-lesson schema + card-count checks (incl. parked)
+  schema.test.js          # per-lesson schema + card-count checks (incl. parked), read from the data
   build-data.test.js      # LB-41: generated files match the JSON; validator rules
   lb34-testing-flag.test.js  # testing flag + parked-lesson checks
   ...                     # engine, manifest, game, progress, streak, counter,
                           # test-mode, score-integration, etc.
   helpers/load-lesson.js  # vm sandbox loader (src/content or parked/content)
+  helpers/load-data.js    # LB-42: reads data/*.json with the build's own parser
+  fixtures/shipped-lesson-ids.json  # lesson ids that have shipped (see "Adding a language")
+  fixtures/data-extra/    # a made-up test language; proves a new language needs no test edits
 docs/                     # concept/source files, NOT served (see Docs)
 package.json              # name, test / build:data / check:data scripts — no deps
 ```
@@ -92,7 +94,7 @@ package.json              # name, test / build:data / check:data scripts — no 
   1. The site code set in `GOATCOUNTER_CODE` (one line).
   2. The page's image rules (CSP `img-src` for `/languagebasics/`) updated to allow the GoatCounter host.
   3. A Referrer-Policy header set.
-  4. The privacy page updated: add the line saying visits are counted, and remove "It is never sent to us or anyone else." (it stops being true). `test/lb39-privacy.test.js` guards this pairing and fails until both are done.
+  4. The privacy page updated: add a line containing the words "We count page visits" (the test looks for that phrase), and remove "It is never sent to us or anyone else." (it stops being true). `test/lb39-privacy.test.js` guards this pairing and fails until both are done.
   5. The owner's go.
 - This repo is public. Never write account names, emails, server paths, addresses or keys here.
 
@@ -103,8 +105,8 @@ package.json              # name, test / build:data / check:data scripts — no 
 - **To bring one back:**
   1. Set `"parked": false` on the lesson in `data/<code>.json`.
   2. Run `npm run build:data` (it moves the file to `src/content/<lang>/` and adds its row, with its count, to `languages.js`).
-  3. Until LB-42 makes the tests read the data, also do the test edits below. In `test/schema.test.js`, `PARKED` is built by a **loop** over the four languages. Add a **literal row** for the lesson to `EXPECTED`, and change the loop so it stops generating that lesson.
-  4. Update the tests that expect it parked: `test/count-parity.test.js` (lesson total, 72), `test/manifest.test.js` (lessons per group, lesson total 72, and the "ids byte-identical" test, whose locked id list must now include the lesson), `test/notation-audit.test.js` (parked file list) and `test/lb34-testing-flag.test.js` (parked-lesson checks).
+  3. Run `npm test`. The tests read which lessons are parked from the data, so no test edits are needed.
+  4. Once it has shipped, add its id to `test/fixtures/shipped-lesson-ids.json` (see "Adding a language").
 
 ### How a lesson loads (no fetch, file:// safe)
 
@@ -114,11 +116,9 @@ package.json              # name, test / build:data / check:data scripts — no 
 
 `sq` is the Albanian namespace. A new language is **one new file, `data/<code>.json`**, then `npm run build:data` — **no engine change and no edit to `index.html`**. The build writes its lesson files and its entry in `src/content/languages.js`; the picker, the `?lesson=` whitelist, the default lesson and the card counts all come from that file. `language.order` sets where it sits in the language list. The engine is language-agnostic.
 
-Until LB-42 makes the tests read the data, also update the tests that count languages and lessons:
-- `test/manifest.test.js` — language count (4), lessons per group, lesson total (72), the language option list, and the "ids byte-identical" id list.
-- `test/count-parity.test.js` — lesson total (72).
-- `test/schema.test.js` — add the language's rows to `EXPECTED`, and add the language to the `PARKED` loop if it has parked lessons.
-- `test/lb34-testing-flag.test.js` — the `LANGS` list.
+**No test edits are needed (LB-42).** The tests read the languages, lessons, card counts and parked flags from `data/*.json` through the build's own parser (`test/helpers/load-data.js`). Every data-driven test also runs once with a made-up language added (`test/fixtures/data-extra/qaa.json`, built in memory, never shipped), which proves a new language passes with no test edits. Run `npm test` after `npm run build:data`.
+
+**Shipped lesson ids:** `test/fixtures/shipped-lesson-ids.json` lists every lesson id that has shipped, in picker order. Saved progress and `?lesson=` links use these ids. Adding lessons is fine anywhere. Removing or renaming a shipped lesson, or changing their order, fails `test/manifest.test.js`. Once a new lesson ships, add its id to that file.
 
 ---
 
@@ -139,6 +139,7 @@ Until LB-42 makes the tests read the data, also update the tests that count lang
 - Lesson id = `code/slug`; the output file is `<slug>.js`. The picker count is the number of cards.
 - `code` must match `^[a-z][a-z0-9]{1,7}$` and equal the file name; `slug` must match `^[a-z0-9]+(-[a-z0-9]+)*$` and be unique in the file. They are strict because the lesson id is written into a script tag. Unknown keys fail (catches typos).
 - `order` is a unique positive number and sets the language order. `defaultLesson` must be a live (not parked) lesson. `rollup` is required (true/false). `revealMs`, `recallPrompt`, `parked` and `notes` are optional.
+- On each card, `id`, `prompt`, `answer` and `hint` are required. The build accepts any string as `hint`, even `""`, but the tests require a non-empty hint on every card. `audio` is optional.
 - Each lesson has exactly one of `cards` or `cardRefs`. The combined alphabet decks (`alphabet-all`) use `cardRefs`: a list of card ids from the other alphabet decks, so their cards are never copied.
 - **Card `id`** (JSON only, never written to `src/`): `<slug>.<NNN>`, NNN = the card's place when the data was converted, padded to 3 digits. It is never taken from the card text and is frozen: rewording or moving a card keeps its id. A new card gets the highest NNN used for that slug (counting retired ids) + 1. A deleted card's id goes into `retiredCardIds` and is never reused.
 - `notes` hold the comments that used to sit in the `.js` files. They are never written to `src/`.
@@ -189,7 +190,7 @@ npm run build:data   # regenerate after editing data/ — then commit the JSON A
 
 - Tests live in `test/` and load the real `src/` files (engine + lesson data) inside a `node:vm` sandbox with a minimal `window`/DOM shim — Node built-ins only (`node:test`, `node:assert`, `node:fs`, `node:vm`, `node:path`).
 - Coverage: per-lesson schema + exact card counts, the reveal/next toggle state machine, loop-resilience (one bad card is skipped, never aborts the deck), score mode (ratings, the 500 ms lock, results, practice rounds, personal best), progress, streak, prefs, store and the page counter.
-- **Card counts:** the cards in `data/<code>.json` are the truth; `npm run build:data` writes each lesson's `count` into `languages.js`. Until LB-42, the tests still keep their own copy in `EXPECTED` (live lessons) and `PARKED` (parked lessons 5 and 6) in `test/schema.test.js`. If you change a lesson's card count, edit the JSON, rebuild, **and** update that map, or the tests fail.
+- **Card counts:** the cards in `data/<code>.json` are the truth; `npm run build:data` writes each lesson's `count` into `languages.js`, and the tests read the same counts from the JSON (LB-42), so changing a lesson's cards needs no test edit. To delete a card, put its `id` in `retiredCardIds`; a gap in a lesson's card ids fails `test/schema.test.js`.
 
 ---
 
