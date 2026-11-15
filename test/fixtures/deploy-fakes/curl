@@ -14,11 +14,32 @@
 # Windows. So it uses bash built-ins only (no mktemp, cp, rm or cat): a release file is read into
 # memory with read -d '' and written back unchanged. Release files in the tests are text (no NUL
 # byte); a NUL would change the bytes, and the hash checks would then fail loudly, never pass.
-out=- hdr="" fmt="" url=""
+# FAKE_ARGS=<file>: every call also adds one line with its FULL argument list ("curl", then each
+# argument, tab-separated; inside an argument a backslash is doubled, and a tab or new line is
+# written as backslash-t or backslash-n).
+# Allow list: only the options the kit and the server script use are accepted (-q -s -S -sS -g,
+# and --proto --max-time -o -D -w -H with a value) plus exactly one address. Anything else (an
+# unknown or misspelt option, a second address) is refused with exit 2, as real curl would refuse
+# or misread it, so a test cannot pass on a call the real curl would not run.
+if [ -n "${FAKE_ARGS:-}" ]; then
+  line=curl bs='\'
+  for a in "$@"; do a=${a//"$bs"/"$bs$bs"}; a=${a//$'\t'/"${bs}t"}; a=${a//$'\n'/"${bs}n"}; line+=$'\t'"$a"; done
+  printf '%s\n' "$line" >> "$FAKE_ARGS"
+fi
+out=- hdr="" fmt="" url="" nurl=0
 while [ $# -gt 0 ]; do
-  case "$1" in -o) out=$2; shift ;; -D) hdr=$2; shift ;; -w) fmt=$2; shift ;; -H|--max-time) shift ;; -s|-sS|-S) ;; *) url=$1 ;; esac
+  case "$1" in
+    -o|-D|-w|-H|--max-time|--proto)
+      [ $# -ge 2 ] || { echo "fake curl: option $1 needs a value" >&2; exit 2; }
+      case "$1" in -o) out=$2 ;; -D) hdr=$2 ;; -w) fmt=$2 ;; esac
+      shift ;;
+    -q|-s|-S|-sS|-g) ;;
+    -*) echo "fake curl: option $1 is not on the allow list" >&2; exit 2 ;;
+    *) url=$1; nurl=$((nurl+1)) ;;
+  esac
   shift
 done
+[ "$nurl" = 1 ] || { echo "fake curl: expected exactly one address, got $nurl" >&2; exit 2; }
 echo "curl $url" >> "$FAKE_CALLS"
 p=${url#*://}; p=/${p#*/}; q=""
 case "$p" in *\?*) q="?${p#*\?}"; p=${p%%\?*} ;; esac

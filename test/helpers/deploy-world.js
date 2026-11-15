@@ -102,7 +102,7 @@ function makeWorld(t, opts) {
     LB_SITE_URL: "https://example.invalid/languagebasics/",
   };
   write(conf, settingsText(settings));
-  const calls = path.join(root, "calls.txt");
+  const calls = path.join(root, "runs", "calls-0.txt");
   const benv = Object.assign({}, env, {
     LB_DEPLOY_CONFIG: H.toBash(conf),
     LB_SSH_BIN: H.toBash(path.join(bin, "ssh")),
@@ -118,18 +118,33 @@ function makeWorld(t, opts) {
     FAKE_ROOT: H.toBash(box.root),
     FAKE_FPR: "SHA256:fakefingerprint",
   });
-  let n = 0;
+  let n = 0, runs = 0, hung = "";
+  const runsDir = path.join(root, "runs");
+  fs.mkdirSync(runsDir, { recursive: true });
   const w = {
-    root, env, checkout, origin, sha, box, conf, work, settings, calls, shims,
+    root, env, checkout, origin, sha, box, conf, work, settings, calls, shims, key, known: path.join(work, "known_hosts"),
     script: path.join(checkout, "scripts", "deploy", "deploy.sh"),
     writeSettings(s) { write(conf, settingsText(s)); },
     run(args, extra) { return w.runFrom(w.script, args, extra); },
-    /* Run another copy of deploy.sh (e.g. one copied into an ignored folder of the checkout). */
-    runFrom(script, args, extra) {
-      try { fs.rmSync(calls, { force: true }); } catch { /* none yet */ }
-      const r = H.runBash(script, args, { env: Object.assign({}, benv, extra || {}), shims, cwd: checkout });
-      r.calls = H.readCalls(calls);
+    /* Run another copy of deploy.sh (e.g. one copied into an ignored folder of the checkout).
+     * Each run gets its own calls file and FAKE_ARGS file (runs/calls-<n>.txt, runs/args-<n>.txt;
+     * w.calls names the latest), so nothing a run left behind can show up in the next run's calls.
+     * After a run hits the hang guard, every later run in this world is refused: the server
+     * folder may hold a half-done step, and the next test would fail for the wrong reason.
+     * opts.timeout: a shorter hang guard (ms), for the guard's own test. */
+    runFrom(script, args, extra, opts) {
+      if (hung) throw new Error(`an earlier run in this world hit the hang guard (${hung}); later steps would see its half-done server state`);
+      runs += 1;
+      w.calls = path.join(runsDir, `calls-${runs}.txt`);
+      const argsFile = path.join(runsDir, `args-${runs}.txt`);
+      const r = H.runBash(script, args, {
+        env: Object.assign({}, benv, { FAKE_CALLS: H.toBash(w.calls), FAKE_ARGS: H.toBash(argsFile) }, extra || {}), shims, cwd: checkout,
+        timeout: opts && opts.timeout,
+      });
+      if (r.timedOut) hung = `deploy.sh ${(args || []).join(" ")}`.trim();
+      r.calls = H.readCalls(w.calls);
       r.server = H.serverCalls(r.calls);
+      r.args = H.readArgs(argsFile);
       return r;
     },
     git(...a) { return H.git(env, checkout, ...a); },

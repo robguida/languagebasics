@@ -14,7 +14,10 @@
  * - installOddShim(): puts test/fixtures/deploy-fakes/odd-shim in front of git, ln or stat, so a
  *   test can make that one command answer oddly (FAKE_GIT_ODD_*, FAKE_LN_FAIL_AT, FAKE_STAT_FAIL).
  * - runBash(): a hang guard of RUN_TIMEOUT_MS per run (10 minutes). It is not a speed check: under
- *   a full parallel "npm test" one deploy run can take minutes on a slow or busy computer.
+ *   a full parallel "npm test" one deploy run can take minutes on a slow or busy computer. On a
+ *   timeout it stops the run's whole process tree, not only the top bash (guardMain below).
+ * - readArgs(): reads the FAKE_ARGS log, where the fake ssh, scp, curl and the tar shim write
+ *   their full argument lists.
  *
  * Node built-ins only.
  */
@@ -178,16 +181,93 @@ function installOddShim(shims, name) {
  * laptop; 10 minutes leaves a wide margin and still stops a run that truly hangs. */
 const RUN_TIMEOUT_MS = 600000;
 
-/* Run a bash script (or a -c command when opts.command is set) with the shims first on PATH. */
+/* The hang guard itself, run as a small separate node process (node -e) around each bash run.
+ * spawnSync's own timeout stops only the top bash: its children (deploy.sh's fake ssh / curl, the
+ * server script) kept running and writing into the test's calls file and server folder, so the
+ * next step failed for the wrong reason. This guard starts bash and, on timeout, stops the WHOLE
+ * process tree:
+ *  - Windows (Git Bash): the top bash leads its own bash process group, and every child it starts
+ *    (also after an exec) stays in that group, so the guard runs `kill -9 -- -<group>` in a fresh
+ *    bash. taskkill /T /F then also stops what is still linked to the top process. (taskkill alone
+ *    is not enough: Git Bash children are not always linked to their Windows parent.)
+ *  - elsewhere: bash is started as its own process group, which gets SIGKILL.
+ * On Windows the top bash first writes its bash pid and group into a small file (LBT_IDS, under
+ * LB_TEST_TMP or the system temp folder; removed after the run) for the guard to read.
+ * bash writes straight into the caller's stdout / stderr; the guard reports the result as one JSON
+ * line on the caller's fourth pipe (its fd 3). Its settings come in LBT_GUARD (JSON), not argv. */
+function guardMain() {
+  const { spawn, spawnSync: sync } = require("node:child_process");
+  const fsg = require("node:fs");
+  const WINDOWS = process.platform === "win32";
+  const g = JSON.parse(process.env.LBT_GUARD);
+  delete process.env.LBT_GUARD;
+  const child = spawn(g.bash, g.argv, { cwd: g.cwd, env: process.env, stdio: "inherit", detached: !WINDOWS, windowsHide: true });
+  let timedOut = false;
+  const killTree = () => {
+    if (WINDOWS) {
+      let ids = "";
+      try { ids = fsg.readFileSync(g.ids, "utf8"); } catch { /* bash wrote nothing yet */ }
+      const m = /^(\d+) (\d+)$/m.exec(ids);
+      // Only a group the top bash leads (group = its own pid), never a wider one.
+      if (m && m[1] === m[2]) sync(g.bash, ["-c", 'kill -9 -- "-$1" 2>/dev/null; true', "lbtguard", m[2]], { stdio: "ignore", windowsHide: true, timeout: 60000 });
+      const tk = require("node:path").join(process.env.SystemRoot || process.env.windir || "C:\\Windows", "System32", "taskkill.exe");
+      sync(tk, ["/T", "/F", "/PID", String(child.pid)], { stdio: "ignore", windowsHide: true, timeout: 60000 });
+    } else {
+      try { process.kill(-child.pid, "SIGKILL"); } catch { /* already gone */ }
+    }
+    try { child.kill("SIGKILL"); } catch { /* already gone */ }
+  };
+  const timer = setTimeout(() => { timedOut = true; killTree(); }, g.ms);
+  const report = (o) => { clearTimeout(timer); try { fsg.writeSync(3, JSON.stringify(o) + "\n"); } catch { /* caller gone */ } process.exit(0); };
+  child.on("error", (e) => report({ code: null, signal: null, timedOut, spawnError: String(e && e.message) }));
+  child.on("exit", (code, signal) => {
+    // A run that ended on its own may still have left children behind (e.g. a background job);
+    // elsewhere than Windows that costs nothing to clean up, so its process group is stopped too.
+    if (!timedOut && !WINDOWS) { try { process.kill(-child.pid, "SIGKILL"); } catch { /* none left */ } }
+    report({ code, signal, timedOut });
+  });
+}
+const GUARD_SRC = `(${guardMain.toString()})()`;
+let RUNS = 0;
+
+/* Run a bash script (or a -c command when opts.command is set) with the shims first on PATH.
+ * -> { code, out, err, all, error, timedOut }. On a timeout code is null, timedOut is true and
+ * error says the whole process tree was stopped. */
 function runBash(script, args, opts) {
   const b = findBash();
   if (!b.bash) throw new Error(b.reason);
   const env = Object.assign({}, opts.env, { LBT_SHIMS: toBash(opts.shims) });
+  // Windows: first write this bash's pid and process group for the hang guard (see guardMain).
+  const idFile = WIN ? path.join(process.env.LB_TEST_TMP || os.tmpdir(), `lbt-guard-${process.pid}-${++RUNS}.txt`) : "";
+  if (WIN) env.LBT_IDS = toBash(idFile);
+  const ids = WIN ? '{ read -r _lbt_g < "/proc/$$/pgid"; echo "$$ ${_lbt_g:-}" > "$LBT_IDS"; } 2>/dev/null; unset _lbt_g LBT_IDS; ' : "";
   const argv = opts.command
-    ? ["-c", `PATH="$LBT_SHIMS:$PATH"; ${opts.command}`, "lbtest", ...(args || [])]
-    : ["-c", 'PATH="$LBT_SHIMS:$PATH"; exec bash "$0" "$@"', toBash(script), ...(args || [])];
-  const r = spawnSync(b.bash, argv, { cwd: opts.cwd, env, encoding: "utf8", timeout: opts.timeout || RUN_TIMEOUT_MS });
-  return { code: r.status, out: r.stdout || "", err: r.stderr || "", all: (r.stdout || "") + (r.stderr || ""), error: r.error };
+    ? ["-c", `${ids}PATH="$LBT_SHIMS:$PATH"; ${opts.command}`, "lbtest", ...(args || [])]
+    : ["-c", `${ids}PATH="$LBT_SHIMS:$PATH"; exec bash "$0" "$@"`, toBash(script), ...(args || [])];
+  const ms = opts.timeout || RUN_TIMEOUT_MS;
+  const genv = Object.assign({}, env, { LBT_GUARD: JSON.stringify({ bash: b.bash, argv, cwd: opts.cwd, ms, ids: idFile }) });
+  // Backstop: if the guard itself hangs, spawnSync stops it a minute after the guard should have.
+  const r = spawnSync(process.execPath, ["-e", GUARD_SRC], {
+    cwd: opts.cwd, env: genv, encoding: "utf8", stdio: ["pipe", "pipe", "pipe", "pipe"], timeout: ms + 60000, windowsHide: true,
+  });
+  if (WIN) { try { fs.rmSync(idFile, { force: true }); } catch { /* best effort */ } }
+  let g = null;
+  try { g = JSON.parse(String((r.output && r.output[3]) || "").trim().split("\n").pop()); } catch { g = null; }
+  const out = r.stdout || "", err = r.stderr || "";
+  let error = r.error;
+  if (g && g.timedOut) error = Object.assign(new Error(`bash run timed out after ${ms} ms; its whole process tree was stopped`), { code: "ETIMEDOUT" });
+  else if (g && g.spawnError) error = new Error(`bash did not start: ${g.spawnError}`);
+  else if (!g && !error) error = new Error(`the hang guard gave no result (exit ${r.status}): ${err.slice(-500)}`);
+  const code = g && !g.timedOut ? g.code : null;
+  return { code, out, err, all: out + err, error, timedOut: !!(g ? g.timedOut : r.error && r.error.code === "ETIMEDOUT") };
+}
+
+/* The FAKE_ARGS log: one entry per call, [name, ...arguments] with the fakes' escapes undone. */
+function readArgs(file) {
+  let text = "";
+  try { text = fs.readFileSync(file, "utf8"); } catch { return []; }
+  const unescape = (s) => s.replace(/\\([\\tn])/g, (m, c) => (c === "t" ? "\t" : c === "n" ? "\n" : "\\"));
+  return text.split("\n").filter(Boolean).map((l) => l.split("\t").map(unescape));
 }
 
 /* Lines of the fake-call log, or [] when nothing was called. */
@@ -201,4 +281,4 @@ function serverCalls(lines) {
 }
 
 module.exports = { REPO, KIT, FAKES, WIN, RUN_TIMEOUT_MS, toBash, gitAvailable, findBash, inWorktree, tempRoot, removeTree, cleanEnv, git,
-  installFakes, installOddShim, runBash, readCalls, serverCalls };
+  installFakes, installOddShim, runBash, readCalls, readArgs, serverCalls };

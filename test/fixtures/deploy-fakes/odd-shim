@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
-# Odd-answer shim (tests only). Installed in the shims folder as git, ln or stat (installOddShim in
+# Odd-answer shim (tests only). Installed in the shims folder as git, ln, stat or tar (installOddShim in
 # test/helpers/deploy-env.js). Without its FAKE_* setting it hands every call to the real command.
 #   git:  FAKE_GIT_ODD_DIR=<folder> and FAKE_GIT_ODD_TEXT=<text> (printf %b escapes, so \n is a new
 #         line): "git -C <that folder> rev-parse --is-inside-work-tree ..." prints the text and exits
 #         128, as git does for "detected dubious ownership". Other folders and commands are real.
 #   ln:   FAKE_LN_FAIL_AT=<n> and FAKE_LN_COUNT=<file>: the n-th "ln -sfn" fails (counted in the file).
 #   stat: FAKE_STAT_FAIL=1: "stat -c %h" (how many names a file has) fails; other stat calls are real.
+#   tar:  FAKE_ARGS=<file>: every tar call adds one line with its FULL argument list ("tar", then
+#         each argument, tab-separated, escaped as in the fake ssh), then the real tar runs. A test
+#         can then check that "--" comes before the member names of the release tar.
 here=${0%/*}
 name=${0##*/}
 case "$name" in
@@ -22,6 +25,12 @@ case "$name" in
   stat)
     if [ -n "${FAKE_STAT_FAIL:-}" ] && [ "${1:-}" = -c ] && [ "${2:-}" = %h ]; then
       echo "fake stat: cannot read the file" >&2; exit 1
+    fi ;;
+  tar)
+    if [ -n "${FAKE_ARGS:-}" ]; then
+      line=tar bs='\'
+      for a in "$@"; do a=${a//"$bs"/"$bs$bs"}; a=${a//$'\t'/"${bs}t"}; a=${a//$'\n'/"${bs}n"}; line+=$'\t'"$a"; done
+      printf '%s\n' "$line" >> "$FAKE_ARGS"
     fi ;;
 esac
 # The real work: a shim that was here before (moved to <name>.next), else the next one on PATH.
