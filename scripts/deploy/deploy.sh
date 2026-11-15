@@ -21,6 +21,8 @@
 #   Exit codes: 0 ok, 1 refused or failed, 2 usage error,
 #               3 the release live now fails the server smoke checks (a rollback, or the server's automatic
 #                 rollback after a failed install, switched releases or could not); the message names it.
+#               --list and --smoke exit 0 or 1: 1 when the server check fails or the connection is lost
+#                 (server state unknown); the message says which.
 set -uo pipefail
 export LC_ALL=C
 
@@ -331,13 +333,13 @@ box_setup() {
     SCP=("$SCP_BIN" -q -F none -i "${CFG[LB_SSH_KEY]}" -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=15 -o LogLevel=ERROR
          -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$KH")
     # The server script is the copy from the kit commit, stored by content hash (never overwrites another version).
-    h=$(sha256sum "$KT/lb-release.sh" | cut -d' ' -f1)
+    h=$(sha256sum -- "$KT/lb-release.sh" | cut -d' ' -f1)
     BOXSCRIPT=$BOXKIT/lb-release-${h:0:16}.sh
     "${SSH[@]}" "mkdir -p $BOXKIT/incoming && chmod 700 $BOXKIT" || die "cannot reach the server"
-    got=$("${SSH[@]}" "sha256sum $BOXSCRIPT 2>/dev/null | cut -d' ' -f1")
+    got=$("${SSH[@]}" "sha256sum -- $BOXSCRIPT 2>/dev/null | cut -d' ' -f1")
     if [ "$got" != "$h" ]; then
         "${SCP[@]}" "$KT/lb-release.sh" "${CFG[LB_SSH_USER]}@${CFG[LB_HOST]}:$BOXSCRIPT" || die "upload of the server script failed"
-        got=$("${SSH[@]}" "sha256sum $BOXSCRIPT | cut -d' ' -f1")
+        got=$("${SSH[@]}" "sha256sum -- $BOXSCRIPT | cut -d' ' -f1")
         [ "$got" = "$h" ] || die "server script on the server does not match the kit commit after upload"
         info "server script lb-release-${h:0:16}.sh uploaded (from commit ${KIT_SHA:0:12})"
     fi
@@ -389,7 +391,7 @@ outside_check() { # outside_check <manifest-file> <release-id>: every problem is
         for p in "${todo[@]}"; do
             if [ "$p" = / ]; then url=$SITE; else url=$SITE$p; fi
             code=$(fetch "$url" "$dir/body" "$dir/hdr")
-            got=$(sha256sum "$dir/body" 2>/dev/null | cut -d' ' -f1)
+            got=$(sha256sum -- "$dir/body" 2>/dev/null | cut -d' ' -f1)
             lastc[$p]=$code; lasth[$p]=$got
             { [ "$code" = 200 ] && [ "$got" = "${want[$p]}" ]; } || next+=("$p")
         done
@@ -435,7 +437,7 @@ outside_check() { # outside_check <manifest-file> <release-id>: every problem is
             elif [ -n "${afail[$p]:-}" ]; then ofail+=("language $lang: $p is not served correctly"); fi
         done
         code=$(fetch "${SITE}?lesson=$lang/lesson-1" "$dir/body" "$dir/hdr")
-        got=$(sha256sum "$dir/body" 2>/dev/null | cut -d' ' -f1)
+        got=$(sha256sum -- "$dir/body" 2>/dev/null | cut -d' ' -f1)
         { [ "$code" = 200 ] && [ "$got" = "${want[index.html]:-}" ]; } || ofail+=("language $lang: lesson page HTTP $code or not the release's index.html")
     done
     rm -rf "$dir"
@@ -461,8 +463,14 @@ switched_but_smoke_fails() { # <what happened, one sentence> [<live release id, 
 
 # ---- modes that only talk to the server ----
 case "$mode" in
-  list)  box_setup; box list; exit $? ;;
-  smoke) box_setup; box smoke; exit $? ;;
+  list|smoke)
+    box_setup
+    box "$mode"; rc=$?
+    case $rc in
+      0)   exit 0 ;;
+      255) failed "the connection to the server was lost during --$mode; the server state is unknown; run --$mode again" ;;
+      *)   failed "--$mode failed on the server (rc=$rc); see the output above" ;;
+    esac ;;
   verify)
     box_setup
     m=$BUILD/live.manifest
@@ -517,7 +525,7 @@ git_c archive --format=tar "$sha:src" | tar -xf - -C "$B" || die "git archive of
 n=0
 while IFS= read -r p; do
     n=$((n+1))
-    a=$(sha256sum "$B/$p" 2>/dev/null | cut -d' ' -f1)
+    a=$(sha256sum -- "$B/$p" 2>/dev/null | cut -d' ' -f1)
     b=$(git_c cat-file blob "$sha:src/$p" | sha256sum | cut -d' ' -f1)
     [ -n "$a" ] && [ "$a" = "$b" ] || fail "byte mismatch: src/$p"
 done < <(git_c ls-tree -r --name-only "$sha:src")
@@ -525,13 +533,17 @@ count=$(find "$B" -type f | wc -l | tr -d ' ')
 [ "$count" = "$n" ] || fail "build has $count files, git has $n"
 while IFS= read -r p; do fail "dot-file in src: ${p#"$B"/}"; done < <(find "$B" -mindepth 1 -name '.*')
 gate "tests and build checks"
-( cd "$B" && find . -type f | sed 's#^\./##' | sort | while IFS= read -r f; do sha256sum "$f" | sed 's/ [*]/  /'; done ) > "$BUILD/$id.manifest" || die "manifest failed"
+# "--": a file name that starts with "-" is a name, never an option. A file that cannot be hashed stops the
+# loop at once (exit 1), so the refusal below names the manifest step, not a later preflight mismatch.
+( cd "$B" && find . -type f | sed 's#^\./##' | sort | while IFS= read -r f; do
+    sha256sum -- "$f" | sed 's/ [*]/  /' || { echo "$PROG: cannot hash build file src/$f" >&2; exit 1; }
+  done ) > "$BUILD/$id.manifest" || die "cannot write the release manifest (a build file could not be hashed; see above)"
 mv "$BUILD/$id.manifest" "$B/.manifest.sha256"
-msha=$(sha256sum "$B/.manifest.sha256" | cut -d' ' -f1)
+msha=$(sha256sum -- "$B/.manifest.sha256" | cut -d' ' -f1)
 T=$BUILD/$id.tar
 mapfile -t top < <(cd "$B" && find . -mindepth 1 -maxdepth 1 ! -name .manifest.sha256 | sed 's#^\./##' | sort)
 ( cd "$B" && tar --sort=name --format=ustar --owner=0 --group=0 --numeric-owner --mtime="@$(git_c log -1 --format=%ct "$sha")" -cf "$T" -- .manifest.sha256 "${top[@]}" ) || die "tar failed"
-info "built $id: $n files, manifest $msha, tar $(sha256sum "$T" | cut -d' ' -f1)"
+info "built $id: $n files, manifest $msha, tar $(sha256sum -- "$T" | cut -d' ' -f1)"
 
 # ---- preflight.js from the kit commit (required): build vs tested tree, manifest, leak scan ----
 [ -f "$KT/preflight.js" ] || die "the kit from commit $KIT_SHA has no preflight.js"

@@ -18,6 +18,8 @@
  *  - --rollback: the server refuses (rc 1, nothing switched); the connection is lost (rc 255,
  *    state unknown); the rollback switched but the release live now fails smoke (rc 3 ->
  *    exit 3 naming the live release, logged); LB_EXPECT_CURRENT missing or malformed is refused;
+ *  - --list and --smoke exit 0 or 1 only: a lost connection (255) is "server state unknown", any
+ *    other server failure (a failed smoke, an exit 2) is exit 1 with the server's code named;
  *  (install outcomes: deploy-sh-install.test.js; outside-check failures: deploy-sh-outside.test.js)
  */
 "use strict";
@@ -144,5 +146,28 @@ describe("deploy.sh after the upload: deploy, --verify, --rollback", { skip: SKI
     assert.deepEqual(rows.slice(-2), [`rollback from ${B} rc=3`,
       `live now ${A}, smoke FAIL: the rollback switched the live release away from ${B}, which is now marked bad.`]);
     assert.equal(outsideCalls(r).length, 0, "no outside checks after a failed smoke");
+  });
+
+  it("--list and --smoke exit 0 or 1 only: a lost connection (255) says the state is unknown; a failed check says so", () => {
+    const w = S.w;
+    const live = w.boxLive();
+    for (const mode of ["list", "smoke"]) {
+      const ok = w.run([`--${mode}`]);
+      assert.equal(ok.code, 0, ok.all);
+      assert.ok(ok.server.some((c) => new RegExp(` ${mode}$`).test(c)), `the ${mode} ran on the server`);
+
+      const lost = w.run([`--${mode}`], { FAKE_SSH_RC: `${mode}=255` });
+      assert.equal(lost.code, 1, lost.all);
+      assert.ok(lost.err.includes(`FAILED: the connection to the server was lost during --${mode}; the server state is unknown; run --${mode} again`), lost.err);
+
+      const odd = w.run([`--${mode}`], { FAKE_SSH_RC: `${mode}=2` });
+      assert.equal(odd.code, 1, `a server exit 2 is not passed on as a usage error: ${odd.all}`);
+      assert.ok(odd.err.includes(`FAILED: --${mode} failed on the server (rc=2); see the output above`), odd.err);
+    }
+    const bad = w.run(["--smoke"], { FAKE_SMOKE_FAIL: "1" });
+    assert.equal(bad.code, 1, bad.all);
+    assert.match(bad.out, /smoke FAIL/);
+    assert.ok(bad.err.includes("FAILED: --smoke failed on the server (rc=1); see the output above"), bad.err);
+    assert.equal(w.boxLive(), live, "--list and --smoke never switch anything");
   });
 });

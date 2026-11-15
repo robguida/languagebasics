@@ -246,6 +246,9 @@ function runBash(script, args, opts) {
     : ["-c", `${ids}PATH="$LBT_SHIMS:$PATH"; exec bash "$0" "$@"`, toBash(script), ...(args || [])];
   const ms = opts.timeout || RUN_TIMEOUT_MS;
   const genv = Object.assign({}, env, { LBT_GUARD: JSON.stringify({ bash: b.bash, argv, cwd: opts.cwd, ms, ids: idFile }) });
+  // A file left by an earlier, killed test process (same pid, same run number) must never be read
+  // as this run's ids: remove it before bash starts, so the guard only sees what this bash wrote.
+  if (WIN) fs.rmSync(idFile, { force: true });
   // Backstop: if the guard itself hangs, spawnSync stops it a minute after the guard should have.
   const r = spawnSync(process.execPath, ["-e", GUARD_SRC], {
     cwd: opts.cwd, env: genv, encoding: "utf8", stdio: ["pipe", "pipe", "pipe", "pipe"], timeout: ms + 60000, windowsHide: true,

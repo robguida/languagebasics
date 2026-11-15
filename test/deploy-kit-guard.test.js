@@ -19,6 +19,9 @@
  *    (checked with git's own matcher in a temp repo).
  * 6. The kit is checked out with LF line endings, and deploy.sh passes preflight.js exactly
  *    the arguments preflight.js accepts.
+ * 7. Option hygiene, read from the kit's shell files: every curl call has -q first (no ~/.curlrc),
+ *    and every sha256sum / tar given a file-name variable has "--" before it. Planted samples
+ *    prove the check catches each kind of slip.
  * Node built-ins (plus the git command for item 5).
  */
 "use strict";
@@ -210,4 +213,128 @@ test("guard: deploy.sh hands preflight.js exactly the arguments it accepts", () 
   const flags = [...line.matchAll(/--([a-z]+) /g)].map((m) => m[1]);
   assert.deepEqual(flags, ["sha", "tree", "build", "manifest", "repo"]);
   assert.ok(pf.parseArgs(flags.flatMap((f) => [`--${f}`, "x"])).opts, "preflight.js accepts that argument list");
+});
+
+/* ------------------------------------------------------------ 7. option hygiene (static) */
+
+/* Code part of a shell line: a comment line is dropped, and a " #..." tail outside quotes is cut. */
+function codeOf(line) {
+  if (/^\s*#/.test(line)) return "";
+  let q = "";
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (q) { if (c === "\\" && q === '"') i++; else if (c === q) q = ""; continue; }
+    if (c === '"' || c === "'") q = c;
+    else if (c === "#" && i > 0 && /\s/.test(line[i - 1])) return line.slice(0, i);
+  }
+  return line;
+}
+
+/* The words after a command name, up to the end of that command (| ; & ) < > or a 2> redirect,
+ * outside quotes). Quotes are kept, so "$f" stays one word that holds a "$". */
+function wordsAfter(text) {
+  const words = [];
+  let cur = "", q = "", depth = 0, i = 0;
+  for (; i < text.length; i++) {
+    const c = text[i];
+    if (q) { cur += c; if (c === "\\" && q === '"') { cur += text[++i] || ""; } else if (c === q) q = ""; continue; }
+    if (c === '"' || c === "'") { q = c; cur += c; continue; }
+    if (c === "$" && text[i + 1] === "(") { depth++; cur += "$("; i++; continue; }
+    if (c === ")" && depth > 0) { depth--; cur += c; continue; }
+    if (/\s/.test(c)) { if (cur) { words.push(cur); cur = ""; } continue; }
+    if ("|;&)<>".includes(c) || (/\d/.test(c) && text[i + 1] === ">" && !cur)) break;
+    cur += c;
+  }
+  if (cur) words.push(cur);
+  return words;
+}
+
+/* Every curl, sha256sum and tar call in one shell file that misses its hardening -> problems[].
+ *  - curl ("$CURL_BIN", "${CURL[@]}", or a plain curl command): -q is the FIRST argument (curl
+ *    reads ~/.curlrc unless -q comes first). An array named CURL must start with the command and
+ *    then -q, and is only ever used whole ("${CURL[@]}"), never as "$CURL".
+ *  - sha256sum and tar: when a file-name operand holds a variable, "--" comes before it, so a name
+ *    that starts with "-" is never read as an option (the values of tar's -f and -C are options'
+ *    values, not operands). */
+function hygieneProblems(src, label) {
+  const problems = [];
+  const CMD = /(?:^|[|;&({]|\$\(|\bdo\b|\bthen\b|\belse\b|\s(?="sha256sum))\s*("\$CURL_BIN"|"\$\{CURL\[@\]\}"|"\$CURL"|\$CURL\b|curl|tar|"?sha256sum)(?=\s|$|")/g;
+  src.split(/\r?\n/).forEach((raw, n) => {
+    const line = codeOf(raw);
+    const at = `${label}:${n + 1}`;
+    const arr = /^\s*CURL=\((.*)\)/.exec(line);
+    if (arr) {
+      const w = wordsAfter(arr[1]);
+      if (w[1] !== "-q") problems.push(`${at}: the CURL array does not put -q right after the command`);
+    }
+    for (const m of line.matchAll(CMD)) {
+      const cmd = m[1].replace(/^"(?=sha256sum)/, "");
+      const words = wordsAfter(line.slice(m.index + m[0].length));
+      if (cmd === '"$CURL"' || cmd === "$CURL") { problems.push(`${at}: curl array used as "$CURL" (only its first word, without -q)`); continue; }
+      if (cmd === "curl" || cmd === '"$CURL_BIN"') {
+        if (words[0] !== "-q") problems.push(`${at}: ${cmd} call without -q as its first argument`);
+        continue;
+      }
+      if (cmd === '"${CURL[@]}"') continue; // -q is in the array (checked above)
+      // sha256sum / tar: find the operands
+      let dd = false;
+      for (let i = 0; i < words.length; i++) {
+        const w = words[i];
+        if (w === "--") { dd = true; continue; }
+        if (!dd && /^-/.test(w)) {
+          if (cmd === "tar" && (w === "-C" || w === "-f" || /^-[a-zA-Z]*f$/.test(w))) i++; // the value of -C / -f
+          continue;
+        }
+        if (w.includes("$") && !dd) { problems.push(`${at}: ${cmd} gets the file name ${w} without "--" before it`); break; }
+      }
+    }
+  });
+  return problems;
+}
+
+test('guard: every curl call in the kit has -q first, and every sha256sum / tar file name has "--" before it', () => {
+  const dir = path.join(KIT);
+  const shells = fs.readdirSync(dir).filter((f) => f.endsWith(".sh"));
+  assert.deepEqual(shells.sort(), ["deploy.sh", "lb-release.sh"]);
+  const problems = [];
+  let calls = 0;
+  for (const f of shells) {
+    const src = fs.readFileSync(path.join(dir, f), "utf8");
+    problems.push(...hygieneProblems(src, `scripts/deploy/${f}`));
+    calls += [...src.matchAll(/"\$CURL_BIN"|"\$\{CURL\[@\]\}"|\bsha256sum\b|\btar -/g)].length;
+  }
+  assert.deepEqual(problems, [], problems.join("\n"));
+  assert.ok(calls >= 20, `the guard saw only ${calls} calls`);
+});
+
+test("guard: the option check catches each kind of slip (planted samples)", () => {
+  const bad = [
+    ['code=$("$CURL_BIN" -sS -g --proto =https "$1")', /without -q/],
+    ['curl -s "$u"', /without -q/],
+    ['CURL=("${LB_CURL:-curl}")', /does not put -q/],
+    ['out=$("$CURL" -q -s "$BASE$1")', /used as "\$CURL"/],
+    ['a=$(sha256sum "$B/$p" | cut -d" " -f1)', /sha256sum gets the file name "\$B\/\$p"/],
+    ['( cd "$B" && find . | while IFS= read -r f; do sha256sum "$f"; done )', /sha256sum gets the file name "\$f"/],
+    ['got=$("${SSH[@]}" "sha256sum $BOXSCRIPT | cut -d\' \' -f1")', /sha256sum gets the file name \$BOXSCRIPT/],
+    ['( cd "$B" && tar -cf "$T" .manifest.sha256 "${top[@]}" ) || die "tar failed"', /tar gets the file name "\$\{top\[@\]\}"/],
+  ];
+  for (const [line, re] of bad) {
+    const p = hygieneProblems(line, "x");
+    assert.equal(p.length, 1, `${line}: ${JSON.stringify(p)}`);
+    assert.match(p[0], re, line);
+  }
+  const good = [
+    'code=$("$CURL_BIN" -q -sS "$1")',
+    'CURL=("${LB_CURL:-curl}" -q)',
+    'out=$("${CURL[@]}" -s "$BASE$1")',
+    'a=$(sha256sum -- "$B/$p" 2>/dev/null | cut -d" " -f1)',
+    'b=$(git_c cat-file blob "$sha:src/$p" | sha256sum | cut -d" " -f1)',
+    '( cd "$P" && sha256sum --quiet --strict -c .manifest.sha256 )',
+    'git_c archive --format=tar "$sha" | tar -xf - -C "$TT" || die "cannot unpack commit $sha"',
+    'tar -xf "$tar" -C "$P" --no-same-owner || die "tar holds links: $bad"',
+    '( cd "$B" && tar --mtime="@$(git_c log -1 --format=%ct "$sha")" -cf "$T" -- .manifest.sha256 "${top[@]}" )',
+    'info "built $id: tar $(sha256sum -- "$T" | cut -d" " -f1)"',
+    '# sha256sum "$f" in a comment',
+  ];
+  for (const line of good) assert.deepEqual(hygieneProblems(line, "x"), [], line);
 });

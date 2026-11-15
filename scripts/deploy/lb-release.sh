@@ -29,7 +29,7 @@
 #   LB_HOST_HEADER  Host header for smoke (default bengusa.pro)
 #   LB_BASE         origin address for smoke (default http://127.0.0.1:80)
 #   LB_PREFIX       URL path of the app (default /languagebasics)
-#   LB_CURL         curl command (tests pass a fake)
+#   LB_CURL         curl command (tests pass a fake); -q is always given first, so no ~/.curlrc is read
 #
 # deploys.log is tab-separated: time, kind, id, note. Kinds:
 #   live  current was switched to <id>
@@ -62,7 +62,7 @@ KEEP_BAD=${LB_KEEP_BAD:-1}
 HOST_HEADER=${LB_HOST_HEADER:-bengusa.pro}
 BASE=${LB_BASE:-http://127.0.0.1:80}
 PREFIX=${LB_PREFIX:-/languagebasics}
-CURL=${LB_CURL:-curl}
+CURL=("${LB_CURL:-curl}" -q)   # -q first: the server account's ~/.curlrc is never read
 BAD=""
 
 cur_id() { local t; t=$(readlink "$ROOT/current" 2>/dev/null || true); case "$t" in releases/*) echo "${t#releases/}" ;; *) echo "" ;; esac; }
@@ -101,7 +101,7 @@ smoke() {
     id=$(cur_id); [ -n "$id" ] || { say "smoke FAIL: no current release"; return 1; }
     chk() { # path expect-code [content-type-prefix]
         local out
-        out=$("$CURL" -s -o /dev/null -w '%{http_code} %{content_type}' -H "Host: $HOST_HEADER" "$BASE$1") || out="000"
+        out=$("${CURL[@]}" -s -o /dev/null -w '%{http_code} %{content_type}' -H "Host: $HOST_HEADER" "$BASE$1") || out="000"
         if [[ "$out" == "$2"* ]] && { [ -z "${3:-}" ] || [[ "${out#* }" == "$3"* ]]; }; then echo "  ok   $out  $1"; else echo "  FAIL $out  $1 (want $2 ${3:-})"; fails=$((fails+1)); fi
     }
     chk "$PREFIX/" 200 text/html
@@ -116,11 +116,11 @@ smoke() {
     chk "$PREFIX/.manifest.sha256" 404
     chk "$PREFIX/.x" 404
     chk "$PREFIX/nope.js" 404
-    loc=$("$CURL" -s -o /dev/null -w '%{http_code} %{redirect_url}' -H "Host: $HOST_HEADER" "$BASE$PREFIX?lesson=es/lesson-1")
-    hdr=$("$CURL" -s -D - -o /dev/null -H "Host: $HOST_HEADER" "$BASE$PREFIX?lesson=es/lesson-1" | tr -d '\r' | awk 'tolower($1)=="location:"{print $2}')
+    loc=$("${CURL[@]}" -s -o /dev/null -w '%{http_code} %{redirect_url}' -H "Host: $HOST_HEADER" "$BASE$PREFIX?lesson=es/lesson-1")
+    hdr=$("${CURL[@]}" -s -D - -o /dev/null -H "Host: $HOST_HEADER" "$BASE$PREFIX?lesson=es/lesson-1" | tr -d '\r' | awk 'tolower($1)=="location:"{print $2}')
     if [[ "$loc" == 301* ]] && [ "$hdr" = "$PREFIX/?lesson=es/lesson-1" ]; then echo "  ok   301 -> $hdr"; else echo "  FAIL no-slash redirect: $loc / $hdr"; fails=$((fails+1)); fi
     want=$(awk '{p=$2; sub(/^[*]/,"",p)} p=="index.html"{print $1}' "$ROOT/current/.manifest.sha256" 2>/dev/null)
-    got=$("$CURL" -s -H "Host: $HOST_HEADER" "$BASE$PREFIX/" | sha256sum | cut -d' ' -f1)
+    got=$("${CURL[@]}" -s -H "Host: $HOST_HEADER" "$BASE$PREFIX/" | sha256sum | cut -d' ' -f1)
     if [ -n "$want" ] && [ "$want" = "$got" ]; then echo "  ok   served index.html = release $id"; else echo "  FAIL served index.html $got != manifest $want"; fails=$((fails+1)); fi
     if [ "$fails" = 0 ]; then say "smoke PASS ($id)"; return 0; fi
     say "smoke FAIL ($fails)"; return 1
@@ -157,7 +157,7 @@ case "$cmd" in
     grep -qx '.manifest.sha256' <<<"$(tar -tf "$tar")" || die "tar has no .manifest.sha256"
     P=$REL/$id.partial; rm -rf "$P"; mkdir "$P"
     tar -xf "$tar" -C "$P" --no-same-owner --no-same-permissions || { rm -rf "$P"; die "unpack failed"; }
-    got=$(sha256sum "$P/.manifest.sha256" | cut -d' ' -f1)
+    got=$(sha256sum -- "$P/.manifest.sha256" | cut -d' ' -f1)
     [ "$got" = "$msha" ] || { rm -rf "$P"; die "manifest sha $got != approved $msha"; }
     ( cd "$P" && sha256sum --quiet --strict -c .manifest.sha256 ) || { rm -rf "$P"; die "files do not match the manifest"; }
     listed=$(wc -l < "$P/.manifest.sha256" | tr -d ' '); actual=$(find "$P" -type f ! -name .manifest.sha256 | wc -l | tr -d ' ')

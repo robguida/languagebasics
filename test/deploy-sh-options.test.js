@@ -13,8 +13,11 @@
  *  - every scp call: -q, -F none and the same key and -o options, then source and user@host:target;
  *  - every outside-check curl call: -q FIRST (curl reads ~/.curlrc unless -q is first), then
  *    -sS -g --proto =https;
+ *  - every server-side curl call (lb-release.sh smoke, run by the fake ssh): -q FIRST, so the
+ *    server account's ~/.curlrc is never read;
  *  - the release tar: "--" comes right before the member names, so a file name that starts with
- *    "-" can never be read as a tar option.
+ *    "-" can never be read as a tar option. The world holds src/-x.txt, so the manifest's
+ *    sha256sum, the tar and the server install are all proven to take it as a name.
  * Harness guards:
  *  - the fake curl refuses an option that is not on its allow list, a missing value and a second
  *    address (so a misspelt curl option in the kit fails the tests instead of passing them);
@@ -72,8 +75,9 @@ function assertHostKeyOptions(a, w, label) {
   assert.equal(a.filter((x) => x === "-F").length, 1, `exactly one -F ${show}`);
 }
 
-test("deploy.sh: ssh, scp, curl and tar get the hardening options on every call of a passing deploy", { skip: SKIP }, (t) => {
-  const w = makeWorld(t, { files: DECKS });
+test("deploy.sh: ssh, scp, curl and tar get the hardening options on every call of a passing deploy (with a src/-x.txt)", { skip: SKIP }, (t) => {
+  // src/-x.txt: a file name that starts with "-" must reach the manifest, the tar and the server as a name.
+  const w = makeWorld(t, { files: Object.assign({}, DECKS, { "src/-x.txt": "dash file\n" }) });
   H.installOddShim(w.shims, "tar"); // logs every tar call's arguments, then runs the real tar
   const r = w.run([], { LB_EXPECT_SHA: w.sha, FAKE_HEADERS: HEADERS });
   assert.equal(r.code, 0, r.all);
@@ -111,13 +115,30 @@ test("deploy.sh: ssh, scp, curl and tar get the hardening options on every call 
     assert.equal(a.filter((x) => x === "-q").length, 1, JSON.stringify(a));
   }
 
+  // curl on the server (lb-release.sh smoke, through the fake ssh): -q FIRST, so the server
+  // account's ~/.curlrc is never read
+  const BOX = "http://127.0.0.1:80/";
+  const scurl = r.args.filter((a) => a[0] === "curl" && a[a.length - 1].startsWith(BOX)).map((a) => a.slice(1));
+  assert.ok(scurl.length >= 14, `server smoke curl calls logged: ${scurl.length}`);
+  assert.equal(scurl.length, r.calls.filter((c) => c.startsWith(`curl ${BOX}`)).length, "every server curl call has an argument row");
+  assert.equal(r.args.filter((a) => a[0] === "curl").length, curl.length + scurl.length, "no curl call to any other address");
+  for (const a of scurl) {
+    assert.equal(a[0], "-q", `server curl, -q first: ${JSON.stringify(a)}`);
+    assert.equal(a.filter((x) => x === "-q").length, 1, JSON.stringify(a));
+  }
+
+  // src/-x.txt went through as a file name: in the manifest, and live on the server
+  const live = path.join(w.box.root, "current");
+  assert.equal(fs.readFileSync(path.join(live, "-x.txt"), "utf8"), "dash file\n");
+  assert.match(fs.readFileSync(path.join(live, ".manifest.sha256"), "utf8"), /^[0-9a-f]{64} {2}-x\.txt$/m);
+
   // tar: the release tar puts "--" right before its member names
   const creates = r.args.filter((a) => a[0] === "tar" && a.some((x) => /^-[a-zA-Z]*c[a-zA-Z]*f$/.test(x))).map((a) => a.slice(1));
   assert.equal(creates.length, 1, `one tar create call: ${JSON.stringify(creates)}`);
   const a = creates[0];
   const dd = a.indexOf("--");
   assert.ok(dd > 0, `tar has "--" before the member names: ${JSON.stringify(a)}`);
-  assert.deepEqual(a.slice(dd + 1), [".manifest.sha256", "content", "engine.js", "index.html", "privacy.html", "styles.css"],
+  assert.deepEqual(a.slice(dd + 1), [".manifest.sha256", "-x.txt", "content", "engine.js", "index.html", "privacy.html", "styles.css"],
     `tar member names, all after "--": ${JSON.stringify(a)}`);
   const beforeDd = a.slice(0, dd).filter((x) => !x.startsWith("-"));
   assert.equal(beforeDd.length, 1, `before "--" only options and the tar file: ${JSON.stringify(a)}`);

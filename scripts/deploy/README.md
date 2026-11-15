@@ -83,7 +83,7 @@ CDN retry count and wait.
 | Code | `deploy.sh` |
 |---|---|
 | 0 | ok |
-| 1 | refused or failed (the message says whether anything was switched, or that the state is unknown) |
+| 1 | refused or failed (the message says whether anything was switched, or that the state is unknown). For `--list` and `--smoke`: the server check failed, or the connection was lost (server state unknown); the message says which |
 | 2 | usage error |
 | 3 | the release live now fails the server smoke checks: a rollback switched to a release that also fails, or the server's automatic rollback after a failed install had no good release to go back to, switched back to one that also fails, or could not switch back. The message names the live release. |
 
