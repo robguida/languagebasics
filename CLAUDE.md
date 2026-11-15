@@ -207,7 +207,7 @@ Live address: `https://bengusa.pro/languagebasics/`.
 
 **Setup (once).** The server details live in a private settings file **outside the repo**. Copy `scripts/deploy/deploy.env.example` to a private place and fill it in. The work folder in it must also be outside the repo. The kit refuses a settings file or work folder that sits inside the repo. Never commit the settings file, and never write server details in this repo.
 
-**Run it** from a clean checkout, with the full id of the approved `main` commit in `LB_EXPECT_SHA`:
+**Run it** from a clean checkout. The deploy, `--dry-run` and `--preflight` need the full id of the approved `main` commit in `LB_EXPECT_SHA`. `--rollback` needs `LB_EXPECT_CURRENT` instead (see Rollback below):
 
 | Mode | What it does |
 |---|---|
@@ -217,7 +217,7 @@ Live address: `https://bengusa.pro/languagebasics/`.
 | `--list` | Shows the live release, the rollback target and every release. |
 | `--smoke` | Server-side check of the live release. |
 | `--verify` | Outside checks of the live release. |
-| `--rollback` | Goes back to the last good release, then checks from outside. |
+| `--rollback` | Goes back to the last good release, then checks from outside. Needs `LB_EXPECT_CURRENT=<live release id from --list>`; nothing moves if another release is live. |
 
 How a deploy works:
 1. Check the settings, the commit id and that the checkout is clean. Refuse if anything is wrong.
@@ -227,7 +227,7 @@ How a deploy works:
 5. A `current` link points at the live release. The server checks it, then the kit checks the files from outside.
 6. If any check fails, the release **rolls back on its own**.
 
-**Rollback** points `current` back at the last good release. A rollback marks the release it leaves as **bad**. Later rollbacks skip bad releases. Run `--list` first to see the target.
+**Rollback** points `current` back at the last good release. A rollback marks the release it leaves as **bad**. Later rollbacks skip bad releases. Run `--list` first to see the live release and the target, then run `--rollback` with `LB_EXPECT_CURRENT` set to that live release id.
 
 No backend, no server-side build. Static files only.
 

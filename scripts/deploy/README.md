@@ -85,6 +85,6 @@ CDN retry count and wait.
 | 0 | ok |
 | 1 | refused or failed (the message says whether anything was switched, or that the state is unknown) |
 | 2 | usage error |
-| 3 | the release live now fails the server smoke checks: a rollback switched to a release that also fails, or the server's automatic rollback after a failed install found no good release or could not switch back. The message names the live release. |
+| 3 | the release live now fails the server smoke checks: a rollback switched to a release that also fails, or the server's automatic rollback after a failed install had no good release to go back to, switched back to one that also fails, or could not switch back. The message names the live release. |
 
 A lost connection during an install or rollback is reported as "server state unknown; run --list now".

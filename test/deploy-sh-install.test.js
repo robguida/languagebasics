@@ -39,7 +39,7 @@ describe("deploy.sh after the upload: what the server's install answers", { skip
     assert.equal(r.code, 3, r.all);
     A = builtId(r);
     assert.match(r.out, /SMOKE FAILS, NO GOOD RELEASE TO GO BACK TO/);
-    assert.ok(r.err.includes(`SWITCHED, BUT SMOKE FAILS: release ${A} went live and failed the server smoke checks, and the server's automatic rollback found no release that passes them; release ${A} is marked bad.`), r.err);
+    assert.ok(r.err.includes(`SWITCHED, BUT SMOKE FAILS: release ${A} went live and failed the server smoke checks, and the server's automatic rollback had no good release to go back to; release ${A} is marked bad.`), r.err);
     assert.ok(r.err.includes(`live now: ${A}. It FAILS the server smoke checks.`), r.err);
     assert.equal(w.boxLive(), A);
     hasRow(w.boxLog(), [undefined, "bad", A, "smoke-failed"], "the first-ever release that failed smoke is marked bad");

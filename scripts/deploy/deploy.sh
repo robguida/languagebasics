@@ -132,7 +132,9 @@ CONF=$(norm_path "${LB_DEPLOY_CONFIG:-${HOME:-}/.config/languagebasics/deploy.en
     || die "the settings file path (LB_DEPLOY_CONFIG) must be a full local path: no relative, drive-relative or network path"
 [ -f "$CONF" ] || die "settings file not found (LB_DEPLOY_CONFIG, default \$HOME/.config/languagebasics/deploy.env); copy scripts/deploy/deploy.env.example there, outside the repo, and fill it in"
 [ -L "$CONF" ] && fail "the settings file is a link; use a plain file outside any repo"
-[ "$(stat -c %h -- "$CONF" 2>/dev/null)" = 1 ] || fail "the settings file has more than one name (a hard link); use a plain file with one name, outside any repo"
+links=$(stat -c %h -- "$CONF" 2>/dev/null)
+if [ -z "$links" ]; then fail "cannot read how many names the settings file has (stat failed); use a plain local file outside any repo"
+elif [ "$links" != 1 ]; then fail "the settings file has more than one name (a hard link); use a plain file with one name, outside any repo"; fi
 CONF_DIR=$(abs_dir "$(dirname -- "$CONF")") || die "cannot resolve the settings folder"
 CONF_ABS=$CONF_DIR/$(basename -- "$CONF")
 local_disk "$CONF_DIR" || fail "the settings file must be on a local drive, not behind a network path"
@@ -324,9 +326,9 @@ box_setup() {
     got=$("$KEYGEN_BIN" -lf "$tmp" 2>/dev/null | awk '{print $2}')
     [ "$got" = "${CFG[LB_HOST_FPR]}" ] || { rm -f "$tmp"; die "server host key does not match the pinned fingerprint (LB_HOST_FPR)"; }
     mv "$tmp" "$KH"
-    SSH=("$SSH_BIN" -i "${CFG[LB_SSH_KEY]}" -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=15 -o LogLevel=ERROR
+    SSH=("$SSH_BIN" -F none -i "${CFG[LB_SSH_KEY]}" -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=15 -o LogLevel=ERROR
          -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$KH" "${CFG[LB_SSH_USER]}@${CFG[LB_HOST]}")
-    SCP=("$SCP_BIN" -q -i "${CFG[LB_SSH_KEY]}" -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=15 -o LogLevel=ERROR
+    SCP=("$SCP_BIN" -q -F none -i "${CFG[LB_SSH_KEY]}" -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=15 -o LogLevel=ERROR
          -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$KH")
     # The server script is the copy from the kit commit, stored by content hash (never overwrites another version).
     h=$(sha256sum "$KT/lb-release.sh" | cut -d' ' -f1)
@@ -366,7 +368,7 @@ HEADER_PATHS=("" content/languages.js content/sq/lesson-1.js privacy.html)
 
 fetch() { # fetch <url> <body-out> <headers-out>: prints the HTTP code (000 on a transport error)
     local code
-    code=$("$CURL_BIN" -sS --max-time 20 -o "$2" -D "$3" -w '%{http_code}' "$1" 2>/dev/null) || code=000
+    code=$("$CURL_BIN" -q -sS -g --proto =https --max-time 20 -o "$2" -D "$3" -w '%{http_code}' "$1" 2>/dev/null) || code=000
     printf '%s' "${code:-000}"
 }
 hdr_values() { # hdr_values <lower-case name> <header file>: every value of that header, one per line
@@ -448,9 +450,9 @@ outside_check() { # outside_check <manifest-file> <release-id>: every problem is
 
 # The server says the release live now fails its smoke checks (lb-release.sh exit 3 or 4).
 # Say what happened and what is live now, then exit 3.
-switched_but_smoke_fails() { # <what happened, one sentence>
-    local live
-    live=$(box_manifest "$BUILD/live.manifest") || live="(cannot read it from the server)"
+switched_but_smoke_fails() { # <what happened, one sentence> [<live release id, already read>]
+    local live=${2:-}
+    [ -n "$live" ] || live=$(box_manifest "$BUILD/live.manifest") || live="(cannot read it from the server)"
     echo "$PROG: SWITCHED, BUT SMOKE FAILS: $1" >&2
     echo "$PROG: live now: $live. It FAILS the server smoke checks. Check the server now." >&2
     logrow "live now $live, smoke FAIL: $1"
@@ -528,7 +530,7 @@ mv "$BUILD/$id.manifest" "$B/.manifest.sha256"
 msha=$(sha256sum "$B/.manifest.sha256" | cut -d' ' -f1)
 T=$BUILD/$id.tar
 mapfile -t top < <(cd "$B" && find . -mindepth 1 -maxdepth 1 ! -name .manifest.sha256 | sed 's#^\./##' | sort)
-( cd "$B" && tar --sort=name --format=ustar --owner=0 --group=0 --numeric-owner --mtime="@$(git_c log -1 --format=%ct "$sha")" -cf "$T" .manifest.sha256 "${top[@]}" ) || die "tar failed"
+( cd "$B" && tar --sort=name --format=ustar --owner=0 --group=0 --numeric-owner --mtime="@$(git_c log -1 --format=%ct "$sha")" -cf "$T" -- .manifest.sha256 "${top[@]}" ) || die "tar failed"
 info "built $id: $n files, manifest $msha, tar $(sha256sum "$T" | cut -d' ' -f1)"
 
 # ---- preflight.js from the kit commit (required): build vs tested tree, manifest, leak scan ----
@@ -548,9 +550,13 @@ fi
 
 box_setup
 if [ "$mode" = dry ]; then
-    box list
-    logrow "$id sha=$sha kit=$KIT_SHA manifest=$msha DRY RUN"
-    info "dry run: every check passed; no release was uploaded"
+    box list; rc=$?
+    logrow "$id sha=$sha kit=$KIT_SHA manifest=$msha DRY RUN list rc=$rc"
+    case $rc in
+      0)   info "dry run: every check passed; no release was uploaded" ;;
+      255) failed "dry run: the connection to the server was lost during the server checks; no release was uploaded; run --list" ;;
+      *)   failed "dry run: the server checks failed (rc=$rc); no release was uploaded; see the output above" ;;
+    esac
     exit 0
 fi
 
@@ -559,7 +565,13 @@ box install "$BOXKIT/incoming/$id.tar" "$id" "$msha"; rc=$?
 logrow "$id sha=$sha kit=$KIT_SHA manifest=$msha install rc=$rc"
 case $rc in
   0) ;;
-  3)   switched_but_smoke_fails "release $id went live and failed the server smoke checks, and the server's automatic rollback found no release that passes them; release $id is marked bad." ;;
+  3)   live=$(box_manifest "$BUILD/live.manifest") || live=""
+       if [ "$live" = "$id" ]; then
+           switched_but_smoke_fails "release $id went live and failed the server smoke checks, and the server's automatic rollback had no good release to go back to; release $id is marked bad." "$live"
+       elif [ -n "$live" ]; then
+           switched_but_smoke_fails "release $id went live and failed the server smoke checks; the server's automatic rollback switched back to $live, which also fails them; release $id is marked bad." "$live"
+       fi
+       switched_but_smoke_fails "release $id went live and failed the server smoke checks, and the server's automatic rollback either had no good release to go back to or switched back to one that also fails them; release $id is marked bad." ;;
   4)   switched_but_smoke_fails "release $id went live and failed the server smoke checks, and the server's automatic rollback could not switch back; release $id is marked bad." ;;
   1)   live=$(box_manifest "$BUILD/live.manifest") || live=""
        [ -n "$live" ] || failed "install failed on the server (rc=1) and the live release cannot be read now; run --list now"
@@ -580,7 +592,10 @@ logrow "$id outside FAIL, auto-rollback rc=$rc"
 case $rc in
   0) ;;
   3)   switched_but_smoke_fails "the automatic rollback after failed outside checks switched the live release away from $id, which is now marked bad." ;;
-  1)   failed "AUTOMATIC ROLLBACK REFUSED by the server (rc=1), nothing was switched: release $id is still live and fails the outside checks. Check the server now." ;;
+  1)   live=$(box_manifest "$BUILD/live.manifest") || live=""
+       [ -n "$live" ] || failed "AUTOMATIC ROLLBACK REFUSED by the server (rc=1), and the live release cannot be read now; release $id may still be live and fails the outside checks. Run --list now."
+       [ "$live" = "$id" ] || failed "AUTOMATIC ROLLBACK REFUSED by the server (rc=1): release $live is live now, not $id (something else switched it); release $id fails the outside checks. Run --list and --verify now."
+       failed "AUTOMATIC ROLLBACK REFUSED by the server (rc=1), nothing was switched: release $id is still live and fails the outside checks. Check the server now." ;;
   255) failed "the connection to the server was lost during the automatic rollback; release $id may still be live; run --list now" ;;
   *)   failed "AUTOMATIC ROLLBACK FAILED (rc=$rc); the server state is unknown; release $id may still be live; run --list now" ;;
 esac
