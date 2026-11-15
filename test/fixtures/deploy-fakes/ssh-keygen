@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Fake ssh-keygen -lf (tests only): prints the fingerprint the test chose.
+echo "ssh-keygen $*" >> "$FAKE_CALLS"
+echo "256 ${FAKE_FPR:-SHA256:fakefingerprint} fakehost (ED25519)"

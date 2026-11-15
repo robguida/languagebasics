@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Fake scp (tests only): logs the call, then copies the file locally (the part after "host:" is the target).
+src=${@: -2:1}; dst=${@: -1}; dst=${dst#*:}
+echo "scp $src -> $dst" >> "$FAKE_CALLS"
+cp "$src" "$dst"

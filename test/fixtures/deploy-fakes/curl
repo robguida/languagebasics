@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Fake web server (tests only) over $FAKE_ROOT/current, for lb-release.sh smoke.
+# FAKE_SMOKE_FAIL=1 serves a broken index.html.
+out=- hdr="" fmt="" url=""
+while [ $# -gt 0 ]; do
+  case "$1" in -o) out=$2; shift ;; -D) hdr=$2; shift ;; -w) fmt=$2; shift ;; -H|--max-time) shift ;; -s|-sS|-S) ;; *) url=$1 ;; esac
+  shift
+done
+echo "curl $url" >> "$FAKE_CALLS"
+p=${url#*://}; p=/${p#*/}; q=""
+case "$p" in *\?*) q="?${p#*\?}"; p=${p%%\?*} ;; esac
+code=404 ct="text/html" redir="" body=$(mktemp)
+if [ "$p" = /languagebasics ]; then code=301; redir="/languagebasics/$q"
+elif [[ "$p" == /languagebasics/* ]]; then
+  rel=${p#/languagebasics/}
+  if [ -z "$rel" ] || [[ "$rel" == */ ]]; then rel="${rel}index.html"; fi
+  f="$FAKE_ROOT/current/$rel"
+  if [[ "/$rel" != */.* ]] && [ -f "$f" ]; then code=200; cp "$f" "$body"; fi
+  case "$rel" in *.js) ct="application/javascript; charset=utf-8" ;; *.css) ct="text/css" ;; *) ct="text/html; charset=utf-8" ;; esac
+  if [ "$code" = 200 ] && [ -n "${FAKE_SMOKE_FAIL:-}" ] && [ "$rel" = index.html ]; then echo broken > "$body"; fi
+fi
+H="HTTP/1.1 $code X
+Content-Type: $ct"
+[ -n "$redir" ] && H="$H
+Location: $redir"
+if [ "$hdr" = - ]; then printf '%s\r\n\r\n' "$H"; elif [ -n "$hdr" ]; then printf '%s\r\n\r\n' "$H" > "$hdr"; fi
+if [ "$out" = - ]; then cat "$body"; elif [ "$out" != /dev/null ]; then cp "$body" "$out"; fi
+rm -f "$body"
+w=${fmt//'%{http_code}'/$code}; w=${w//'%{content_type}'/$ct}; w=${w//'%{redirect_url}'/$redir}
+printf '%s' "$w"

@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Fake ssh (tests only): logs the call, then runs the remote command on this computer.
+echo "ssh ${@: -1}" >> "$FAKE_CALLS"
+exec bash -c "${@: -1}"

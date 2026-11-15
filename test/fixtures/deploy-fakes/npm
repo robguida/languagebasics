@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Fake npm (tests only): logs the folder it ran in and its arguments.
+# FAKE_NPM_FAIL holds "test" and/or "check" to make that command fail.
+echo "npm|$PWD|$*" >> "$FAKE_CALLS"
+case "$*" in
+  test)          [[ "${FAKE_NPM_FAIL:-}" == *test* ]] && { echo "fake npm test: 1 failing"; exit 1; } ;;
+  "run check:data") [[ "${FAKE_NPM_FAIL:-}" == *check* ]] && { echo "fake check:data: 1 file differs"; exit 1; } ;;
+esac
+echo "fake npm $*: ok"
+exit 0
