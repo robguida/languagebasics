@@ -303,15 +303,24 @@ test("deploy.sh: a running kit that differs from the kit commit is refused", { s
 
 test("deploy.sh: failing npm test is refused; check:data still runs; both ran in the unpacked commit", { skip: SKIP }, (t) => {
   const w = makeWorld(t);
-  const r = w.run([], { LB_EXPECT_SHA: w.sha, FAKE_NPM_FAIL: "test" });
+  const r = w.run([], { LB_EXPECT_SHA: w.sha, FAKE_NPM_FAIL: "test", FAKE_NPM_RC: "7" });
   assertRefused(r, /REFUSED at 'tests and build checks'/);
-  assert.match(r.err, /npm test failed on commit/);
+  assert.match(r.err, /npm test failed on commit \S+ \(exit 7, log: /, "npm's real exit status is kept");
+  assert.doesNotMatch(r.err, /check:data failed/);
   const npm = r.calls.filter((c) => c.startsWith("npm|"));
   assert.deepEqual(npm.map((c) => c.split("|")[2]), ["test", "run check:data"], "both commands ran");
+  const runId = `[0-9]{8}T[0-9]{6}Z-${w.sha.slice(0, 12)}`;
   for (const c of npm) {
-    const cwd = c.split("|")[1];
-    assert.match(cwd, new RegExp(`${H.toBash(w.work).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/build/[0-9]{8}T[0-9]{6}Z-${w.sha.slice(0, 12)}\\.tree$`, "i"), `ran in ${cwd}`);
+    const f = c.split("|");
+    const cwd = f[1];
+    assert.match(cwd, new RegExp(`${H.toBash(w.work).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/build/${runId}\\.tree$`, "i"), `ran in ${cwd}`);
+    // temp folders for the test run go under the work folder, never the system temp folder
+    for (const k of ["tmp=", "TMP=", "TEMP="]) {
+      const v = (f.find((x) => x.startsWith(k)) || "").slice(k.length).replace(/\\/g, "/");
+      assert.match(v, new RegExp(`/work/build/${runId}\\.tmp$`, "i"), `${k}${v} is under the work folder`);
+    }
   }
+  assert.ok(!fs.readdirSync(path.join(w.work, "build")).some((d) => d.endsWith(".tmp")), "the test-run temp folder is removed");
   assert.ok(!fs.existsSync(path.join(w.box.kit, "incoming")), "nothing uploaded");
 });
 

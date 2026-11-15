@@ -7,6 +7,7 @@ Ships the contents of `src/` from an approved `origin/main` commit to the live s
 |---|---|---|
 | `deploy.sh` | your computer | checks, builds, uploads, switches, checks from outside |
 | `lb-release.sh` | the server | unpacks, verifies, switches `current`, smoke test, rollback, list |
+| `preflight.js` | your computer | extra pre-upload checks on the built release, run by `deploy.sh` before any server contact |
 | `deploy.env.example` | — | shape of the private settings (placeholders only) |
 | `expected-headers.txt` | — | the response headers the live site must send |
 
@@ -65,4 +66,5 @@ bash scripts/deploy/deploy.sh --rollback   # back to the last good release, then
 Tests never touch the network. The commands can be replaced with fakes through these variables:
 `LB_SSH_BIN`, `LB_SCP_BIN`, `LB_SSH_KEYSCAN_BIN`, `LB_SSH_KEYGEN_BIN`, `LB_CURL_BIN`, `LB_NPM_BIN`,
 `LB_NODE_BIN` (deploy.sh) and `LB_CURL` (lb-release.sh). `LB_OUTSIDE_TRIES` and `LB_OUTSIDE_WAIT` set the
-CDN retry count and wait. Exit codes: 0 ok, 1 refused or failed, 2 usage error.
+CDN retry count and wait. Exit codes: 0 ok, 1 refused or failed, 2 usage error,
+3 a rollback switched releases but the release now live fails the server smoke checks (the message names it).

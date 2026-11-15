@@ -141,6 +141,18 @@ test("lb-release: rollback goes to the newest good release and marks the one it 
   assert.match(s.logText(), new RegExp(`\\tbad\\t${id(3)}\\trolled-back: manual`));
 });
 
+test("lb-release: a rollback whose target fails smoke exits 3 and says the switch happened and what is live", { skip: SKIP }, (t) => {
+  const s = makeServer(t);
+  threeGood(s);
+  const r = s.run(["rollback"], { FAKE_SMOKE_FAIL: "1" });
+  assert.equal(r.code, 3, r.all);
+  assert.match(r.out, new RegExp(`ROLLED BACK ${id(3)} -> ${id(2)}`));
+  assert.match(r.out, new RegExp(`SWITCHED BUT SMOKE FAILS: ${id(2)} is live now`));
+  const l = s.list();
+  assert.equal(l.current, id(2), "current did move");
+  assert.equal(l.status[id(3)], "bad", "the release left is marked bad");
+});
+
 test("lb-release: rollback skips releases marked bad and releases no longer on disk", { skip: SKIP }, (t) => {
   const s = makeServer(t);
   for (const n of [1, 2, 3, 4]) s.add(n);

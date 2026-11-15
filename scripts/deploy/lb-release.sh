@@ -4,7 +4,8 @@
 #
 #   lb-release.sh install <tar> <release-id> <manifest-sha256>   unpack, verify, switch current, smoke; auto-rollback on fail
 #   lb-release.sh rollback [<expected-current-id> [<reason>]]     switch to the last good release; the one left is marked bad
-#   lb-release.sh list                                            current, rollback target, every release and its status
+#                                                                 exit 3: switched, but the release now live fails smoke
+#   lb-release.sh list                                           current, rollback target, every release and its status
 #   lb-release.sh smoke                                           origin-direct checks of the live release (no CDN)
 #   lb-release.sh manifest                                        "release <id>", then the live release's manifest
 #
@@ -185,7 +186,10 @@ case "$cmd" in
     logl bad "$c" "rolled-back: $reason"
     logl live "$t" "rollback from $c"
     say "ROLLED BACK $c -> $t ($c marked bad)"
-    smoke
+    if ! smoke; then
+        say "SWITCHED BUT SMOKE FAILS: $t is live now and fails smoke; $c stays marked bad. Check the server now."
+        exit 3
+    fi
     ;;
   list)
     BAD=$(bad_ids)

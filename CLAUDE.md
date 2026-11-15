@@ -55,8 +55,8 @@ data/                     # LB-41: lesson data, one JSON file per language — e
   sq.json es.json ja.json bn.json
 scripts/                  # dev tools, NOT served
   build-data.js           # data/*.json -> src/content + parked/content (build:data / check:data)
-  deploy/                 # LB-37: the deploy kit (deploy.sh, lb-release.sh, deploy.env.example,
-                          #   expected-headers.txt, README.md). Private settings live OUTSIDE the repo
+  deploy/                 # LB-37: the deploy kit (deploy.sh, lb-release.sh, preflight.js pre-upload
+                          #   checks, deploy.env.example, expected-headers.txt, README.md). Private settings live OUTSIDE the repo
 parked/                   # LB-34 parked lessons — GENERATED, NOT served, never deploys
   content/<lang>/lesson-5.js, lesson-6.js
 test/                     # node --test suite (NOT served)

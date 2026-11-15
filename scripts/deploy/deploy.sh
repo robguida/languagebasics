@@ -15,7 +15,8 @@
 #               rollback only accepts a kit commit that is already on origin/main.
 #   Settings:   a private file OUTSIDE this repo: $HOME/.config/languagebasics/deploy.env, or LB_DEPLOY_CONFIG=<path>.
 #               See deploy.env.example and README.md.
-#   Exit codes: 0 ok, 1 refused or failed, 2 usage error.
+#   Exit codes: 0 ok, 1 refused or failed, 2 usage error,
+#               3 a rollback switched releases, but the release now live fails the server smoke checks.
 set -uo pipefail
 export LC_ALL=C
 
@@ -350,6 +351,17 @@ outside_check() { # outside_check <manifest-file> <release-id>: every problem is
     return 1
 }
 
+# A rollback on the server exited 3: current WAS switched and the release left is marked bad,
+# but the release now live fails the server smoke checks. Say what is live now, then exit 3.
+switched_but_smoke_fails() { # <what rolled back> <what was left>
+    local live
+    live=$(box_manifest "$BUILD/live.manifest") || live="(cannot read it from the server)"
+    echo "$PROG: SWITCHED, BUT SMOKE FAILS: $1 switched the live release; $2 is marked bad." >&2
+    echo "$PROG: live now: $live. It FAILS the server smoke checks. Check the server now." >&2
+    logrow "switched, live now $live, smoke FAIL"
+    exit 3
+}
+
 # ---- modes that only talk to the server ----
 case "$mode" in
   list)  box_setup; box list; exit $? ;;
@@ -364,7 +376,8 @@ case "$mode" in
     box_setup
     box rollback; rc=$?
     logrow "rollback rc=$rc"
-    [ $rc = 0 ] || die "rollback failed on the server (rc=$rc); see the output above"
+    [ $rc = 3 ] && switched_but_smoke_fails "the rollback" "the release it left"
+    [ $rc = 0 ] || die "rollback failed on the server (rc=$rc); nothing was switched; see the output above"
     m=$BUILD/live.manifest
     rid=$(box_manifest "$m") || die "rolled back, but cannot read the live release from the server"
     outside_check "$m" "$rid" || die "rolled back to $rid, but the outside checks fail; see above"
@@ -377,14 +390,23 @@ id="$(date -u +%Y%m%dT%H%M%SZ)-${sha:0:12}"
 TT=$BUILD/$id.tree
 rm -rf "$TT"; mkdir -p "$TT"
 git_c archive --format=tar "$sha" | tar -xf - -C "$TT" || die "cannot unpack commit $sha"
-run_npm() { # run_npm <label> <log> <npm args...>: runs in the commit's tree; both always run (continue on error)
-    local label=$1 log=$2; shift 2
-    if ( cd "$TT" && "$NPM_BIN" "$@" ) > "$log" 2>&1; then info "$label passes on $sha"; return 0; fi
-    fail "$label failed on commit $sha (log: $log)"
+# Temp folders made by the test run go under the work folder (outside the repo), never the system temp folder.
+TTMP=$BUILD/$id.tmp
+rm -rf "$TTMP"; mkdir -p "$TTMP" || die "cannot create $TTMP"
+TTMP_NATIVE=$TTMP
+command -v cygpath >/dev/null 2>&1 && TTMP_NATIVE=$(cygpath -w "$TTMP")
+run_npm() { # run_npm <label> <log> <npm args...>: runs in the commit's tree; returns npm's exit status.
+    local label=$1 log=$2 rc; shift 2   # the callers run both commands and collect every failure (continue on error)
+    ( cd "$TT" && LB_TEST_TMP=$TTMP_NATIVE TMP=$TTMP_NATIVE TEMP=$TTMP_NATIVE TMPDIR=$TTMP "$NPM_BIN" "$@" ) > "$log" 2>&1
+    rc=$?
+    if [ $rc = 0 ]; then info "$label passes on $sha"; return 0; fi
+    fail "$label failed on commit $sha (exit $rc, log: $log)"
     tail -n 15 "$log" | sed 's/^/    | /' >&2
+    return $rc
 }
 run_npm "npm test" "$BUILD/$id.npm-test.log" test
 run_npm "npm run check:data" "$BUILD/$id.check-data.log" run check:data
+rm -rf "$TTMP"
 
 # ---- build ./src of that commit and check every byte ----
 B=$BUILD/$id
@@ -443,6 +465,7 @@ fi
 echo "$PROG: outside checks failed; rolling back automatically" >&2
 box rollback "$id" outside-check-failed; rc=$?
 logrow "$id outside FAIL, auto-rollback rc=$rc"
+[ $rc = 3 ] && switched_but_smoke_fails "the automatic rollback after failed outside checks" "release $id"
 [ $rc = 0 ] || die "AUTOMATIC ROLLBACK FAILED (rc=$rc); release $id may still be live. Check the server now."
 m=$BUILD/live.manifest
 if rid=$(box_manifest "$m"); then
