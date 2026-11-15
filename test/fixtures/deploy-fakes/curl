@@ -2,9 +2,14 @@
 # Fake web server (tests only) over $FAKE_ROOT/current, for lb-release.sh smoke and deploy.sh's outside checks.
 # FAKE_SMOKE_FAIL=1 serves a broken index.html for every release.
 # FAKE_SMOKE_FAIL_ID="<id> [<id>...]" serves a broken index.html only while one of those releases is current.
+#   An entry may also be the 12-character commit part of a release id (a test cannot know the time part).
 # FAKE_HEADERS=<file> also sends the headers from a file in the expected-headers.txt format:
 #   "Name: value" on every 200 answer, ".ext Name: value" only for that type (.html covers the app's
 #   address), "!Name" and comment lines are skipped. Its Content-Type lines replace the fake's own.
+# FAKE_CORRUPT="<path> ..." serves changed bytes for those app paths (e.g. engine.js), as a stale or
+#   tampered CDN copy would.
+# FAKE_SERVE="<path> ..." answers 200 for those app paths although no release file is there (e.g.
+#   package.json), as a server that leaks a private file would.
 out=- hdr="" fmt="" url=""
 while [ $# -gt 0 ]; do
   case "$1" in -o) out=$2; shift ;; -D) hdr=$2; shift ;; -w) fmt=$2; shift ;; -H|--max-time) shift ;; -s|-sS|-S) ;; *) url=$1 ;; esac
@@ -16,16 +21,18 @@ case "$p" in *\?*) q="?${p#*\?}"; p=${p%%\?*} ;; esac
 code=404 ct="text/html" redir="" body=$(mktemp) ext=.html
 if [ "$p" = /languagebasics ]; then code=301; redir="/languagebasics/$q"
 elif [[ "$p" == /languagebasics/* ]]; then
-  rel=${p#/languagebasics/}
+  rel=${p#/languagebasics/}; raw=$rel
   if [ -z "$rel" ] || [[ "$rel" == */ ]]; then rel="${rel}index.html"; fi
   f="$FAKE_ROOT/current/$rel"
   if [[ "/$rel" != */.* ]] && [ -f "$f" ]; then code=200; cp "$f" "$body"; fi
+  for x in ${FAKE_SERVE:-}; do [ "$x" = "$raw" ] && { code=200; echo leaked > "$body"; }; done
+  if [ "$code" = 200 ]; then for x in ${FAKE_CORRUPT:-}; do [ "$x" = "$rel" ] && echo "// changed" >> "$body"; done; fi
   case "$rel" in *.js) ct="application/javascript; charset=utf-8"; ext=.js ;; *.css) ct="text/css"; ext=.css ;; *) ct="text/html; charset=utf-8" ;; esac
   if [ "$code" = 200 ] && [ "$rel" = index.html ]; then
     broken=${FAKE_SMOKE_FAIL:-}
     if [ -z "$broken" ] && [ -n "${FAKE_SMOKE_FAIL_ID:-}" ]; then
       cur=$(readlink "$FAKE_ROOT/current" 2>/dev/null); cur=${cur%/}; cur=${cur##*/}
-      for x in $FAKE_SMOKE_FAIL_ID; do [ "$x" = "$cur" ] && broken=1; done
+      for x in $FAKE_SMOKE_FAIL_ID; do { [ "$x" = "$cur" ] || [ "$x" = "${cur##*-}" ]; } && broken=1; done
     fi
     [ -n "$broken" ] && echo broken > "$body"
   fi

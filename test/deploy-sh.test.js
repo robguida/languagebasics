@@ -3,9 +3,9 @@
  * Run:  node --test        (needs bash 4+ with git; on Windows, Git Bash. Without it these
  *                           tests are skipped and the skip reason is printed.)
  *
- * Each "world" is a temp folder with a local bare origin, a clean checkout of it, a private
- * settings file outside the checkout, and fake ssh / scp / ssh-keyscan / ssh-keygen / curl /
- * npm (test/fixtures/deploy-fakes/). The fake ssh runs the "server" command in a local folder.
+ * Each "world" (test/helpers/deploy-world.js) is a temp folder with a local bare origin, a
+ * clean checkout of it, a private settings file outside the checkout, and fake ssh / scp /
+ * ssh-keyscan / ssh-keygen / curl / npm (test/fixtures/deploy-fakes/). The fake ssh runs the "server" command in a local folder.
  * Nothing contacts a real server or the network.
  *
  * Covered:
@@ -17,7 +17,7 @@
  *  - dirty tree (changed and untracked file) refused, listing both; also for --rollback;
  *  - a running kit that differs from the kit commit refused;
  *  - npm test or check:data failing refused; both always run, in the unpacked commit (never
- *    the checkout);
+ *    the checkout), with LB_TEST_TMP, TMP, TEMP and TMPDIR under the work folder;
  *  - the byte check lists every mismatch (and the dot-file) before refusing;
  *  - preflight.js from the kit commit runs, and its refusal stops the deploy;
  *  - after ANY refusal above, no ssh / scp / ssh-keyscan / curl call was made;
@@ -36,114 +36,7 @@ const H = require("./helpers/deploy-env.js");
 const BASH = H.findBash();
 const SKIP = BASH.bash ? (H.gitAvailable() ? false : "git is not installed") : BASH.reason;
 
-/* Every text file of the real kit, LF only (the kit is checked out with eol=lf). */
-function kitFiles() {
-  const out = {};
-  for (const f of fs.readdirSync(H.KIT)) {
-    const p = path.join(H.KIT, f);
-    if (fs.statSync(p).isFile()) out[`scripts/deploy/${f}`] = fs.readFileSync(p, "utf8").replace(/\r\n/g, "\n");
-  }
-  return out;
-}
-
-const BASE_FILES = {
-  "src/index.html": "<!doctype html><title>t</title>\n",
-  "src/engine.js": "window.LBEngine = {};\n",
-  "src/styles.css": "body{}\n",
-  "src/privacy.html": "<p>privacy</p>\n",
-  "src/content/languages.js": "window.LB_LANGUAGES = [];\n",
-  "src/content/sq/lesson-1.js": "window.LB_LESSON = {};\n",
-  "package.json": '{ "name": "fixture", "private": true }\n',
-};
-
-function write(file, text) {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, text);
-}
-
-function settingsText(s) {
-  return Object.entries(s).map(([k, v]) => `${k}=${v}`).join("\n") + "\n";
-}
-
-/* makeWorld(t, { files }) -> world. files: extra or replaced files in the deployed commit. */
-function makeWorld(t, opts) {
-  const tr = H.tempRoot("lb37d-");
-  if (tr.reason) throw new Error(tr.reason);
-  const root = tr.root;
-  t.after(() => H.removeTree(root));
-  const env = H.cleanEnv(root);
-  const { bin, shims } = H.installFakes(root);
-  const origin = path.join(root, "origin.git");
-  const seed = path.join(root, "seed");
-  const checkout = path.join(root, "checkout");
-  H.git(env, root, "init", "-q", "--bare", "-b", "main", origin);
-  H.git(env, root, "init", "-q", "-b", "main", seed);
-  const files = Object.assign({}, BASE_FILES, kitFiles(), (opts && opts.files) || {});
-  for (const [f, s] of Object.entries(files)) write(path.join(seed, f), s);
-  H.git(env, seed, "add", "-A");
-  H.git(env, seed, "commit", "-q", "-m", "fixture");
-  H.git(env, seed, "remote", "add", "origin", origin);
-  H.git(env, seed, "push", "-q", "origin", "main");
-  H.git(env, root, "clone", "-q", origin, checkout);
-  const sha = H.git(env, checkout, "rev-parse", "HEAD");
-
-  const box = { kit: path.join(root, "box", "kit"), root: path.join(root, "box", "root"), route: path.join(root, "box", "route.conf") };
-  fs.mkdirSync(box.root, { recursive: true });
-  write(box.route, "# route\n");
-  const conf = path.join(root, "conf", "deploy.env");
-  const key = path.join(root, "conf", "fake.key");
-  write(key, "not a key\n");
-  const work = path.join(root, "work");
-  const settings = {
-    LB_HOST: "box.invalid",
-    LB_HOST_FPR: "SHA256:fakefingerprint",
-    LB_SSH_USER: "deployer",
-    LB_SSH_KEY: H.toBash(key),
-    LB_BOX_KIT: H.toBash(box.kit),
-    LB_BOX_ROOT: H.toBash(box.root),
-    LB_BOX_ROUTE_FILE: H.toBash(box.route),
-    LB_WORK_DIR: H.toBash(work),
-    LB_SITE_URL: "https://example.invalid/languagebasics/",
-  };
-  write(conf, settingsText(settings));
-  const calls = path.join(root, "calls.txt");
-  const benv = Object.assign({}, env, {
-    LB_DEPLOY_CONFIG: H.toBash(conf),
-    LB_SSH_BIN: H.toBash(path.join(bin, "ssh")),
-    LB_SCP_BIN: H.toBash(path.join(bin, "scp")),
-    LB_SSH_KEYSCAN_BIN: H.toBash(path.join(bin, "ssh-keyscan")),
-    LB_SSH_KEYGEN_BIN: H.toBash(path.join(bin, "ssh-keygen")),
-    LB_CURL_BIN: H.toBash(path.join(bin, "curl")),
-    LB_NPM_BIN: H.toBash(path.join(bin, "npm")),
-    LB_NODE_BIN: H.toBash(process.execPath),
-    LB_OUTSIDE_TRIES: "1",
-    LB_OUTSIDE_WAIT: "0",
-    FAKE_CALLS: H.toBash(calls),
-    FAKE_ROOT: H.toBash(box.root),
-    FAKE_FPR: "SHA256:fakefingerprint",
-  });
-  const w = {
-    root, env, checkout, origin, sha, box, conf, work, settings, calls,
-    script: path.join(checkout, "scripts", "deploy", "deploy.sh"),
-    writeSettings(s) { write(conf, settingsText(s)); },
-    run(args, extra) {
-      try { fs.rmSync(calls, { force: true }); } catch { /* none yet */ }
-      const r = H.runBash(w.script, args, { env: Object.assign({}, benv, extra || {}), shims, cwd: checkout });
-      r.calls = H.readCalls(calls);
-      r.server = H.serverCalls(r.calls);
-      return r;
-    },
-    git(...a) { return H.git(env, checkout, ...a); },
-  };
-  return w;
-}
-
-/* A refusal: exit 1, nothing reached the server. */
-function assertRefused(r, re) {
-  assert.equal(r.code, 1, `exit ${r.code}\n${r.all}`);
-  if (re) assert.match(r.all, re);
-  assert.deepEqual(r.server, [], "no ssh / scp / ssh-keyscan / curl call after a refusal");
-}
+const { write, settingsText, makeWorld, assertRefused } = require("./helpers/deploy-world.js");
 
 /* ------------------------------------------------------------ exit codes */
 
@@ -315,7 +208,7 @@ test("deploy.sh: failing npm test is refused; check:data still runs; both ran in
     const cwd = f[1];
     assert.match(cwd, new RegExp(`${H.toBash(w.work).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/build/${runId}\\.tree$`, "i"), `ran in ${cwd}`);
     // temp folders for the test run go under the work folder, never the system temp folder
-    for (const k of ["tmp=", "TMP=", "TEMP="]) {
+    for (const k of ["tmp=", "TMP=", "TEMP=", "TMPDIR="]) {
       const v = (f.find((x) => x.startsWith(k)) || "").slice(k.length).replace(/\\/g, "/");
       assert.match(v, new RegExp(`/work/build/${runId}\\.tmp$`, "i"), `${k}${v} is under the work folder`);
     }
