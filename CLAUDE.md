@@ -55,6 +55,8 @@ data/                     # LB-41: lesson data, one JSON file per language — e
   sq.json es.json ja.json bn.json
 scripts/                  # dev tools, NOT served
   build-data.js           # data/*.json -> src/content + parked/content (build:data / check:data)
+  deploy/                 # LB-37: the deploy kit (deploy.sh, lb-release.sh, deploy.env.example,
+                          #   expected-headers.txt, README.md). Private settings live OUTSIDE the repo
 parked/                   # LB-34 parked lessons — GENERATED, NOT served, never deploys
   content/<lang>/lesson-5.js, lesson-6.js
 test/                     # node --test suite (NOT served)
@@ -199,17 +201,33 @@ npm run build:data   # regenerate after editing data/ — then commit the JSON A
 
 **Only the contents of `src/` ship to the live site.** `data/`, `scripts/`, `parked/`, `test/`, `docs/` and `package.json` never ship.
 
-Before upload, run `npm test` and `npm run check:data` on the **exact** commit being deployed. Both must pass.
+The deploy kit lives in **`scripts/deploy/`**. Full steps are in `scripts/deploy/README.md`. **Every deploy needs the owner's go, naming that release.**
 
 Live address: `https://bengusa.pro/languagebasics/`.
 
-How a deploy works:
-1. Pull `main` into a local checkout.
-2. Upload the **contents of `src/`** to the Lightsail box as a new dated release folder. The app has its own folder there, outside bengusa.pro's own release folder, so bengusa.pro deploys never touch it.
-3. A `current` link points at the live release. **Rollback = point `current` back at the previous release folder.**
-4. After upload, the deploy checks the files from outside. If a check fails, it rolls back on its own.
+**Setup (once).** The server details live in a private settings file **outside the repo**. Copy `scripts/deploy/deploy.env.example` to a private place and fill it in. The work folder in it must also be outside the repo. The kit refuses a settings file or work folder that sits inside the repo. Never commit the settings file, and never write server details in this repo.
 
-The deploy script is not kept in the repo yet. Moving it into `./scripts` is tracked as follow-up ticket LB-37. Every deploy needs the owner's go.
+**Run it** from a clean checkout, with the full id of the approved `main` commit in `LB_EXPECT_SHA`:
+
+| Mode | What it does |
+|---|---|
+| `--preflight` | Local checks only. No server contact. |
+| `--dry-run` | Local checks plus server checks. Uploads nothing. |
+| *(no flag)* | The real deploy. Needs the owner's go. |
+| `--list` | Shows the live release, the rollback target and every release. |
+| `--smoke` | Server-side check of the live release. |
+| `--verify` | Outside checks of the live release. |
+| `--rollback` | Goes back to the last good release, then checks from outside. |
+
+How a deploy works:
+1. Check the settings, the commit id and that the checkout is clean. Refuse if anything is wrong.
+2. Take the approved commit from `main`. Run `npm test` and `npm run check:data` on **that exact commit**. Both must pass, or nothing is uploaded.
+3. Build `src/` from that commit and check every file against git.
+4. Upload the **contents of `src/`** as a new dated release folder. The app has its own folder on the server, outside bengusa.pro's own release folder, so bengusa.pro deploys never touch it.
+5. A `current` link points at the live release. The server checks it, then the kit checks the files from outside.
+6. If any check fails, the release **rolls back on its own**.
+
+**Rollback** points `current` back at the last good release. A rollback marks the release it leaves as **bad**. Later rollbacks skip bad releases. Run `--list` first to see the target.
 
 No backend, no server-side build. Static files only.
 
