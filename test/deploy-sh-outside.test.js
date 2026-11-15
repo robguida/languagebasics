@@ -18,6 +18,7 @@
  *    release live now;
  *  - the connection is lost during the automatic rollback (rc 255): exit 1, the new release may
  *    still be live.
+ *  (the server refusing the automatic rollback, rc 1: deploy-sh-outside-rc.test.js)
  */
 "use strict";
 

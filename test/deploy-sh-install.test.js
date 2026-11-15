@@ -14,6 +14,7 @@
  *  - a new release fails smoke and the old one passes (rc 1 -> exit 1, "not live", names the
  *    live release); both fail (rc 3 -> exit 3 naming the release live now); the switch back
  *    fails (rc 4 -> exit 3, "could not switch back"); each logged on the laptop;
+ *  (lost or odd install answers, and the real rc 4: deploy-sh-install-rc.test.js)
  *  - a manual rollback that works: exit 0 after the outside checks pass.
  */
 "use strict";
@@ -82,7 +83,7 @@ describe("deploy.sh after the upload: what the server's install answers", { skip
     assert.equal(r.code, 3, r.all);
     const D = builtId(r);
     assert.ok(r.out.includes(`SWITCHED BUT SMOKE FAILS: ${B} is live now`), r.out);
-    assert.ok(r.err.includes(`SWITCHED, BUT SMOKE FAILS: release ${D} went live and failed the server smoke checks`), r.err);
+    assert.ok(r.err.includes(`SWITCHED, BUT SMOKE FAILS: release ${D} went live and failed the server smoke checks; the server's automatic rollback switched back to ${B}, which also fails them; release ${D} is marked bad.`), r.err);
     assert.ok(r.err.includes(`live now: ${B}. It FAILS the server smoke checks.`), r.err);
     assert.equal(w.boxLive(), B);
     assert.equal(localRows(w, "deploy").pop().startsWith(`live now ${B}, smoke FAIL: release ${D} went live`), true);

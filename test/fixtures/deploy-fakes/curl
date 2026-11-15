@@ -10,6 +10,10 @@
 #   tampered CDN copy would.
 # FAKE_SERVE="<path> ..." answers 200 for those app paths although no release file is there (e.g.
 #   package.json), as a server that leaks a private file would.
+# Speed: a deploy test calls this fake hundreds of times, and every extra process costs a lot on
+# Windows. So it uses bash built-ins only (no mktemp, cp, rm or cat): a release file is read into
+# memory with read -d '' and written back unchanged. Release files in the tests are text (no NUL
+# byte); a NUL would change the bytes, and the hash checks would then fail loudly, never pass.
 out=- hdr="" fmt="" url=""
 while [ $# -gt 0 ]; do
   case "$1" in -o) out=$2; shift ;; -D) hdr=$2; shift ;; -w) fmt=$2; shift ;; -H|--max-time) shift ;; -s|-sS|-S) ;; *) url=$1 ;; esac
@@ -18,15 +22,15 @@ done
 echo "curl $url" >> "$FAKE_CALLS"
 p=${url#*://}; p=/${p#*/}; q=""
 case "$p" in *\?*) q="?${p#*\?}"; p=${p%%\?*} ;; esac
-code=404 ct="text/html" redir="" body=$(mktemp) ext=.html
+code=404 ct="text/html" redir="" body="" ext=.html
 if [ "$p" = /languagebasics ]; then code=301; redir="/languagebasics/$q"
 elif [[ "$p" == /languagebasics/* ]]; then
   rel=${p#/languagebasics/}; raw=$rel
   if [ -z "$rel" ] || [[ "$rel" == */ ]]; then rel="${rel}index.html"; fi
   f="$FAKE_ROOT/current/$rel"
-  if [[ "/$rel" != */.* ]] && [ -f "$f" ]; then code=200; cp "$f" "$body"; fi
-  for x in ${FAKE_SERVE:-}; do [ "$x" = "$raw" ] && { code=200; echo leaked > "$body"; }; done
-  if [ "$code" = 200 ]; then for x in ${FAKE_CORRUPT:-}; do [ "$x" = "$rel" ] && echo "// changed" >> "$body"; done; fi
+  if [[ "/$rel" != */.* ]] && [ -f "$f" ]; then code=200; IFS= read -r -d '' body < "$f"; fi
+  for x in ${FAKE_SERVE:-}; do [ "$x" = "$raw" ] && { code=200; body=$'leaked\n'; }; done
+  if [ "$code" = 200 ]; then for x in ${FAKE_CORRUPT:-}; do [ "$x" = "$rel" ] && body+=$'// changed\n'; done; fi
   case "$rel" in *.js) ct="application/javascript; charset=utf-8"; ext=.js ;; *.css) ct="text/css"; ext=.css ;; *) ct="text/html; charset=utf-8" ;; esac
   if [ "$code" = 200 ] && [ "$rel" = index.html ]; then
     broken=${FAKE_SMOKE_FAIL:-}
@@ -34,7 +38,7 @@ elif [[ "$p" == /languagebasics/* ]]; then
       cur=$(readlink "$FAKE_ROOT/current" 2>/dev/null); cur=${cur%/}; cur=${cur##*/}
       for x in $FAKE_SMOKE_FAIL_ID; do { [ "$x" = "$cur" ] || [ "$x" = "${cur##*-}" ]; } && broken=1; done
     fi
-    [ -n "$broken" ] && echo broken > "$body"
+    [ -n "$broken" ] && body=$'broken\n'
   fi
 fi
 H="HTTP/1.1 $code X"
@@ -56,7 +60,6 @@ Content-Type: $ct$extra"
 Location: $redir"
 H=${H//$'\n'/$'\r\n'}
 if [ "$hdr" = - ]; then printf '%s\r\n\r\n' "$H"; elif [ -n "$hdr" ]; then printf '%s\r\n\r\n' "$H" > "$hdr"; fi
-if [ "$out" = - ]; then cat "$body"; elif [ "$out" != /dev/null ]; then cp "$body" "$out"; fi
-rm -f "$body"
+if [ "$out" = - ]; then printf '%s' "$body"; elif [ "$out" != /dev/null ]; then printf '%s' "$body" > "$out"; fi
 w=${fmt//'%{http_code}'/$code}; w=${w//'%{content_type}'/$ct}; w=${w//'%{redirect_url}'/$redir}
 printf '%s' "$w"

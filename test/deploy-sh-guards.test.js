@@ -10,7 +10,11 @@
  *    repo through the computer's own admin share;
  *  - work folder with . or .. parts (also a .. that would land inside the repo);
  *  - work folder through a junction (or link) into the repo, and the junction itself;
- *  - work folder under a folder with a broken .git file or an empty .git folder;
+ *  - work folder under a folder with a broken .git file or an empty .git folder, or inside a bare
+ *    repo (no .git entry; only git can tell);
+ *  - git cannot tell (a git shim answers rc 128 with "dubious ownership", one line or several, or
+ *    "not a git repository" plus a second line): settings file and work folder refused;
+ *  - the settings file's name count cannot be read (a stat shim fails): refused;
  *  - settings file with a second name (hard link), given as a network path, or a link (where the
  *    computer can make file links; skipped with the reason where it cannot);
  *  - --rollback without a well-formed LB_EXPECT_CURRENT;
@@ -80,6 +84,8 @@ test("deploy.sh: work folder location checks fail closed, and a refused run crea
     ["the junction into the repo itself", H.toBash(jn), REPO, ["checkout/clone", "checkout/build", "checkout/deploy-log.txt"]],
     ["under a broken .git file", `${H.toBash(broken)}/wk`, TREE, ["plain/wk"]],
     ["under an empty .git folder", `${H.toBash(empty)}/wk`, TREE, ["plain2/wk"]],
+    // a bare repo has no .git entry: only git itself can tell
+    ["inside a bare repo", `${H.toBash(w.origin)}/wk`, TREE, ["origin.git/wk"]],
   ];
   const before = listTree(w.root);
   for (const [label, dir, re, notCreated] of cases) {
@@ -127,6 +133,43 @@ test("deploy.sh: a settings file that is a link is refused", { skip: SKIP }, (t)
   }
   const r = w.run(["--preflight"], { LB_EXPECT_SHA: w.sha, LB_DEPLOY_CONFIG: H.toBash(link) });
   assertRefused(r, /the settings file is a link; use a plain file outside any repo/);
+  assert.ok(!fs.existsSync(w.work), "work folder not created");
+});
+
+test("deploy.sh: when git cannot say whether a folder is in a working tree (rc 128, odd text), the settings file and the work folder are refused", { skip: SKIP }, (t) => {
+  const w = makeWorld(t);
+  H.installOddShim(w.shims, "git");
+  const DUBIOUS = "fatal: detected dubious ownership in repository at '/srv/x'";
+  const texts = [
+    ["dubious ownership, one line", DUBIOUS],
+    ["dubious ownership, several lines", `${DUBIOUS}\\nTo add an exception for this directory, call:\\n\\n\\tgit config --global --add safe.directory /srv/x`],
+    ["'not a git repository' plus a second line", "fatal: not a git repository (or any of the parent directories): .git\\nwarning: something else went wrong"],
+  ];
+  for (const [label, text] of texts) {
+    const s = w.run(["--preflight"], { LB_EXPECT_SHA: w.sha, FAKE_GIT_ODD_DIR: H.toBash(path.dirname(w.conf)), FAKE_GIT_ODD_TEXT: text });
+    assertRefused(s, /REFUSED at 'settings'/);
+    assert.match(s.err, /cannot tell whether the settings file is inside a git working tree \(git could not check its folder\)/, label);
+    assert.doesNotMatch(s.err, /dubious|not a git repository/, `${label}: git's own text is not shown`);
+    assert.ok(!fs.existsSync(w.work), `${label}: work folder not created`);
+
+    // the work folder does not exist yet, so git is asked about the first folder above it that does (the world root)
+    const k = w.run(["--preflight"], { LB_EXPECT_SHA: w.sha, FAKE_GIT_ODD_DIR: H.toBash(w.root), FAKE_GIT_ODD_TEXT: text });
+    assertRefused(k, /REFUSED at 'work folder'/);
+    assert.match(k.err, /cannot tell whether the work folder \(LB_WORK_DIR\) is inside a git working tree \(git could not check it\)/, label);
+    assert.ok(!fs.existsSync(w.work), `${label}: work folder not created`);
+  }
+  // control: the shim answers oddly only for the folder named; every other git call is the real git
+  const ok = w.run(["--list"], { FAKE_GIT_ODD_DIR: H.toBash(w.box.root), FAKE_GIT_ODD_TEXT: DUBIOUS });
+  assert.equal(ok.code, 0, ok.all);
+});
+
+test("deploy.sh: a settings file whose name count cannot be read (stat fails) is refused", { skip: SKIP }, (t) => {
+  const w = makeWorld(t);
+  H.installOddShim(w.shims, "stat");
+  const r = w.run(["--preflight"], { LB_EXPECT_SHA: w.sha, FAKE_STAT_FAIL: "1" });
+  assertRefused(r, /REFUSED at 'settings'/);
+  assert.match(r.err, /cannot read how many names the settings file has \(stat failed\); use a plain local file outside any repo/);
+  assert.doesNotMatch(r.err, /hard link/);
   assert.ok(!fs.existsSync(w.work), "work folder not created");
 });
 

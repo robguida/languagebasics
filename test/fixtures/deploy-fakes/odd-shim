@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Odd-answer shim (tests only). Installed in the shims folder as git, ln or stat (installOddShim in
+# test/helpers/deploy-env.js). Without its FAKE_* setting it hands every call to the real command.
+#   git:  FAKE_GIT_ODD_DIR=<folder> and FAKE_GIT_ODD_TEXT=<text> (printf %b escapes, so \n is a new
+#         line): "git -C <that folder> rev-parse --is-inside-work-tree ..." prints the text and exits
+#         128, as git does for "detected dubious ownership". Other folders and commands are real.
+#   ln:   FAKE_LN_FAIL_AT=<n> and FAKE_LN_COUNT=<file>: the n-th "ln -sfn" fails (counted in the file).
+#   stat: FAKE_STAT_FAIL=1: "stat -c %h" (how many names a file has) fails; other stat calls are real.
+here=${0%/*}
+name=${0##*/}
+case "$name" in
+  git)
+    if [ -n "${FAKE_GIT_ODD_DIR:-}" ] && [ "${1:-}" = -C ] && [ "${3:-}" = rev-parse ] && [ "${4:-}" = --is-inside-work-tree ]; then
+      a=$(cd "$2" 2>/dev/null && pwd -P); b=$(cd "$FAKE_GIT_ODD_DIR" 2>/dev/null && pwd -P)
+      if [ -n "$a" ] && [ "${a,,}" = "${b,,}" ]; then printf '%b\n' "${FAKE_GIT_ODD_TEXT:-fatal: odd}" >&2; exit 128; fi
+    fi ;;
+  ln)
+    if [ -n "${FAKE_LN_FAIL_AT:-}" ] && [ "${1:-}" = -sfn ]; then
+      n=0; [ -f "$FAKE_LN_COUNT" ] && read -r n < "$FAKE_LN_COUNT"; n=$((n+1)); echo "$n" > "$FAKE_LN_COUNT"
+      [ "$n" = "$FAKE_LN_FAIL_AT" ] && { echo "fake ln: cannot make the link (call $n)" >&2; exit 1; }
+    fi ;;
+  stat)
+    if [ -n "${FAKE_STAT_FAIL:-}" ] && [ "${1:-}" = -c ] && [ "${2:-}" = %h ]; then
+      echo "fake stat: cannot read the file" >&2; exit 1
+    fi ;;
+esac
+# The real work: a shim that was here before (moved to <name>.next), else the next one on PATH.
+[ -x "$here/$name.next" ] && exec "$here/$name.next" "$@"
+PATH=${PATH#"$here:"}
+exec "$name" "$@"

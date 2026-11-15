@@ -9,7 +9,12 @@
  *   user's own git settings and HOME pointed into the test folder, so no test can read real
  *   deploy settings or contact a real server.
  * - installFakes(): copies test/fixtures/deploy-fakes/ into a bin folder (ssh, scp, ssh-keyscan,
- *   ssh-keygen, curl, npm; on Windows also the ln/readlink junction shims).
+ *   ssh-keygen, curl, npm; on Windows also the ln/readlink junction shims). The fakes start bash
+ *   directly (no "env" process in between), because a deploy test calls them hundreds of times.
+ * - installOddShim(): puts test/fixtures/deploy-fakes/odd-shim in front of git, ln or stat, so a
+ *   test can make that one command answer oddly (FAKE_GIT_ODD_*, FAKE_LN_FAIL_AT, FAKE_STAT_FAIL).
+ * - runBash(): a hang guard of RUN_TIMEOUT_MS per run (10 minutes). It is not a speed check: under
+ *   a full parallel "npm test" one deploy run can take minutes on a slow or busy computer.
  *
  * Node built-ins only.
  */
@@ -61,14 +66,15 @@ function findBash() {
   const tried = [];
   for (const c of cands) {
     if (WIN && !fs.existsSync(c)) { tried.push(`${c}: not found`); continue; }
-    const r = spawnSync(c, ["-c", 'echo "${BASH_VERSINFO[0]}|$(uname -s)|$(command -v git tar sha256sum awk sed find mktemp | wc -l)"'],
+    const r = spawnSync(c, ["-c", 'echo "${BASH_VERSINFO[0]}|$(uname -s)|$(command -v git tar sha256sum awk sed find mktemp | wc -l)|$BASH"'],
       { encoding: "utf8", timeout: 20000 });
     if (r.status !== 0 || !r.stdout) { tried.push(`${c}: does not run`); continue; }
-    const [ver, uname, tools] = r.stdout.trim().split("|");
+    const [ver, uname, tools, self] = r.stdout.trim().split("|");
     if (Number(ver) < 4) { tried.push(`${c}: bash ${ver} is older than 4`); continue; }
     if (WIN && !/MINGW|MSYS|CYGWIN/i.test(uname)) { tried.push(`${c}: not Git Bash (${uname})`); continue; }
     if (Number(tools) < 7) { tried.push(`${c}: git, tar or coreutils missing`); continue; }
-    BASH_CACHE = { bash: c };
+    // self: this bash's own path as bash sees it (e.g. /usr/bin/bash), for the fakes' first line
+    BASH_CACHE = { bash: c, self: /^\/[A-Za-z0-9._/-]+$/.test(self || "") ? self : "" };
     return BASH_CACHE;
   }
   BASH_CACHE = { reason: `no usable bash 4+ with git and coreutils (${tried.join("; ") || "none found"}); on Windows install Git for Windows or set LB_TEST_BASH` };
@@ -135,6 +141,14 @@ function git(env, cwd, ...args) {
   return r.stdout.trim();
 }
 
+/* A fake's text: LF line endings, and "#!/usr/bin/env bash" replaced by the found bash's own path
+ * when it has plain characters (one process less per call; on Windows each process is slow). */
+function fakeText(file) {
+  const text = fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n");
+  const self = findBash().self;
+  return self ? text.replace(/^#!\/usr\/bin\/env bash\n/, `#!${self}\n`) : text;
+}
+
 /* Copy the fakes into <root>/bin (LF line endings, executable). Returns the bin folder. */
 function installFakes(root) {
   const bin = path.join(root, "bin");
@@ -142,15 +156,27 @@ function installFakes(root) {
   fs.mkdirSync(bin, { recursive: true });
   fs.mkdirSync(shims, { recursive: true });
   for (const name of ["ssh", "scp", "ssh-keyscan", "ssh-keygen", "curl", "npm"]) {
-    fs.writeFileSync(path.join(bin, name), fs.readFileSync(path.join(FAKES, name), "utf8").replace(/\r\n/g, "\n"), { mode: 0o755 });
+    fs.writeFileSync(path.join(bin, name), fakeText(path.join(FAKES, name)), { mode: 0o755 });
   }
   if (WIN) {
     for (const name of ["ln", "readlink"]) {
-      fs.writeFileSync(path.join(shims, name), fs.readFileSync(path.join(FAKES, `${name}-windows`), "utf8").replace(/\r\n/g, "\n"), { mode: 0o755 });
+      fs.writeFileSync(path.join(shims, name), fakeText(path.join(FAKES, `${name}-windows`)), { mode: 0o755 });
     }
   }
   return { bin, shims };
 }
+
+/* Put the odd-shim fake in front of one command (git, ln or stat) in a shims folder. A shim already
+ * there (the Windows ln junction shim) moves to <name>.next and still does the real work. */
+function installOddShim(shims, name) {
+  const p = path.join(shims, name);
+  if (fs.existsSync(p)) fs.renameSync(p, `${p}.next`);
+  fs.writeFileSync(p, fakeText(path.join(FAKES, "odd-shim")), { mode: 0o755 });
+}
+
+/* Hang guard per run. A full parallel "npm test" ran single deploy runs past the old 180 s on a busy
+ * laptop; 10 minutes leaves a wide margin and still stops a run that truly hangs. */
+const RUN_TIMEOUT_MS = 600000;
 
 /* Run a bash script (or a -c command when opts.command is set) with the shims first on PATH. */
 function runBash(script, args, opts) {
@@ -160,7 +186,7 @@ function runBash(script, args, opts) {
   const argv = opts.command
     ? ["-c", `PATH="$LBT_SHIMS:$PATH"; ${opts.command}`, "lbtest", ...(args || [])]
     : ["-c", 'PATH="$LBT_SHIMS:$PATH"; exec bash "$0" "$@"', toBash(script), ...(args || [])];
-  const r = spawnSync(b.bash, argv, { cwd: opts.cwd, env, encoding: "utf8", timeout: opts.timeout || 180000 });
+  const r = spawnSync(b.bash, argv, { cwd: opts.cwd, env, encoding: "utf8", timeout: opts.timeout || RUN_TIMEOUT_MS });
   return { code: r.status, out: r.stdout || "", err: r.stderr || "", all: (r.stdout || "") + (r.stderr || ""), error: r.error };
 }
 
@@ -174,4 +200,5 @@ function serverCalls(lines) {
   return lines.filter((l) => /^(ssh|scp|ssh-keyscan|ssh-keygen|curl) /.test(l));
 }
 
-module.exports = { REPO, KIT, FAKES, WIN, toBash, gitAvailable, findBash, inWorktree, tempRoot, removeTree, cleanEnv, git, installFakes, runBash, readCalls, serverCalls };
+module.exports = { REPO, KIT, FAKES, WIN, RUN_TIMEOUT_MS, toBash, gitAvailable, findBash, inWorktree, tempRoot, removeTree, cleanEnv, git,
+  installFakes, installOddShim, runBash, readCalls, serverCalls };

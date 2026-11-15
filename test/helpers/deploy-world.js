@@ -59,7 +59,8 @@ function settingsText(s) {
   return Object.entries(s).map(([k, v]) => `${k}=${v}`).join("\n") + "\n";
 }
 
-/* makeWorld(t, { files }) -> world. files: extra or replaced files in the deployed commit.
+/* makeWorld(t, { files }) -> world. files: extra or replaced files in the deployed commit (null = leave
+ * that file out, e.g. a kit commit without scripts/deploy/preflight.js).
  * t: anything with an after(fn) hook (a test context, or { after } from node:test). */
 function makeWorld(t, opts) {
   const tr = H.tempRoot("lb37d-");
@@ -74,7 +75,7 @@ function makeWorld(t, opts) {
   H.git(env, root, "init", "-q", "--bare", "-b", "main", origin);
   H.git(env, root, "init", "-q", "-b", "main", seed);
   const files = Object.assign({}, BASE_FILES, kitFiles(), (opts && opts.files) || {});
-  for (const [f, s] of Object.entries(files)) write(path.join(seed, f), s);
+  for (const [f, s] of Object.entries(files)) if (s !== null) write(path.join(seed, f), s);
   H.git(env, seed, "add", "-A");
   H.git(env, seed, "commit", "-q", "-m", "fixture");
   H.git(env, seed, "remote", "add", "origin", origin);
@@ -119,12 +120,14 @@ function makeWorld(t, opts) {
   });
   let n = 0;
   const w = {
-    root, env, checkout, origin, sha, box, conf, work, settings, calls,
+    root, env, checkout, origin, sha, box, conf, work, settings, calls, shims,
     script: path.join(checkout, "scripts", "deploy", "deploy.sh"),
     writeSettings(s) { write(conf, settingsText(s)); },
-    run(args, extra) {
+    run(args, extra) { return w.runFrom(w.script, args, extra); },
+    /* Run another copy of deploy.sh (e.g. one copied into an ignored folder of the checkout). */
+    runFrom(script, args, extra) {
       try { fs.rmSync(calls, { force: true }); } catch { /* none yet */ }
-      const r = H.runBash(w.script, args, { env: Object.assign({}, benv, extra || {}), shims, cwd: checkout });
+      const r = H.runBash(script, args, { env: Object.assign({}, benv, extra || {}), shims, cwd: checkout });
       r.calls = H.readCalls(calls);
       r.server = H.serverCalls(r.calls);
       return r;

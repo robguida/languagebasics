@@ -274,6 +274,8 @@ test("deploy.sh: --dry-run pins the host key and talks to the server, but upload
   assert.match(scps[0], /lb-release\.sh -> .*\/lb-release-[0-9a-f]{16}\.sh$/, "only the server script was sent");
   assert.deepEqual(fs.readdirSync(path.join(w.box.kit, "incoming")), [], "no release uploaded");
   assert.ok(!fs.existsSync(path.join(w.box.root, "releases")), "no release installed");
+  const rows = fs.readFileSync(path.join(w.work, "deploy-log.txt"), "utf8").split("\n").filter((l) => l.split("\t")[1] === "dry");
+  assert.match(rows[rows.length - 1], / DRY RUN list rc=0$/, "the dry run logs the server check's rc");
 });
 
 test("deploy.sh: a wrong host key stops before any upload", { skip: SKIP }, (t) => {

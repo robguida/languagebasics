@@ -7,7 +7,7 @@
 # The server script's smoke checks use the fake curl next to this file, never a real one.
 cmd=${@: -1}
 echo "ssh $cmd" >> "$FAKE_CALLS"
-LB_CURL=$(cd "$(dirname "$0")" && pwd)/curl; export LB_CURL
+LB_CURL=${0%/*}/curl; export LB_CURL   # the tests start this fake by its full path (no extra process here)
 word=""
 if [[ "$cmd" =~ lb-release-[0-9a-f]+\.sh[[:space:]]+([a-z]+) ]]; then word=${BASH_REMATCH[1]}
 elif [[ "$cmd" == "mkdir -p "* ]]; then word=setup; fi

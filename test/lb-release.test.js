@@ -17,6 +17,8 @@
  *    rollback picks the bad one (exit 1); if the old one fails smoke too, or there is no
  *    good release to go back to, install exits 3; the automatic rollback never goes back
  *    to a release marked bad; the uploaded tar is removed after a failed install too;
+ *  - the switch back fails (an ln shim fails on the second call): install exits 4, the new
+ *    release stays live and marked bad, and nothing claims a rollback;
  *  - pruning never removes the current release or the rollback target, counts good
  *    releases only, and keeps the newest bad one;
  *  - usage and settings errors.
@@ -288,6 +290,27 @@ test("lb-release: the automatic rollback never returns to a release marked bad; 
   assert.equal(r.code, 1, r.all);
   assert.match(r.out, new RegExp(`AUTO-ROLLBACK to ${id(1)} \\(${id(3)} marked bad\\)`), "not back to the bad release 2");
   assert.equal(s.list().current, id(1));
+});
+
+test("lb-release: when the switch back after a failed smoke fails (the second ln), install exits 4 and the new release stays live, marked bad", { skip: SKIP }, (t) => {
+  const s = makeServer(t);
+  s.add(1);
+  s.log(["live", 1], ["good", 1]);
+  s.point(1);
+  H.installOddShim(path.join(s.root, "shims"), "ln");
+  const [tar, msha, tarWin] = s.pack(2);
+  // ln call 1 switches to the new release; call 2 (the switch back) fails
+  const r = s.run(["install", tar, id(2), msha], { FAKE_SMOKE_FAIL_ID: id(2), FAKE_LN_FAIL_AT: "2", FAKE_LN_COUNT: H.toBash(path.join(s.root, "ln-count")) });
+  assert.equal(r.code, 4, r.all);
+  assert.match(r.err, /fake ln: cannot make the link \(call 2\)/, "the second ln is the one that failed");
+  assert.match(r.out, new RegExp(`AUTO-ROLLBACK FAILED: could not switch back to ${id(1)}; ${id(2)} is still live, fails smoke and is marked bad`));
+  assert.doesNotMatch(r.out, /AUTO-ROLLBACK to /, "never says it rolled back");
+  const l = s.list();
+  assert.equal(l.current, id(2), "the new release is still live");
+  assert.equal(l.status[id(1)], "good (rollback target)");
+  assert.match(s.logText(), new RegExp(`\\tbad\\t${id(2)}\\tsmoke-failed`));
+  assert.doesNotMatch(s.logText(), /auto-rollback from/, "no switch back was logged");
+  assert.ok(!fs.existsSync(tarWin), "the uploaded tar is removed after a failed install too");
 });
 
 test("lb-release: a first install that fails smoke, with no good release to go back to, exits 3 and stays marked bad", { skip: SKIP }, (t) => {
