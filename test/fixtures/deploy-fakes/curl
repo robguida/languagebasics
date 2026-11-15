@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
-# Fake web server (tests only) over $FAKE_ROOT/current, for lb-release.sh smoke.
-# FAKE_SMOKE_FAIL=1 serves a broken index.html.
+# Fake web server (tests only) over $FAKE_ROOT/current, for lb-release.sh smoke and deploy.sh's outside checks.
+# FAKE_SMOKE_FAIL=1 serves a broken index.html for every release.
+# FAKE_SMOKE_FAIL_ID="<id> [<id>...]" serves a broken index.html only while one of those releases is current.
+# FAKE_HEADERS=<file> also sends the headers from a file in the expected-headers.txt format:
+#   "Name: value" on every 200 answer, ".ext Name: value" only for that type (.html covers the app's
+#   address), "!Name" and comment lines are skipped. Its Content-Type lines replace the fake's own.
 out=- hdr="" fmt="" url=""
 while [ $# -gt 0 ]; do
   case "$1" in -o) out=$2; shift ;; -D) hdr=$2; shift ;; -w) fmt=$2; shift ;; -H|--max-time) shift ;; -s|-sS|-S) ;; *) url=$1 ;; esac
@@ -9,20 +13,41 @@ done
 echo "curl $url" >> "$FAKE_CALLS"
 p=${url#*://}; p=/${p#*/}; q=""
 case "$p" in *\?*) q="?${p#*\?}"; p=${p%%\?*} ;; esac
-code=404 ct="text/html" redir="" body=$(mktemp)
+code=404 ct="text/html" redir="" body=$(mktemp) ext=.html
 if [ "$p" = /languagebasics ]; then code=301; redir="/languagebasics/$q"
 elif [[ "$p" == /languagebasics/* ]]; then
   rel=${p#/languagebasics/}
   if [ -z "$rel" ] || [[ "$rel" == */ ]]; then rel="${rel}index.html"; fi
   f="$FAKE_ROOT/current/$rel"
   if [[ "/$rel" != */.* ]] && [ -f "$f" ]; then code=200; cp "$f" "$body"; fi
-  case "$rel" in *.js) ct="application/javascript; charset=utf-8" ;; *.css) ct="text/css" ;; *) ct="text/html; charset=utf-8" ;; esac
-  if [ "$code" = 200 ] && [ -n "${FAKE_SMOKE_FAIL:-}" ] && [ "$rel" = index.html ]; then echo broken > "$body"; fi
+  case "$rel" in *.js) ct="application/javascript; charset=utf-8"; ext=.js ;; *.css) ct="text/css"; ext=.css ;; *) ct="text/html; charset=utf-8" ;; esac
+  if [ "$code" = 200 ] && [ "$rel" = index.html ]; then
+    broken=${FAKE_SMOKE_FAIL:-}
+    if [ -z "$broken" ] && [ -n "${FAKE_SMOKE_FAIL_ID:-}" ]; then
+      cur=$(readlink "$FAKE_ROOT/current" 2>/dev/null); cur=${cur%/}; cur=${cur##*/}
+      for x in $FAKE_SMOKE_FAIL_ID; do [ "$x" = "$cur" ] && broken=1; done
+    fi
+    [ -n "$broken" ] && echo broken > "$body"
+  fi
 fi
-H="HTTP/1.1 $code X
-Content-Type: $ct"
+H="HTTP/1.1 $code X"
+extra=""
+if [ "$code" = 200 ] && [ -n "${FAKE_HEADERS:-}" ]; then
+  while IFS= read -r line || [ -n "$line" ]; do
+    line=${line%$'\r'}
+    [[ "$line" =~ ^[[:space:]]*(#.*)?$ ]] && continue
+    [[ "$line" == '!'* ]] && continue
+    if [[ "$line" == .* ]]; then [[ "$line" == "$ext "* ]] || continue; line=${line#* }; fi
+    case "${line%%:*}" in [Cc]ontent-[Tt]ype) ct=${line#*:}; ct=${ct# }; continue ;; esac
+    extra="$extra
+$line"
+  done < "$FAKE_HEADERS"
+fi
+H="$H
+Content-Type: $ct$extra"
 [ -n "$redir" ] && H="$H
 Location: $redir"
+H=${H//$'\n'/$'\r\n'}
 if [ "$hdr" = - ]; then printf '%s\r\n\r\n' "$H"; elif [ -n "$hdr" ]; then printf '%s\r\n\r\n' "$H" > "$hdr"; fi
 if [ "$out" = - ]; then cat "$body"; elif [ "$out" != /dev/null ]; then cp "$body" "$out"; fi
 rm -f "$body"

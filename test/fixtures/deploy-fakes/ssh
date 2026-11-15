@@ -1,4 +1,21 @@
 #!/usr/bin/env bash
 # Fake ssh (tests only): logs the call, then runs the remote command on this computer.
-echo "ssh ${@: -1}" >> "$FAKE_CALLS"
-exec bash -c "${@: -1}"
+# FAKE_SSH_RC="<word>=<rc> ..." changes the outcome of a server command. <word> is the lb-release.sh
+# command (install, rollback, list, smoke, manifest) or "setup" (the folder setup command):
+#   <word>=<rc>       do not run it; exit <rc> (255 = the connection was lost)
+#   <word>=run:<rc>   run it, then exit <rc> whatever it returned (e.g. the connection drops after a switch)
+# The server script's smoke checks use the fake curl next to this file, never a real one.
+cmd=${@: -1}
+echo "ssh $cmd" >> "$FAKE_CALLS"
+LB_CURL=$(cd "$(dirname "$0")" && pwd)/curl; export LB_CURL
+word=""
+if [[ "$cmd" =~ lb-release-[0-9a-f]+\.sh[[:space:]]+([a-z]+) ]]; then word=${BASH_REMATCH[1]}
+elif [[ "$cmd" == "mkdir -p "* ]]; then word=setup; fi
+for rule in ${FAKE_SSH_RC:-}; do
+  [ -n "$word" ] && [ "${rule%%=*}" = "$word" ] || continue
+  v=${rule#*=}
+  if [[ "$v" == run:* ]]; then bash -c "$cmd"; exit "${v#run:}"; fi
+  echo "fake ssh: $word returns $v" >&2
+  exit "$v"
+done
+exec bash -c "$cmd"

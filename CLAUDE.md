@@ -212,7 +212,7 @@ Live address: `https://bengusa.pro/languagebasics/`.
 | Mode | What it does |
 |---|---|
 | `--preflight` | Local checks only. No server contact. |
-| `--dry-run` | Local checks plus server checks. Uploads nothing. |
+| `--dry-run` | Local checks plus server checks. No release uploaded and no release change; it may upload the server script (stored by its hash) and create the server's incoming folder. |
 | *(no flag)* | The real deploy. Needs the owner's go. |
 | `--list` | Shows the live release, the rollback target and every release. |
 | `--smoke` | Server-side check of the live release. |

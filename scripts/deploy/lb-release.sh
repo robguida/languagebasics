@@ -4,10 +4,22 @@
 #
 #   lb-release.sh install <tar> <release-id> <manifest-sha256>   unpack, verify, switch current, smoke; auto-rollback on fail
 #   lb-release.sh rollback [<expected-current-id> [<reason>]]     switch to the last good release; the one left is marked bad
-#                                                                 exit 3: switched, but the release now live fails smoke
 #   lb-release.sh list                                           current, rollback target, every release and its status
 #   lb-release.sh smoke                                           origin-direct checks of the live release (no CDN)
 #   lb-release.sh manifest                                        "release <id>", then the live release's manifest
+#
+# Exit codes:
+#   0  ok
+#   1  refused or failed, and nothing was switched; or (install) the new release failed smoke and the
+#      automatic rollback brought back a release that passes smoke
+#   2  usage error
+#   3  the release live now fails smoke: a rollback (manual or automatic) switched to a release that
+#      also fails it, or (install) the new release failed smoke and there is no good release to go back to
+#   4  (install) the new release failed smoke and switching back failed; the new release is still live
+#
+# The automatic rollback in install goes back to the release that was live before, unless that one is
+# marked bad; then it goes to the last good release (the same one a manual rollback picks). It never
+# goes back to a release marked bad.
 #
 # Settings come from the environment (deploy.sh sets them; no server paths are written in this file):
 #   LB_ROOT         absolute folder that holds releases/, current and deploys.log (required)
@@ -134,7 +146,9 @@ case "$cmd" in
     tar=$2 id=$3 msha=$4
     valid_id "$id" || die "bad release id $id"
     [[ "$msha" =~ ^[0-9a-f]{64}$ ]] || die "bad manifest sha"
-    [ -f "$tar" ] || die "no $tar"
+    [ -f "$tar" ] || die "the uploaded tar is missing"
+    # The uploaded tar is removed when install ends, whatever the outcome (only a tar named for this release).
+    [ "$(basename -- "$tar")" = "$id.tar" ] && trap 'rm -f -- "$tar"' EXIT
     mkdir -p "$REL"
     [ ! -e "$REL/$id" ] || die "release $id already exists"
     # Only plain relative paths, no .., no absolute, no links.
@@ -148,22 +162,32 @@ case "$cmd" in
     ( cd "$P" && sha256sum --quiet --strict -c .manifest.sha256 ) || { rm -rf "$P"; die "files do not match the manifest"; }
     listed=$(wc -l < "$P/.manifest.sha256" | tr -d ' '); actual=$(find "$P" -type f ! -name .manifest.sha256 | wc -l | tr -d ' ')
     [ "$listed" = "$actual" ] || { rm -rf "$P"; die "manifest lists $listed files, release has $actual"; }
-    odd=$(find "$P" ! -type f ! -type d | head -3); [ -z "$odd" ] || { rm -rf "$P"; die "links/special files: $odd"; }
+    odd=$(cd "$P" && find . ! -type f ! -type d | head -3); [ -z "$odd" ] || { rm -rf "$P"; die "links/special files: $odd"; }
     [ -f "$P/index.html" ] && [ -f "$P/engine.js" ] || { rm -rf "$P"; die "index.html/engine.js missing"; }
     find "$P" -type f -exec chmod 0444 {} + ; find "$P" -type d -exec chmod 0555 {} +
     mv -T "$P" "$REL/$id"
     old=$(cur_id)
-    point "$id" || die "could not switch current"
+    point "$id" || die "could not switch current; nothing changed"
     logl live "$id" "from=${old:-none}"
     say "LIVE $id (was ${old:-none})"
     if ! smoke; then
         logl bad "$id" "smoke-failed"
-        if [ -n "$old" ] && [ -d "$REL/$old" ]; then
-            point "$old" && logl live "$old" "auto-rollback from $id"
-            say "AUTO-ROLLBACK to $old ($id marked bad)"
-            smoke || say "WARNING: smoke also fails on $old; check the server now"
-        else
-            say "no previous release to roll back to; $id stays live and is marked bad"
+        BAD=$(bad_ids)
+        # Back to the release that was live, unless it is marked bad; then the last good release.
+        if [ -n "$old" ] && [ "$old" != "$id" ] && [ -d "$REL/$old" ] && ! is_bad "$old"; then t=$old; else t=$(target_id "$id"); fi
+        if [ -z "$t" ]; then
+            say "SMOKE FAILS, NO GOOD RELEASE TO GO BACK TO: $id stays live and is marked bad. Check the server now."
+            exit 3
+        fi
+        if ! point "$t"; then
+            say "AUTO-ROLLBACK FAILED: could not switch back to $t; $id is still live, fails smoke and is marked bad. Check the server now."
+            exit 4
+        fi
+        logl live "$t" "auto-rollback from $id"
+        say "AUTO-ROLLBACK to $t ($id marked bad)"
+        if ! smoke; then
+            say "SWITCHED BUT SMOKE FAILS: $t is live now and fails smoke too; $id stays marked bad. Check the server now."
+            exit 3
         fi
         exit 1
     fi
@@ -171,7 +195,6 @@ case "$cmd" in
     BAD=$(bad_ids)
     c=$(cur_id); t=$(target_id "$c")
     prune "$c" "$t"
-    rm -f "$tar"
     ;;
   rollback)
     [ $# -le 3 ] || die "usage: rollback [<expected-current-id> [<reason>]]"
@@ -207,5 +230,5 @@ case "$cmd" in
     echo "release $c"
     cat "$ROOT/current/.manifest.sha256"
     ;;
-  *) sed -n '4,8p' "$0"; exit 2 ;;
+  *) sed -n '5,9p' "$0" >&2; exit 2 ;;
 esac

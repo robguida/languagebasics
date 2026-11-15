@@ -4,7 +4,9 @@
 #   LB_EXPECT_SHA=<sha> bash scripts/deploy/deploy.sh               deploy: checks, upload, switch, smoke, outside checks
 #   LB_EXPECT_SHA=<sha> bash scripts/deploy/deploy.sh --preflight   every pre-upload check; never contacts the server
 #   LB_EXPECT_SHA=<sha> bash scripts/deploy/deploy.sh --dry-run     pre-upload checks + server checks; uploads no release
-#   bash scripts/deploy/deploy.sh --rollback   switch to the last good release; the release left is marked bad
+#   LB_EXPECT_CURRENT=<id> bash scripts/deploy/deploy.sh --rollback
+#                                              switch to the last good release; the release left is marked bad.
+#                                              <id> is the live release shown by --list; nothing moves if it is not live.
 #   bash scripts/deploy/deploy.sh --list       releases on the server: which is live, which is the rollback target
 #   bash scripts/deploy/deploy.sh --smoke      server-side smoke checks of the live release
 #   bash scripts/deploy/deploy.sh --verify     outside checks (through the CDN) of the live release
@@ -12,17 +14,20 @@
 #
 #   <sha>       the FULL 40-character id of the approved origin/main commit. Every deploy needs the owner's go.
 #   LB_KIT_SHA  optional: take the kit (scripts/deploy) from this pushed commit instead of <sha>. A deploy or a
-#               rollback only accepts a kit commit that is already on origin/main.
+#               rollback only accepts a kit commit that is already on origin/main. Other modes accept a kit commit
+#               that is not on origin/main only with LB_ALLOW_UNMERGED_KIT=1 (needs the owner's go).
 #   Settings:   a private file OUTSIDE this repo: $HOME/.config/languagebasics/deploy.env, or LB_DEPLOY_CONFIG=<path>.
-#               See deploy.env.example and README.md.
+#               Full local paths only. See deploy.env.example and README.md.
 #   Exit codes: 0 ok, 1 refused or failed, 2 usage error,
-#               3 a rollback switched releases, but the release now live fails the server smoke checks.
+#               3 the release live now fails the server smoke checks (a rollback, or the server's automatic
+#                 rollback after a failed install, switched releases or could not); the message names it.
 set -uo pipefail
 export LC_ALL=C
 
 PROG=deploy
 info()   { echo "$PROG: $*"; }
 die()    { echo "$PROG: REFUSED: $*" >&2; exit 1; }
+failed() { echo "$PROG: FAILED: $*" >&2; exit 1; }
 usage()  { echo "$PROG: $*" >&2; echo "$PROG: try --help" >&2; exit 2; }
 FAILS=()
 fail()   { FAILS+=("$*"); }
@@ -60,31 +65,82 @@ esac
 [[ "$OUT_WAIT" =~ ^[0-9]+$ ]] || usage "LB_OUTSIDE_WAIT must be a whole number of seconds"
 
 # ---- where am I: the kit must run from a checkout of this repo ----
+# Paths are never printed (terminal output gets pasted into notes); messages use labels such as "the work folder".
+ON_WIN=false; command -v cygpath >/dev/null 2>&1 && ON_WIN=true
 abs_dir() { ( cd "$1" 2>/dev/null && pwd -P ); }
 lc() { printf '%s' "${1,,}"; }
-inside() { # inside <child> <parent>: true if child is parent or under it (case-insensitive, for Windows)
-    local c p; c=$(lc "${1%/}"); p=$(lc "${2%/}")
-    [ "$c" = "$p" ] || [[ "$c" == "$p"/* ]]
+fid() { stat -L -c '%d:%i' -- "$1" 2>/dev/null; }   # file identity: device and inode (Windows: volume and NTFS file id)
+# norm_path <path>: the full POSIX form of a path, or fails. Refused: relative and drive-relative paths, a
+# leading backslash, and network (UNC) paths such as //host/share, which can name this computer's own disks.
+norm_path() {
+    local p=$1
+    case "$p" in //*|\\\\*|/\\*|\\/*) return 1 ;; esac
+    if $ON_WIN; then
+        case "$p" in [A-Za-z]:[\\/]*|/*) ;; *) return 1 ;; esac
+        p=$(cygpath -u -- "$p" 2>/dev/null) || return 1
+    fi
+    case "$p" in //*) return 1 ;; /*) printf '%s' "$p" ;; *) return 1 ;; esac
 }
-in_any_worktree() { [ "$(git -C "$1" rev-parse --is-inside-work-tree 2>/dev/null)" = true ]; }
+local_disk() { # local_disk <resolved path>: on Windows the path must sit on a drive letter, not a network path
+    $ON_WIN || return 0
+    case "$(cygpath -w -- "$1" 2>/dev/null)" in [A-Za-z]:\\*) return 0 ;; esac
+    return 1
+}
+# in_repo <resolved path>: the path is the repo or under it, by name (case-insensitive) or by file identity
+# of the path and every folder above it. Fails closed: a folder whose identity cannot be read counts as the repo.
+in_repo() {
+    local p=$1 c r up id
+    c=$(lc "${p%/}"); r=$(lc "${REPO%/}")
+    { [ "$c" = "$r" ] || [[ "$c" == "$r"/* ]]; } && return 0
+    while :; do
+        if [ -e "$p" ]; then id=$(fid "$p"); [ -n "$id" ] || return 0; [ "$id" = "$REPO_ID" ] && return 0; fi
+        up=$(dirname -- "$p"); [ "$up" = "$p" ] && return 1; p=$up
+    done
+}
+# git_tree <existing folder>: "yes" if the folder or one above it holds a .git entry (even a broken one) or
+# git finds a repo there; "no" only when git says exactly that no parent folder is a git repository;
+# "unknown" for anything else, such as "dubious ownership" (fail closed).
+git_tree() {
+    local p=$1 up out rc
+    while :; do
+        [ -e "$p/.git" ] && { echo yes; return; }
+        up=$(dirname -- "$p"); [ "$up" = "$p" ] && break; p=$up
+    done
+    out=$(env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR -u GIT_CEILING_DIRECTORIES -u GIT_INDEX_FILE \
+          GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git -C "$1" rev-parse --is-inside-work-tree --is-inside-git-dir 2>&1); rc=$?
+    if [ $rc = 0 ]; then echo yes
+    elif [ $rc = 128 ] && [[ "$out" == "fatal: not a git repository (or any "* ]] && [[ "$out" != *$'\n'* ]]; then echo no
+    else echo unknown; fi
+}
 
 KIT=$(abs_dir "$(dirname "${BASH_SOURCE[0]}")") || die "cannot find the kit folder"
 REPO_GIT=$(git -C "$KIT" rev-parse --show-toplevel 2>/dev/null) || die "run deploy.sh from a checkout of the repo"
 REPO=$(abs_dir "$REPO_GIT") || die "cannot resolve the repo folder"
+local_disk "$REPO" || die "run deploy.sh from a checkout on a local drive, not through a network path"
+REPO_ID=$(fid "$REPO"); [ -n "$REPO_ID" ] || die "cannot read the identity of the repo folder"
+KIT_ID=$(fid "$KIT")
+[ -n "$KIT_ID" ] && [ "$KIT_ID" = "$(fid "$REPO/scripts/deploy")" ] || die "run the kit as scripts/deploy/deploy.sh of the checkout itself, not from a copy"
 REMOTE=$(git -C "$REPO" remote get-url origin 2>/dev/null) || die "the repo has no 'origin' remote"
 
 # ---- private settings: outside the repo, never tracked, no empty values ----
-CONF=${LB_DEPLOY_CONFIG:-${HOME:-}/.config/languagebasics/deploy.env}
 REQUIRED_KEYS=(LB_HOST LB_HOST_FPR LB_SSH_USER LB_SSH_KEY LB_BOX_KIT LB_BOX_ROOT LB_BOX_ROUTE_FILE LB_WORK_DIR)
 OPTIONAL_KEYS=(LB_SITE_URL LB_EXPECT_TREE LB_KEEP)
 declare -A CFG=()
 known_key() { local k; for k in "${REQUIRED_KEYS[@]}" "${OPTIONAL_KEYS[@]}"; do [ "$k" = "$1" ] && return 0; done; return 1; }
 
-[ -f "$CONF" ] || die "settings file not found at $CONF (copy scripts/deploy/deploy.env.example there, outside the repo, and fill it in)"
-CONF_DIR=$(abs_dir "$(dirname "$CONF")") || die "cannot resolve the settings folder"
-CONF_ABS=$CONF_DIR/$(basename "$CONF")
-inside "$CONF_ABS" "$REPO" && fail "the settings file is inside the repo; move it outside (default \$HOME/.config/languagebasics/deploy.env)"
-in_any_worktree "$CONF_DIR" && fail "the settings file is inside a git working tree; move it outside any repo"
+CONF=$(norm_path "${LB_DEPLOY_CONFIG:-${HOME:-}/.config/languagebasics/deploy.env}") \
+    || die "the settings file path (LB_DEPLOY_CONFIG) must be a full local path: no relative, drive-relative or network path"
+[ -f "$CONF" ] || die "settings file not found (LB_DEPLOY_CONFIG, default \$HOME/.config/languagebasics/deploy.env); copy scripts/deploy/deploy.env.example there, outside the repo, and fill it in"
+[ -L "$CONF" ] && fail "the settings file is a link; use a plain file outside any repo"
+[ "$(stat -c %h -- "$CONF" 2>/dev/null)" = 1 ] || fail "the settings file has more than one name (a hard link); use a plain file with one name, outside any repo"
+CONF_DIR=$(abs_dir "$(dirname -- "$CONF")") || die "cannot resolve the settings folder"
+CONF_ABS=$CONF_DIR/$(basename -- "$CONF")
+local_disk "$CONF_DIR" || fail "the settings file must be on a local drive, not behind a network path"
+in_repo "$CONF_ABS" && fail "the settings file is inside the repo; move it outside (default \$HOME/.config/languagebasics/deploy.env)"
+case "$(git_tree "$CONF_DIR")" in
+  yes)     fail "the settings file is inside a git working tree; move it outside any repo" ;;
+  unknown) fail "cannot tell whether the settings file is inside a git working tree (git could not check its folder); move it to a plain local folder outside any repo" ;;
+esac
 git -C "$REPO" ls-files --error-unmatch -- "$CONF_ABS" >/dev/null 2>&1 && fail "the settings file is tracked by git; remove it from git and rotate anything it held"
 
 n=0
@@ -118,7 +174,7 @@ chk_re LB_KEEP           '^[0-9]+$'                            "a whole number"
 for k in LB_BOX_KIT LB_BOX_ROOT LB_BOX_ROUTE_FILE; do
     case "/${CFG[$k]:-}/" in */../*|*/./*) fail "setting $k must not hold . or .. parts" ;; esac
 done
-[ -z "${CFG[LB_KEEP]:-}" ] || [ "${CFG[LB_KEEP]}" -ge 2 ] || fail "setting LB_KEEP must be 2 or more"
+if [[ "${CFG[LB_KEEP]:-}" =~ ^[0-9]+$ ]] && [ "${CFG[LB_KEEP]}" -lt 2 ]; then fail "setting LB_KEEP must be 2 or more"; fi
 gate "settings"
 
 SITE=${CFG[LB_SITE_URL]:-https://bengusa.pro/languagebasics/}
@@ -126,25 +182,48 @@ KEEP=${CFG[LB_KEEP]:-5}
 BOXKIT=${CFG[LB_BOX_KIT]%/}
 
 # ---- work folder (clone, build, logs, known_hosts): outside the repo, never inside any repo ----
-abs_path() { # absolute form of a path that may not exist yet (nearest existing parent resolved); creates nothing
-    local p=${1%/} rest=""
-    while [ -n "$p" ] && [ ! -d "$p" ]; do rest=/$(basename "$p")$rest; p=$(dirname "$p"); done
-    printf '%s%s' "$(abs_dir "${p:-/}")" "$rest"
+abs_path() { # abs_path <full POSIX path>: resolved form of a path that may not exist yet; creates nothing
+    local p=${1%/} rest="" up base
+    [ -n "$p" ] || p=/
+    while [ ! -d "$p" ]; do   # stops at the first folder that exists, or when dirname stops changing
+        up=$(dirname -- "$p"); [ "$up" != "$p" ] || return 1
+        rest=/$(basename -- "$p")$rest; p=$up
+    done
+    base=$(abs_dir "$p") || return 1
+    printf '%s%s' "${base%/}" "$rest"
 }
-W=$(abs_path "${CFG[LB_WORK_DIR]}")
-[ -n "$W" ] || die "cannot resolve the work folder (LB_WORK_DIR)"
-case "$W/" in */../*|*/./*) fail "the work folder (LB_WORK_DIR) must not hold . or .. parts" ;; esac
-inside "$W" "$REPO" && fail "the work folder (LB_WORK_DIR) is inside the repo; clone, build, log and known_hosts must never be written there"
-wp=$W; while [ ! -d "$wp" ]; do wp=$(dirname "$wp"); done
-in_any_worktree "$wp" && fail "the work folder (LB_WORK_DIR) is inside a git working tree; pick a folder outside any repo"
+WFULL=$(norm_path "${CFG[LB_WORK_DIR]}") \
+    || die "the work folder (LB_WORK_DIR) must be a full local path: no relative, drive-relative or network path"
+W=$(abs_path "$WFULL") && [ -n "$W" ] || die "cannot resolve the work folder (LB_WORK_DIR)"
+case "$W/" in */../*|*/./*) fail "the work folder (LB_WORK_DIR) must not hold . or .. parts"; gate "work folder" ;; esac
+local_disk "$W" || fail "the work folder (LB_WORK_DIR) must be on a local drive, not behind a network path"
+in_repo "$W" && fail "the work folder (LB_WORK_DIR) is inside the repo; clone, build, log and known_hosts must never be written there"
+wp=$W; while [ ! -d "$wp" ]; do up=$(dirname -- "$wp"); [ "$up" != "$wp" ] || break; wp=$up; done
+case "$(git_tree "$wp")" in
+  yes)     fail "the work folder (LB_WORK_DIR) is inside a git working tree; pick a folder outside any repo" ;;
+  unknown) fail "cannot tell whether the work folder (LB_WORK_DIR) is inside a git working tree (git could not check it); pick a plain local folder outside any repo" ;;
+esac
 gate "work folder"
 mkdir -p "$W" 2>/dev/null || die "cannot create the work folder (LB_WORK_DIR)"
 W=$(abs_dir "$W") || die "cannot resolve the work folder (LB_WORK_DIR)"
+in_repo "$W" && die "the work folder (LB_WORK_DIR) resolves inside the repo after it was created"
 CLONE=$W/clone
 BUILD=$W/build
 KH=$W/known_hosts
 LOG=$W/deploy-log.txt
-mkdir -p "$BUILD" || die "cannot create $BUILD"
+mkdir -p "$BUILD" || die "cannot create the build folder in the work folder"
+# scrub: shows text on the terminal with the work folder's path replaced by a label.
+W_WIN=""; W_MIX=""
+if $ON_WIN; then W_WIN=$(cygpath -w -- "$W" 2>/dev/null); W_MIX=$(cygpath -m -- "$W" 2>/dev/null); fi
+scrub() {
+    local l
+    while IFS= read -r l || [ -n "$l" ]; do
+        l=${l//"$W"/<work folder>}
+        [ -z "$W_WIN" ] || l=${l//"$W_WIN"/<work folder>}
+        [ -z "$W_MIX" ] || l=${l//"$W_MIX"/<work folder>}
+        printf '%s\n' "$l"
+    done
+}
 logrow() { printf '%s\t%s\t%s\n' "$(date -u +%FT%TZ)" "$mode" "$*" >> "$LOG"; }
 
 # ---- the approved commit ----
@@ -166,6 +245,12 @@ case "$mode" in
     fi ;;
 esac
 gate "commit id and clean tree"
+# A manual rollback names the release it expects to be live (shown by --list), so a second run, or a run
+# during another deploy, never walks back a second release.
+EXPECT_CUR=${LB_EXPECT_CURRENT:-}
+if [ "$mode" = rollback ] && ! [[ "$EXPECT_CUR" =~ ^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}$ ]]; then
+    die "set LB_EXPECT_CURRENT to the live release id shown by --list; a rollback only moves away from the release you name"
+fi
 
 # ---- clean clone (never the working folder) ----
 git_c() { git -C "$CLONE" -c core.autocrlf=false -c core.eol=lf "$@"; }
@@ -173,7 +258,7 @@ if [ ! -d "$CLONE/.git" ]; then
     git -c core.autocrlf=false clone --quiet --no-checkout "$REMOTE" "$CLONE" || die "clone failed"
     git -C "$CLONE" config core.autocrlf false
 fi
-[ "$(git -C "$CLONE" remote get-url origin)" = "$REMOTE" ] || die "the work clone points at another remote; delete $CLONE and run again"
+[ "$(git -C "$CLONE" remote get-url origin)" = "$REMOTE" ] || die "the work clone points at another remote; delete the clone folder in the work folder and run again"
 git_c fetch --quiet --prune origin '+refs/heads/*:refs/remotes/origin/*' || die "git fetch failed"
 MAIN=$(git_c rev-parse --verify "origin/main^{commit}" 2>/dev/null) || die "no origin/main"
 info "origin/main = $MAIN"
@@ -189,29 +274,39 @@ if ! git_c cat-file -e "$KIT_SHA^{commit}" 2>/dev/null; then
     fail "kit commit $KIT_SHA is not on the remote"
 else
     [ -n "$(git_c branch -r --contains "$KIT_SHA" 2>/dev/null)" ] || fail "kit commit $KIT_SHA is on no remote branch"
+    UNMERGED_KIT=""
     if [ "$mode" = deploy ] || [ "$mode" = rollback ]; then
         git_c merge-base --is-ancestor "$KIT_SHA" "$MAIN" || fail "kit commit $KIT_SHA is not on origin/main; a deploy or rollback uses reviewed, merged kit code only"
+    elif ! git_c merge-base --is-ancestor "$KIT_SHA" "$MAIN"; then
+        if [ "${LB_ALLOW_UNMERGED_KIT:-}" = 1 ]; then UNMERGED_KIT=1
+        else fail "kit commit $KIT_SHA is not on origin/main; to run kit code that is not merged yet, set LB_ALLOW_UNMERGED_KIT=1 (needs the owner's go: in a server mode its server script runs on the live server)"; fi
     fi
 fi
 gate "approved commit"
+if [ -n "${UNMERGED_KIT:-}" ]; then
+    echo "$PROG: WARNING: kit commit $KIT_SHA is NOT on origin/main (LB_ALLOW_UNMERGED_KIT=1). Unreviewed kit code runs now; in a server mode its server script runs on the live server." >&2
+    logrow "unmerged kit $KIT_SHA allowed"
+fi
 
-# The running kit must be byte-for-byte the kit at KIT_SHA (lists every difference, then refuses).
+# The running kit (the folder this deploy.sh runs from) must be byte-for-byte the kit at KIT_SHA
+# (lists every difference, then refuses). preflight.js is required: without it the leak scan would not run.
 kit_files=$(git_c ls-tree -r --name-only "$KIT_SHA" -- scripts/deploy)
 [ -n "$kit_files" ] || fail "commit $KIT_SHA has no scripts/deploy"
-for f in deploy.sh lb-release.sh expected-headers.txt; do
+for f in deploy.sh lb-release.sh expected-headers.txt preflight.js; do
     grep -qxF "scripts/deploy/$f" <<<"$kit_files" || fail "commit $KIT_SHA has no scripts/deploy/$f"
 done
 while IFS= read -r p; do
     [ -n "$p" ] || continue
     want=$(git_c rev-parse "$KIT_SHA:$p")
-    if [ ! -f "$REPO/$p" ]; then fail "running kit is missing $p"; continue; fi
-    got=$(git -C "$REPO" hash-object --no-filters -- "$REPO/$p")
+    f=$KIT/${p#scripts/deploy/}
+    if [ ! -f "$f" ]; then fail "running kit is missing $p"; continue; fi
+    got=$(git -C "$REPO" hash-object --no-filters -- "$f")
     [ "$got" = "$want" ] || fail "running $p differs from commit $KIT_SHA"
 done <<<"$kit_files"
-while IFS= read -r p; do
-    rel=${p#"$REPO"/}
+while IFS= read -r f; do
+    rel=scripts/deploy/${f#"$KIT"/}
     grep -qxF "$rel" <<<"$kit_files" || fail "running kit has $rel, which is not in commit $KIT_SHA"
-done < <(find "$REPO/scripts/deploy" -type f 2>/dev/null)
+done < <(find "$KIT" -type f 2>/dev/null)
 gate "running kit matches the kit commit"
 
 # Kit files used at run time come from the kit commit, never from the working folder.
@@ -351,14 +446,14 @@ outside_check() { # outside_check <manifest-file> <release-id>: every problem is
     return 1
 }
 
-# A rollback on the server exited 3: current WAS switched and the release left is marked bad,
-# but the release now live fails the server smoke checks. Say what is live now, then exit 3.
-switched_but_smoke_fails() { # <what rolled back> <what was left>
+# The server says the release live now fails its smoke checks (lb-release.sh exit 3 or 4).
+# Say what happened and what is live now, then exit 3.
+switched_but_smoke_fails() { # <what happened, one sentence>
     local live
     live=$(box_manifest "$BUILD/live.manifest") || live="(cannot read it from the server)"
-    echo "$PROG: SWITCHED, BUT SMOKE FAILS: $1 switched the live release; $2 is marked bad." >&2
+    echo "$PROG: SWITCHED, BUT SMOKE FAILS: $1" >&2
     echo "$PROG: live now: $live. It FAILS the server smoke checks. Check the server now." >&2
-    logrow "switched, live now $live, smoke FAIL"
+    logrow "live now $live, smoke FAIL: $1"
     exit 3
 }
 
@@ -374,13 +469,18 @@ case "$mode" in
     outside_check "$m" "$rid"; rc=$?; logrow "$rid rc=$rc"; exit $rc ;;
   rollback)
     box_setup
-    box rollback; rc=$?
-    logrow "rollback rc=$rc"
-    [ $rc = 3 ] && switched_but_smoke_fails "the rollback" "the release it left"
-    [ $rc = 0 ] || die "rollback failed on the server (rc=$rc); nothing was switched; see the output above"
+    box rollback "$EXPECT_CUR" manual; rc=$?
+    logrow "rollback from $EXPECT_CUR rc=$rc"
+    case $rc in
+      0) ;;
+      3)   switched_but_smoke_fails "the rollback switched the live release away from $EXPECT_CUR, which is now marked bad." ;;
+      1)   failed "the server refused the rollback or it failed before switching (rc=1); nothing was switched; see the output above" ;;
+      255) failed "the connection to the server was lost during the rollback; the server state is unknown; run --list now" ;;
+      *)   failed "the rollback failed on the server (rc=$rc); the server state is unknown; run --list now" ;;
+    esac
     m=$BUILD/live.manifest
-    rid=$(box_manifest "$m") || die "rolled back, but cannot read the live release from the server"
-    outside_check "$m" "$rid" || die "rolled back to $rid, but the outside checks fail; see above"
+    rid=$(box_manifest "$m") || failed "rolled back, but cannot read the live release from the server; run --list now"
+    outside_check "$m" "$rid" || failed "rolled back to $rid, but the outside checks fail; see above"
     exit 0 ;;
 esac
 
@@ -392,7 +492,7 @@ rm -rf "$TT"; mkdir -p "$TT"
 git_c archive --format=tar "$sha" | tar -xf - -C "$TT" || die "cannot unpack commit $sha"
 # Temp folders made by the test run go under the work folder (outside the repo), never the system temp folder.
 TTMP=$BUILD/$id.tmp
-rm -rf "$TTMP"; mkdir -p "$TTMP" || die "cannot create $TTMP"
+rm -rf "$TTMP"; mkdir -p "$TTMP" || die "cannot create the test temp folder in the work folder"
 TTMP_NATIVE=$TTMP
 command -v cygpath >/dev/null 2>&1 && TTMP_NATIVE=$(cygpath -w "$TTMP")
 run_npm() { # run_npm <label> <log> <npm args...>: runs in the commit's tree; returns npm's exit status.
@@ -400,8 +500,8 @@ run_npm() { # run_npm <label> <log> <npm args...>: runs in the commit's tree; re
     ( cd "$TT" && LB_TEST_TMP=$TTMP_NATIVE TMP=$TTMP_NATIVE TEMP=$TTMP_NATIVE TMPDIR=$TTMP "$NPM_BIN" "$@" ) > "$log" 2>&1
     rc=$?
     if [ $rc = 0 ]; then info "$label passes on $sha"; return 0; fi
-    fail "$label failed on commit $sha (exit $rc, log: $log)"
-    tail -n 15 "$log" | sed 's/^/    | /' >&2
+    fail "$label failed on commit $sha (exit $rc, log: <work folder>/build/${log##*/})"
+    tail -n 15 "$log" | scrub | sed 's/^/    | /' >&2
     return $rc
 }
 run_npm "npm test" "$BUILD/$id.npm-test.log" test
@@ -431,12 +531,14 @@ mapfile -t top < <(cd "$B" && find . -mindepth 1 -maxdepth 1 ! -name .manifest.s
 ( cd "$B" && tar --sort=name --format=ustar --owner=0 --group=0 --numeric-owner --mtime="@$(git_c log -1 --format=%ct "$sha")" -cf "$T" .manifest.sha256 "${top[@]}" ) || die "tar failed"
 info "built $id: $n files, manifest $msha, tar $(sha256sum "$T" | cut -d' ' -f1)"
 
-# ---- seam: optional Node pre-upload module from the kit commit ----
-if [ -f "$KT/preflight.js" ]; then
-    ( cd "$TT" && "$NODE_BIN" "$KT/preflight.js" --sha "$sha" --tree "$TT" --build "$B" --manifest "$B/.manifest.sha256" --repo "$REPO" ) \
-        || fail "preflight.js refused commit $sha"
-    gate "preflight.js"
-fi
+# ---- preflight.js from the kit commit (required): build vs tested tree, manifest, leak scan ----
+[ -f "$KT/preflight.js" ] || die "the kit from commit $KIT_SHA has no preflight.js"
+PF=$BUILD/$id.preflight
+( cd "$TT" && "$NODE_BIN" "$KT/preflight.js" --sha "$sha" --tree "$TT" --build "$B" --manifest "$B/.manifest.sha256" --repo "$REPO" ) \
+    > "$PF.out" 2> "$PF.err"; rc=$?
+scrub < "$PF.out"; scrub < "$PF.err" >&2; rm -f "$PF.out" "$PF.err"
+[ $rc = 0 ] || fail "preflight.js refused commit $sha"
+gate "preflight.js"
 
 if [ "$mode" = preflight ]; then
     logrow "$id sha=$sha kit=$KIT_SHA manifest=$msha PREFLIGHT PASS"
@@ -455,7 +557,17 @@ fi
 "${SCP[@]}" "$T" "${CFG[LB_SSH_USER]}@${CFG[LB_HOST]}:$BOXKIT/incoming/$id.tar" || die "upload failed"
 box install "$BOXKIT/incoming/$id.tar" "$id" "$msha"; rc=$?
 logrow "$id sha=$sha kit=$KIT_SHA manifest=$msha install rc=$rc"
-[ $rc = 0 ] || die "install failed on the server (rc=$rc); see the output above (the server rolls back on a failed smoke)"
+case $rc in
+  0) ;;
+  3)   switched_but_smoke_fails "release $id went live and failed the server smoke checks, and the server's automatic rollback found no release that passes them; release $id is marked bad." ;;
+  4)   switched_but_smoke_fails "release $id went live and failed the server smoke checks, and the server's automatic rollback could not switch back; release $id is marked bad." ;;
+  1)   live=$(box_manifest "$BUILD/live.manifest") || live=""
+       [ -n "$live" ] || failed "install failed on the server (rc=1) and the live release cannot be read now; run --list now"
+       [ "$live" != "$id" ] || failed "install failed on the server (rc=1), but release $id is live; run --list and --smoke now"
+       failed "install failed on the server (rc=1); release $id is not live; live now: $live (if release $id failed smoke, the server switched back to $live and it passes smoke); see the output above" ;;
+  255) failed "the connection to the server was lost during the install; the server state is unknown (release $id may be live); run --list now" ;;
+  *)   failed "install failed on the server (rc=$rc); the server state is unknown; run --list now" ;;
+esac
 
 if outside_check "$B/.manifest.sha256" "$id"; then
     logrow "$id outside OK"
@@ -465,10 +577,15 @@ fi
 echo "$PROG: outside checks failed; rolling back automatically" >&2
 box rollback "$id" outside-check-failed; rc=$?
 logrow "$id outside FAIL, auto-rollback rc=$rc"
-[ $rc = 3 ] && switched_but_smoke_fails "the automatic rollback after failed outside checks" "release $id"
-[ $rc = 0 ] || die "AUTOMATIC ROLLBACK FAILED (rc=$rc); release $id may still be live. Check the server now."
+case $rc in
+  0) ;;
+  3)   switched_but_smoke_fails "the automatic rollback after failed outside checks switched the live release away from $id, which is now marked bad." ;;
+  1)   failed "AUTOMATIC ROLLBACK REFUSED by the server (rc=1), nothing was switched: release $id is still live and fails the outside checks. Check the server now." ;;
+  255) failed "the connection to the server was lost during the automatic rollback; release $id may still be live; run --list now" ;;
+  *)   failed "AUTOMATIC ROLLBACK FAILED (rc=$rc); the server state is unknown; release $id may still be live; run --list now" ;;
+esac
 m=$BUILD/live.manifest
 if rid=$(box_manifest "$m"); then
     outside_check "$m" "$rid" && info "rolled back to $rid; it passes the outside checks"
 fi
-die "release $id failed the outside checks and was rolled back"
+failed "release $id failed the outside checks and was rolled back"

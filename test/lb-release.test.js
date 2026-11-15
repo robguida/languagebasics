@@ -14,7 +14,9 @@
  *  - older log lines ("rollback from X", "auto-rollback from X") mark X bad;
  *  - a rollback naming the wrong current release changes nothing;
  *  - a release that fails smoke is marked bad, the old one comes back, and no later
- *    rollback picks the bad one;
+ *    rollback picks the bad one (exit 1); if the old one fails smoke too, or there is no
+ *    good release to go back to, install exits 3; the automatic rollback never goes back
+ *    to a release marked bad; the uploaded tar is removed after a failed install too;
  *  - pruning never removes the current release or the rollback target, counts good
  *    releases only, and keeps the newest bad one;
  *  - usage and settings errors.
@@ -238,22 +240,66 @@ test("lb-release: install switches current after the smoke passes and logs it go
   assert.ok(!fs.existsSync(tarWin), "the uploaded tar is removed after a good install");
 });
 
-test("lb-release: a release that fails smoke is marked bad, the old one comes back, and no rollback picks it", { skip: SKIP }, (t) => {
+test("lb-release: a release that fails smoke is marked bad, the old one comes back healthy (exit 1), and no rollback picks it", { skip: SKIP }, (t) => {
+  const s = makeServer(t);
+  s.add(1);
+  s.log(["live", 1], ["good", 1]);
+  s.point(1);
+  const [tar, msha, tarWin] = s.pack(2);
+  // Only the new release (2) serves a broken page; the old one (1) passes smoke.
+  const r = s.run(["install", tar, id(2), msha], { FAKE_SMOKE_FAIL_ID: id(2) });
+  assert.equal(r.code, 1, r.all);
+  assert.match(r.out, new RegExp(`AUTO-ROLLBACK to ${id(1)} \\(${id(2)} marked bad\\)`));
+  assert.match(r.out, new RegExp(`smoke PASS \\(${id(1)}\\)`), "the old release passes smoke after the switch back");
+  assert.doesNotMatch(r.out, /SWITCHED BUT SMOKE FAILS/);
+  const l = s.list();
+  assert.equal(l.current, id(1));
+  assert.equal(l.status[id(2)], "bad");
+  assert.equal(l.previous, "");
+  assert.ok(!fs.existsSync(tarWin), "the uploaded tar is removed after a failed install too");
+  const rb = s.run(["rollback"]);
+  assert.equal(rb.code, 1, rb.all);
+  assert.match(rb.err, /no good release to roll back to/);
+});
+
+test("lb-release: when the old release ALSO fails smoke after the automatic rollback, install exits 3 and names what is live", { skip: SKIP }, (t) => {
   const s = makeServer(t);
   s.add(1);
   s.log(["live", 1], ["good", 1]);
   s.point(1);
   const [tar, msha] = s.pack(2);
-  const r = s.run(["install", tar, id(2), msha], { FAKE_SMOKE_FAIL: "1" });
+  const r = s.run(["install", tar, id(2), msha], { FAKE_SMOKE_FAIL_ID: `${id(1)} ${id(2)}` });
+  assert.equal(r.code, 3, r.all);
+  assert.match(r.out, new RegExp(`AUTO-ROLLBACK to ${id(1)}`));
+  assert.match(r.out, new RegExp(`SWITCHED BUT SMOKE FAILS: ${id(1)} is live now and fails smoke too`));
+  const l = s.list();
+  assert.equal(l.current, id(1), "current did move back");
+  assert.equal(l.status[id(2)], "bad");
+});
+
+test("lb-release: the automatic rollback never returns to a release marked bad; it takes the last good one", { skip: SKIP }, (t) => {
+  const s = makeServer(t);
+  for (const n of [1, 2]) s.add(n);
+  // 2 went live after 1, failed smoke and stayed live (no good release then): 2 is live AND bad.
+  s.log(["live", 1], ["good", 1], ["live", 2], ["bad", 2, "smoke-failed"]);
+  s.point(2);
+  const [tar, msha] = s.pack(3);
+  const r = s.run(["install", tar, id(3), msha], { FAKE_SMOKE_FAIL_ID: `${id(2)} ${id(3)}` });
   assert.equal(r.code, 1, r.all);
-  assert.match(r.out, new RegExp(`AUTO-ROLLBACK to ${id(1)} \\(${id(2)} marked bad\\)`));
+  assert.match(r.out, new RegExp(`AUTO-ROLLBACK to ${id(1)} \\(${id(3)} marked bad\\)`), "not back to the bad release 2");
+  assert.equal(s.list().current, id(1));
+});
+
+test("lb-release: a first install that fails smoke, with no good release to go back to, exits 3 and stays marked bad", { skip: SKIP }, (t) => {
+  const s = makeServer(t);
+  const [tar, msha] = s.pack(1);
+  const r = s.run(["install", tar, id(1), msha], { FAKE_SMOKE_FAIL: "1" });
+  assert.equal(r.code, 3, r.all);
+  assert.match(r.out, new RegExp(`NO GOOD RELEASE TO GO BACK TO: ${id(1)} stays live and is marked bad`));
   const l = s.list();
   assert.equal(l.current, id(1));
-  assert.equal(l.status[id(2)], "bad");
-  assert.equal(l.previous, "");
-  const rb = s.run(["rollback"]);
-  assert.equal(rb.code, 1, rb.all);
-  assert.match(rb.err, /no good release to roll back to/);
+  assert.equal(l.status[id(1)], "current");
+  assert.match(s.logText(), new RegExp(`\\tbad\\t${id(1)}\\tsmoke-failed`));
 });
 
 test("lb-release: install refuses a manifest sha that is not the approved one", { skip: SKIP }, (t) => {
