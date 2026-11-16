@@ -35,3 +35,20 @@ docs/dataset-review-*.md
 
 # NOTE: bengusa_web/ is intentionally NOT ignored. It is out of scope for
 # edits but should remain tracked/visible if/when it is added.
+
+# === Deploy kit (LB-37): private settings and work files never enter the repo ===
+# The real settings file lives OUTSIDE the repo (deploy.sh refuses otherwise); these are backstops.
+deploy.env
+*.local.env
+scripts/deploy/*.env
+!scripts/deploy/deploy.env.example
+*.pem
+*.key
+known_hosts
+deploy-log.txt
+clone-main/
+kit-local/
+/build/
+/clone/
+scripts/build/
+scripts/clone/

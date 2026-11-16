@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Windows-only test shim: report a junction to releases/<id> the way a real link reads.
+r=$(/usr/bin/readlink "$@") || exit 1
+case "$r" in */releases/*) echo "releases/${r##*/releases/}" ;; *) echo "$r" ;; esac

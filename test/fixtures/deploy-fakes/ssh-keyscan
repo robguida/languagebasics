@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Fake ssh-keyscan (tests only).
+echo "ssh-keyscan $*" >> "$FAKE_CALLS"
+echo "fakehost ssh-ed25519 FAKEKEY"

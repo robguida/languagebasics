@@ -1,0 +1,21 @@
+# Response headers the live site must send. deploy.sh checks them after every upload and in --verify,
+# on the app's address, content/languages.js, content/sq/lesson-1.js and privacy.html. Public values:
+# every visitor receives them. Any difference fails the outside checks (and rolls a new release back).
+#
+#   Name: value           every checked page sends exactly this one value
+#   .ext Name: value      only pages of that type (.html also covers the app's address)
+#   !Name                 must not be sent at all
+#
+# Change a value here in the same commit as the web server change that alters it.
+Cache-Control: no-cache
+Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=300
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+.html Content-Type: text/html; charset=utf-8
+.js Content-Type: application/javascript; charset=utf-8
+!Set-Cookie

@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Fake scp (tests only): logs the call, then copies the file locally (the part after "host:" is the target).
+# FAKE_ARGS=<file>: every call also adds one line with its FULL argument list ("scp", then each
+# argument, tab-separated; inside an argument a backslash is doubled, and a tab or new line is
+# written as backslash-t or backslash-n).
+if [ -n "${FAKE_ARGS:-}" ]; then
+  line=scp bs='\'
+  for a in "$@"; do a=${a//"$bs"/"$bs$bs"}; a=${a//$'\t'/"${bs}t"}; a=${a//$'\n'/"${bs}n"}; line+=$'\t'"$a"; done
+  printf '%s\n' "$line" >> "$FAKE_ARGS"
+fi
+src=${@: -2:1}; dst=${@: -1}; dst=${dst#*:}
+echo "scp $src -> $dst" >> "$FAKE_CALLS"
+cp "$src" "$dst"

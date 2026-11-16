@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Fake npm (tests only): logs the folder it ran in, its arguments and the temp folders it was given.
+# FAKE_NPM_FAIL holds "test" and/or "check" to make that command fail, with exit code FAKE_NPM_RC (default 1).
+echo "npm|$PWD|$*|tmp=${LB_TEST_TMP:-}|TMP=${TMP:-}|TEMP=${TEMP:-}|TMPDIR=${TMPDIR:-}" >> "$FAKE_CALLS"
+rc=${FAKE_NPM_RC:-1}
+case "$*" in
+  test)          [[ "${FAKE_NPM_FAIL:-}" == *test* ]] && { echo "fake npm test: 1 failing"; exit "$rc"; } ;;
+  "run check:data") [[ "${FAKE_NPM_FAIL:-}" == *check* ]] && { echo "fake check:data: 1 file differs"; exit "$rc"; } ;;
+esac
+echo "fake npm $*: ok"
+exit 0
