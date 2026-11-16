@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Windows-only test shim: "ln -sfn <target> <link>" made with a directory junction,
+# because this kind of computer cannot make real symbolic links without admin rights.
+[ "$1" = -sfn ] || exec /usr/bin/ln "$@"
+t=$2 l=$3; d=$(dirname "$l"); b=$(basename "$l")
+rm -rf "$l"
+wt=$(printf '%s' "$t" | tr '/' '\\')
+cd "$d" && cmd //c "mklink /J $b $wt" >/dev/null

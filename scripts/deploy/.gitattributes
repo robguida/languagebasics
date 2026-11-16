@@ -1,0 +1,2 @@
+# The kit runs in bash and is byte-checked against its commit: always check it out with LF line endings.
+* text eol=lf

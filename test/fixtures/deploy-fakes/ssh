@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Fake ssh (tests only): logs the call, then runs the remote command on this computer.
+# FAKE_SSH_RC="<word>=<rc> ..." changes the outcome of a server command. <word> is the lb-release.sh
+# command (install, rollback, list, smoke, manifest) or "setup" (the folder setup command):
+#   <word>=<rc>       do not run it; exit <rc> (255 = the connection was lost)
+#   <word>=run:<rc>   run it, then exit <rc> whatever it returned (e.g. the connection drops after a switch)
+# FAKE_ARGS=<file>: every call also adds one line with its FULL argument list ("ssh", then each
+# argument, tab-separated; inside an argument a backslash is doubled, and a tab or new line is
+# written as backslash-t or backslash-n), so a test can check the options (-F none, the host-key
+# pin) and not only the remote command.
+# The server script's smoke checks use the fake curl next to this file, never a real one.
+if [ -n "${FAKE_ARGS:-}" ]; then
+  line=ssh bs='\'
+  for a in "$@"; do a=${a//"$bs"/"$bs$bs"}; a=${a//$'\t'/"${bs}t"}; a=${a//$'\n'/"${bs}n"}; line+=$'\t'"$a"; done
+  printf '%s\n' "$line" >> "$FAKE_ARGS"
+fi
+cmd=${@: -1}
+echo "ssh $cmd" >> "$FAKE_CALLS"
+LB_CURL=${0%/*}/curl; export LB_CURL   # the tests start this fake by its full path (no extra process here)
+word=""
+if [[ "$cmd" =~ lb-release-[0-9a-f]+\.sh[[:space:]]+([a-z]+) ]]; then word=${BASH_REMATCH[1]}
+elif [[ "$cmd" == "mkdir -p "* ]]; then word=setup; fi
+for rule in ${FAKE_SSH_RC:-}; do
+  [ -n "$word" ] && [ "${rule%%=*}" = "$word" ] || continue
+  v=${rule#*=}
+  if [[ "$v" == run:* ]]; then bash -c "$cmd"; exit "${v#run:}"; fi
+  echo "fake ssh: $word returns $v" >&2
+  exit "$v"
+done
+exec bash -c "$cmd"
