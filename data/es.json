@@ -193,7 +193,7 @@
         },
         {
           "slug": "lesson-5",
-          "parked": true,
+          "parked": false,
           "label": "Lesson 5 — Big Number Roots",
           "title": "Spanish Big Number Roots",
           "revealMs": 5000,
@@ -281,7 +281,7 @@
         },
         {
           "slug": "lesson-6",
-          "parked": true,
+          "parked": false,
           "label": "Lesson 6 — Number Builder",
           "title": "Spanish Number Builder",
           "revealMs": 10000,
@@ -292,15 +292,30 @@
             "10-second reveal (revealMs: 10000) and the multi-part answers joined with",
             "\" | \" (rendered as stacked lines by the engine), grouped by scale block.",
             "Grammar as delivered: ciento (not cien) inside 105,300; un millón (apocope of",
-            "uno) in 1,234,567; irregular quinientos (500) in 12,568 / 234,567 / 1,234,567."
+            "uno) in 1,234,567; irregular quinientos (500) in 12,568 / 234,567 / 1,234,567.",
+            "LB-45: prompts use comma thousands (\"1,234\"); Spain and much of South America write \"1.234\" (there \"1,234\" reads as a decimal)."
           ],
           "cards": [
+            { "id": "lesson-6.007", "prompt": "101", "answer": "ciento uno", "hint": "See en toh Oo noh" },
             { "id": "lesson-6.001", "prompt": "347", "answer": "trescientos cuarenta y siete", "hint": "Trehs see en tohs Kwah ren tah ee See eh teh" },
+            { "id": "lesson-6.008", "prompt": "616", "answer": "seiscientos dieciséis", "hint": "Seys see en tohs Dee eh see Seys" },
+            { "id": "lesson-6.009", "prompt": "999", "answer": "novecientos noventa y nueve", "hint": "Noh veh see en tohs Noh ven tah ee Nweh veh" },
+            { "id": "lesson-6.010", "prompt": "1,001", "answer": "mil | uno", "hint": "Meel Oo noh" },
             { "id": "lesson-6.002", "prompt": "1,284", "answer": "mil | doscientos ochenta y cuatro", "hint": "Meel Dohs see en tohs Oh chen tah ee Kwah troh" },
+            { "id": "lesson-6.011", "prompt": "1,500", "answer": "mil | quinientos", "hint": "Meel Kee nyen tohs" },
+            { "id": "lesson-6.012", "prompt": "8,800", "answer": "ocho mil | ochocientos", "hint": "Oh choh meel Oh choh see en tohs" },
+            { "id": "lesson-6.013", "prompt": "10,001", "answer": "diez mil | uno", "hint": "Dee es meel Oo noh" },
             { "id": "lesson-6.003", "prompt": "12,568", "answer": "doce mil | quinientos sesenta y ocho", "hint": "Doh seh meel Kee nyen tohs Seh sen tah ee Oh choh" },
+            { "id": "lesson-6.014", "prompt": "21,000", "answer": "veintiún mil", "hint": "Veyn tee Oon meel" },
+            { "id": "lesson-6.015", "prompt": "44,444", "answer": "cuarenta y cuatro mil | cuatrocientos cuarenta y cuatro", "hint": "Kwah ren tah ee Kwah troh meel Kwah troh see en tohs Kwah ren tah ee Kwah troh" },
+            { "id": "lesson-6.016", "prompt": "68,000", "answer": "sesenta y ocho mil", "hint": "Seh sen tah ee Oh choh meel" },
             { "id": "lesson-6.004", "prompt": "105,300", "answer": "ciento cinco mil | trescientos", "hint": "See en toh Seen koh meel Trehs see en tohs" },
             { "id": "lesson-6.005", "prompt": "234,567", "answer": "doscientos treinta y cuatro mil | quinientos sesenta y siete", "hint": "Dohs see en tohs Treyn tah ee Kwah troh meel Kee nyen tohs Seh sen tah ee See eh teh" },
-            { "id": "lesson-6.006", "prompt": "1,234,567", "answer": "un millón | doscientos treinta y cuatro mil | quinientos sesenta y siete", "hint": "Oon mee Yohn Dohs see en tohs Treyn tah ee Kwah troh meel Kee nyen tohs Seh sen tah ee See eh teh" }
+            { "id": "lesson-6.017", "prompt": "1,000,001", "answer": "un millón | uno", "hint": "Oon mee Yohn Oo noh" },
+            { "id": "lesson-6.006", "prompt": "1,234,567", "answer": "un millón | doscientos treinta y cuatro mil | quinientos sesenta y siete", "hint": "Oon mee Yohn Dohs see en tohs Treyn tah ee Kwah troh meel Kee nyen tohs Seh sen tah ee See eh teh" },
+            { "id": "lesson-6.018", "prompt": "2,500,000", "answer": "dos millones | quinientos mil", "hint": "Dohs mee Yoh nehs Kee nyen tohs meel" },
+            { "id": "lesson-6.019", "prompt": "3,050,000", "answer": "tres millones | cincuenta mil", "hint": "Trehs mee Yoh nehs Seen kwen tah meel" },
+            { "id": "lesson-6.020", "prompt": "5,000,500", "answer": "cinco millones | quinientos", "hint": "Seen koh mee Yoh nehs Kee nyen tohs" }
           ]
         }
       ]

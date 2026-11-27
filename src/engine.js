@@ -67,6 +67,35 @@
     return ""; // empty => fall back to the .number CSS clamp
   }
 
+  // Fit a prompt on ONE line inside its card (LB-45). The ladder above gives a
+  // starting size; if the text is still wider than its box, shrink it in
+  // proportion so a big number never wraps or splits mid-number. Short
+  // prompts fit at the ladder size and look exactly as before. A DOM without
+  // layout (unit-test shims) just keeps the ladder size.
+  var lastFit = null;
+  function fitPrompt(el, text) {
+    if (!el || !el.style) return;
+    lastFit = { el: el, text: text };
+    el.style.fontSize = promptFontSize(text);
+    el.style.whiteSpace = "";
+    try {
+      if (typeof window.getComputedStyle !== "function") return;
+      var avail = el.clientWidth, need = el.scrollWidth;
+      if (!avail || !need) return;
+      el.style.whiteSpace = "nowrap";
+      need = el.scrollWidth;
+      if (need <= avail) return;
+      var px = parseFloat(window.getComputedStyle(el).fontSize);
+      if (!px) return;
+      el.style.fontSize = Math.max(14, Math.floor(px * avail / need * 0.97)) + "px";
+    } catch (e) { /* keep the ladder size */ }
+  }
+  if (typeof window.addEventListener === "function") {
+    window.addEventListener("resize", function () {
+      if (lastFit && lastFit.el && lastFit.el.textContent === String(lastFit.text)) fitPrompt(lastFit.el, lastFit.text);
+    });
+  }
+
   // Length-based font auto-shrink ladder for the ANSWER. Uses the longest
   // single rendered line (after " | " splits).
   function wordFontSize(answer) {
@@ -360,8 +389,8 @@
     function nextCard() {
       current = randomCard();
 
-      numberEl.style.fontSize = promptFontSize(current.prompt);
       numberEl.textContent = current.prompt;
+      fitPrompt(numberEl, current.prompt);
 
       wordEl.style.fontSize = wordFontSize(current.answer);
       setAnswer(wordEl, current.answer);
@@ -630,8 +659,8 @@
         progressEl.hidden = false;
       }
 
-      numberEl.style.fontSize = promptFontSize(card.prompt);
       numberEl.textContent = card.prompt;
+      fitPrompt(numberEl, card.prompt);
 
       wordEl.style.fontSize = wordFontSize(card.answer);
       setAnswer(wordEl, card.answer);
