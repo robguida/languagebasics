@@ -1,12 +1,13 @@
 {
   "format": "languagebasics-lessons",
-  "formatVersion": 1,
+  "formatVersion": 2,
   "language": {
     "code": "qaa",
     "name": "Made-up test language",
     "order": 999,
     "defaultLesson": "lesson-1"
   },
+  "ip": { "status": "natural" },
   "notes": [
     "TEST FIXTURE ONLY. Never built into src/: the tests generate it in memory, next to the real data/*.json files.",
     "It proves a 5th language works with no test edits, and that hostile text survives the build exactly.",

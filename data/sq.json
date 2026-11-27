@@ -1,12 +1,13 @@
 {
   "format": "languagebasics-lessons",
-  "formatVersion": 1,
+  "formatVersion": 2,
   "language": {
     "code": "sq",
     "name": "Albanian",
     "order": 1,
     "defaultLesson": "lesson-1"
   },
+  "ip": { "status": "natural" },
   "notes": [],
   "retiredCardIds": [],
   "groups": [

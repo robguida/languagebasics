@@ -39,7 +39,8 @@ const { ROOT, DATA_DIR, BANNER, CARD_ID_RE } = build;
 function fixture(code, order) {
   return {
     format: "languagebasics-lessons",
-    formatVersion: 1,
+    formatVersion: 2,
+    ip: { status: "natural" },
     language: { code, name: "Test " + code, order, defaultLesson: "lesson-1" },
     notes: ["a note"],
     retiredCardIds: ["lesson-1.009"],
@@ -207,7 +208,7 @@ const cardAt = (d, c) => d.groups[0].lessons[0].cards[c];
 
 const RULES = [
   ["format must be the format name", (d) => { d.format = "other"; }, "format"],
-  ["formatVersion must be 1", (d) => { d.formatVersion = 2; }, "formatVersion"],
+  ["formatVersion must be 2", (d) => { d.formatVersion = 1; }, "formatVersion"],
   ["unknown top-level key", (d) => { d.grups = []; }, "grups"],
   ["code must be plain a-z0-9", (d) => { d.language.code = "X-1"; }, "language.code"],
   ["code must equal the file name", (d) => { d.language.code = "yy"; }, "language.code"],

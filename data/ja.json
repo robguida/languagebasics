@@ -1,12 +1,13 @@
 {
   "format": "languagebasics-lessons",
-  "formatVersion": 1,
+  "formatVersion": 2,
   "language": {
     "code": "ja",
     "name": "Japanese",
     "order": 3,
     "defaultLesson": "lesson-1"
   },
+  "ip": { "status": "natural" },
   "notes": [
     "LB-24: Japanese (ja) — the 3rd language. A full 6-lesson number deck applied",
     "verbatim from the Japanese linguistics dataset review. Sino-Japanese (on'yomi)",

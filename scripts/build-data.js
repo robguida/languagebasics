@@ -47,7 +47,7 @@ const ROOT = path.resolve(__dirname, "..");
 const DATA_DIR = path.join(ROOT, "data");
 
 const FORMAT = "languagebasics-lessons";
-const FORMAT_VERSION = 1;
+const FORMAT_VERSION = 2;
 
 // Strict on purpose: the lesson id (code + "/" + slug) is written into a
 // <script src> by document.write in index.html, so only plain a-z0-9 may reach it.
@@ -64,8 +64,9 @@ const OUTPUT_ROOTS = ["src/content", "parked/content"];
 const MANIFEST_FILE = "src/content/languages.js";
 
 const KEYS = {
-  top: ["format", "formatVersion", "language", "notes", "retiredCardIds", "groups"],
+  top: ["format", "formatVersion", "language", "ip", "notes", "retiredCardIds", "groups"],
   language: ["code", "name", "order", "defaultLesson"],
+  ip: ["status", "freeOnly", "notice", "ruling"],
   group: ["label", "notes", "lessons"],
   lesson: ["slug", "parked", "label", "title", "revealMs", "rollup", "recallPrompt", "notes", "cards", "cardRefs"],
   card: ["id", "prompt", "answer", "hint", "audio"],
@@ -100,6 +101,17 @@ function hasBanner(text) {
 
 /* --------------------------------------------------------------- validation */
 
+const IP_STATUSES = ["natural", "free", "owned", "licensed"];
+
+/** Check the ip block. Returns { status } (more is added in later steps). */
+function checkIp(ip, err, unknownKeys) {
+  if (ip === undefined) { err("ip", "is required: every language states its status (real languages: { \"status\": \"natural\" })"); return null; }
+  if (!isObject(ip)) { err("ip", "must be an object"); return null; }
+  unknownKeys(ip, KEYS.ip, "ip");
+  if (!IP_STATUSES.includes(ip.status)) { err("ip.status", "must be one of " + IP_STATUSES.join(", ")); return null; }
+  return { status: ip.status };
+}
+
 /**
  * Check one parsed data file and build its clean model.
  * @param {string} where  e.g. "data/sq.json"
@@ -130,7 +142,11 @@ function validateLanguage(where, fileCode, doc) {
   unknownKeys(doc, KEYS.top, "");
 
   if (doc.format !== FORMAT) err("format", `must be "${FORMAT}"`);
-  if (doc.formatVersion !== FORMAT_VERSION) err("formatVersion", `must be ${FORMAT_VERSION}`);
+  if (doc.formatVersion === 1) {
+    err("formatVersion", "1 is no longer accepted: this build reads format 2. Add an \"ip\" block (real languages: { \"status\": \"natural\" }) and set formatVersion to 2");
+  } else if (doc.formatVersion !== FORMAT_VERSION) {
+    err("formatVersion", `must be ${FORMAT_VERSION}`);
+  }
   checkNotes(doc.notes, "notes");
 
   // language header
@@ -151,6 +167,9 @@ function validateLanguage(where, fileCode, doc) {
     if (!isPositiveInt(lang.order)) err("language.order", "must be a positive whole number");
     if (typeof lang.defaultLesson !== "string") err("language.defaultLesson", "must be the slug of a live lesson");
   }
+
+  // ip block (who may use this language's text, and what notice it carries)
+  const ip = checkIp(doc.ip, err, unknownKeys);
 
   // retired ids
   const retired = new Set();
