@@ -358,7 +358,7 @@ box_manifest() { # box_manifest <out-file>: saves the live manifest, prints the 
 
 # ---- outside checks, through the CDN (no query string is ever used as proof) ----
 NOT_SERVED=(data/sq.json data/ scripts/ scripts/build-data.js scripts/deploy/deploy.sh scripts/deploy/lb-release.sh
-    scripts/deploy/deploy.env.example parked/content/sq/lesson-5.js content/sq/lesson-5.js package.json CLAUDE.md
+    scripts/deploy/deploy.env.example parked/content/sq/lesson-5.js package.json CLAUDE.md
     .manifest.sha256 .git/HEAD test/schema.test.js deploys.log)
 # Plus every top-level entry of the commit other than src/ (folders as name/): none of it may be served.
 while IFS=$'\t' read -r meta name; do

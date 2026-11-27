@@ -10,12 +10,15 @@ LanguageBasics is a hobby **language flashcard web app**. RandBMedia-owned (Rob'
 
 - **Live at:** `https://bengusa.pro/languagebasics/` (on bengusa.pro's Lightsail box). For the old address, see "Old host" under Deploy.
 - **4 languages:** Albanian (`sq`, Tosk), Spanish (`es`), Japanese (`ja`), Bengali (`bn`). Each has number lessons, an Alphabet / script section, and Words + Phrases decks.
-- **Live number lessons (each language, 108 cards):**
+- **Live number lessons (each language):**
   1. Lesson 1 — Numbers 0–10 (11 cards)
   2. Lesson 2 — Numbers 11–19 (9 cards)
   3. Lesson 3 — Tens 20–90 (8 cards)
   4. Lesson 4 — Numbers 20–99 compounds (80 cards)
-- **Parked (LB-34), not live:** Lesson 5 — Big Number Roots (56 cards) and Lesson 6 — Number Builder (6 cards, `revealMs` 10000), in all 4 languages. Their files sit in `parked/content/<lang>/` (see "Parked lessons").
+  5. Lesson 5 — Big Number Roots (LB-45): 56 cards in `sq`, `es` and `ja`; 64 in `bn` (adds 200,000–900,000, because Bengali counts in lakh). `revealMs` 5000.
+  6. Lesson 6 — Number Builder (LB-45): 20 compound cards in every language (e.g. 101, 1,500, 44,444, 2,500,000), in value order. `revealMs` 10000.
+- **Nothing is parked now.** Lessons 5 and 6 were parked in LB-34 and came back live in LB-45. Parking still works the same way (see "Parked lessons").
+- **Number prompts:** every language uses one prompt format, Western comma strings such as `"1,250,000"`. The prompt text is the saved-progress key, so it is frozen once shipped. Bengali teaches lakh in the answer. Japanese answers use one script line and one reading line per 万 group. Answers have at most 4 lines.
 - A flashcard shows a prompt, you say it out loud, a timer runs, then the answer + pronunciation reveal.
 
 ---
@@ -57,12 +60,15 @@ scripts/                  # dev tools, NOT served
   build-data.js           # data/*.json -> src/content + parked/content (build:data / check:data)
   deploy/                 # LB-37: the deploy kit (deploy.sh, lb-release.sh, preflight.js pre-upload
                           #   checks, deploy.env.example, expected-headers.txt, README.md). Private settings live OUTSIDE the repo
-parked/                   # LB-34 parked lessons — GENERATED, NOT served, never deploys
-  content/<lang>/lesson-5.js, lesson-6.js
+parked/                   # parked lessons — GENERATED, NOT served, never deploys. Empty today (LB-45 brought lessons 5 and 6 back)
+  content/<lang>/         # a parked lesson's file lands here
 test/                     # node --test suite (NOT served)
   schema.test.js          # per-lesson schema + card-count checks (incl. parked), read from the data
   build-data.test.js      # LB-41: generated files match the JSON; validator rules
   lb34-testing-flag.test.js  # testing flag + parked-lesson checks
+                          # LB-45 adds: prompts unique within every lesson; number prompts are whole
+                          #   numbers and the roots lesson covers 100, 1,000, 10,000 and 1,000,000;
+                          #   a unit test for the prompt fit (fitPrompt)
   ...                     # engine, manifest, game, progress, streak, counter,
                           # test-mode, score-integration, etc.
   helpers/load-lesson.js  # vm sandbox loader (src/content or parked/content)
@@ -103,8 +109,9 @@ package.json              # name, test / build:data / check:data scripts — no 
 
 ### Parked lessons (LB-34)
 
-- Number lessons 5 and 6 (all 4 languages) are marked `"parked": true` in `data/<code>.json` (kept in their group, so they come back in the same place). The build writes them to `parked/content/<lang>/`, outside `src/`, so they never deploy. They are left out of `content/languages.js`, so they are not in the picker, the `?lesson=` whitelist or the "N of M known" counts.
-- The tests still run the full schema checks on them, so they stay valid.
+- **Nothing is parked today.** Lessons 5 and 6 were parked in LB-34 and are live again since LB-45. This section is the how-to for parking or un-parking a lesson.
+- A lesson marked `"parked": true` in `data/<code>.json` stays in its group, so it comes back in the same place. The build writes it to `parked/content/<lang>/`, outside `src/`, so it never deploys. It is left out of `content/languages.js`, so it is not in the picker, the `?lesson=` whitelist or the "N of M known" counts.
+- The tests still run the full schema checks on parked lessons, so they stay valid.
 - **To bring one back:**
   1. Set `"parked": false` on the lesson in `data/<code>.json`.
   2. Run `npm run build:data` (it moves the file to `src/content/<lang>/` and adds its row, with its count, to `languages.js`).
@@ -177,7 +184,7 @@ window.LB_LESSON = {
 
 \* The engine treats `hint`/`audio` as optional, but the **current dataset fills `hint` on every card** and the schema test enforces non-empty hints app-wide (including the parked lessons).
 
-**Multi-part answers:** `sq/lesson-2` and every Japanese (`ja`) and Bengali (`bn`) numbers, words and phrases deck use `" | "` as a line separator, as do the parked lesson 6 in all 4 languages and the parked `ja`/`bn` lesson 5; the engine renders it as `<br>`. The engine also auto-shrinks the font for long prompts (big numbers) and long answers so they fit the card.
+**Multi-part answers:** `sq/lesson-2` and every Japanese (`ja`) and Bengali (`bn`) numbers, words and phrases deck use `" | "` as a line separator, as do lesson 6 in all 4 languages and lesson 5 in `ja` and `bn`; the engine renders it as `<br>`. The engine also auto-shrinks the font for long answers so they fit the card. For big-number prompts, `fitPrompt` in `src/engine.js` (LB-45) shrinks the prompt to fit the card width on one line, so a number never splits in the middle.
 
 ---
 
@@ -263,6 +270,7 @@ No backend, no server-side build. Static files only.
 ## Docs folder
 
 `docs/` holds **concept/source material, not served to the site**:
+- `requirements.md` — what the app does, in plain English. Kept current on every requirements change.
 - `Albanian.md` — language/source notes.
 - the Albanian dataset review notes (gitignored, reference only).
 - `ConceptFiles/` — the original standalone lesson HTML files the app was ported from.
