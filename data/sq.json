@@ -184,7 +184,7 @@
         },
         {
           "slug": "lesson-5",
-          "parked": true,
+          "parked": false,
           "label": "Lesson 5 — Big Number Roots",
           "title": "Albanian Tosk Big Number Roots",
           "revealMs": 5000,
@@ -269,7 +269,7 @@
         },
         {
           "slug": "lesson-6",
-          "parked": true,
+          "parked": false,
           "label": "Lesson 6 — Number Builder",
           "title": "Albanian Tosk Number Builder",
           "revealMs": 10000,
@@ -281,12 +281,26 @@
             "answers joined with \" | \" (rendered as stacked lines by the engine)."
           ],
           "cards": [
+            { "id": "lesson-6.007", "prompt": "101", "answer": "njëqind e një", "hint": "Nyuh chind eh Nyuh" },
             { "id": "lesson-6.001", "prompt": "347", "answer": "treqind e dyzet e shtatë", "hint": "Trreh chind eh Doo zet eh Shtah t" },
-            { "id": "lesson-6.002", "prompt": "1,284", "answer": "një mijë | dyqind e tetëdhjetë e katër", "hint": "Nyuh me yeh Doo chind eh Teh t they yet eh Kah ter" },
-            { "id": "lesson-6.003", "prompt": "12,568", "answer": "dymbëdhjetë mijë | pesëqind e gjashtëdhjetë e tetë", "hint": "Doom buh they yet me yeh Pes chind eh Gyosht they yet eh Teh t" },
-            { "id": "lesson-6.004", "prompt": "105,300", "answer": "njëqind e pesë mijë | treqind", "hint": "Nyuh chind eh Pes me yeh Trreh chind" },
-            { "id": "lesson-6.005", "prompt": "234,567", "answer": "dyqind e tridhjetë e katër mijë | pesëqind e gjashtëdhjetë e shtatë", "hint": "Doo chind eh Tree they yet eh Kah ter me yeh Pes chind eh Gyosht they yet eh Shtah t" },
-            { "id": "lesson-6.006", "prompt": "1,234,567", "answer": "një milion | dyqind e tridhjetë e katër mijë | pesëqind e gjashtëdhjetë e shtatë", "hint": "Nyuh me le on Doo chind eh Tree they yet eh Kah ter me yeh Pes chind eh Gyosht they yet eh Shtah t" }
+            { "id": "lesson-6.008", "prompt": "616", "answer": "gjashtëqind e gjashtëmbëdhjetë", "hint": "Gyosht chind eh Gyosht buh they yet" },
+            { "id": "lesson-6.009", "prompt": "999", "answer": "nëntëqind e nëntëdhjetë e nëntë", "hint": "Nuhn t chind eh Nuhn t they yet eh Nuhn t" },
+            { "id": "lesson-6.010", "prompt": "1,001", "answer": "një mijë | e një", "hint": "Nyuh me yeh eh Nyuh" },
+            { "id": "lesson-6.002", "prompt": "1,284", "answer": "një mijë | e dyqind e tetëdhjetë e katër", "hint": "Nyuh me yeh eh Doo chind eh Teh t they yet eh Kah ter" },
+            { "id": "lesson-6.011", "prompt": "1,500", "answer": "një mijë | e pesëqind", "hint": "Nyuh me yeh eh Pes chind" },
+            { "id": "lesson-6.012", "prompt": "8,800", "answer": "tetë mijë | e tetëqind", "hint": "Teh t me yeh eh Teh t chind" },
+            { "id": "lesson-6.013", "prompt": "10,001", "answer": "dhjetë mijë | e një", "hint": "They yet me yeh eh Nyuh" },
+            { "id": "lesson-6.003", "prompt": "12,568", "answer": "dymbëdhjetë mijë | e pesëqind e gjashtëdhjetë e tetë", "hint": "Doom buh they yet me yeh eh Pes chind eh Gyosht they yet eh Teh t" },
+            { "id": "lesson-6.014", "prompt": "21,000", "answer": "njëzet e një mijë", "hint": "Nyuh zet eh Nyuh me yeh" },
+            { "id": "lesson-6.015", "prompt": "44,444", "answer": "dyzet e katër mijë | e katërqind e dyzet e katër", "hint": "Doo zet eh Kah ter me yeh eh Kah ter chind eh Doo zet eh Kah ter" },
+            { "id": "lesson-6.016", "prompt": "68,000", "answer": "gjashtëdhjetë e tetë mijë", "hint": "Gyosht they yet eh Teh t me yeh" },
+            { "id": "lesson-6.004", "prompt": "105,300", "answer": "njëqind e pesë mijë | e treqind", "hint": "Nyuh chind eh Pes me yeh eh Trreh chind" },
+            { "id": "lesson-6.005", "prompt": "234,567", "answer": "dyqind e tridhjetë e katër mijë | e pesëqind e gjashtëdhjetë e shtatë", "hint": "Doo chind eh Tree they yet eh Kah ter me yeh eh Pes chind eh Gyosht they yet eh Shtah t" },
+            { "id": "lesson-6.017", "prompt": "1,000,001", "answer": "një milion | e një", "hint": "Nyuh me le on eh Nyuh" },
+            { "id": "lesson-6.006", "prompt": "1,234,567", "answer": "një milion | e dyqind e tridhjetë e katër mijë | e pesëqind e gjashtëdhjetë e shtatë", "hint": "Nyuh me le on eh Doo chind eh Tree they yet eh Kah ter me yeh eh Pes chind eh Gyosht they yet eh Shtah t" },
+            { "id": "lesson-6.018", "prompt": "2,500,000", "answer": "dy milion | e pesëqind mijë", "hint": "Doo me le on eh Pes chind me yeh" },
+            { "id": "lesson-6.019", "prompt": "3,050,000", "answer": "tre milion | e pesëdhjetë mijë", "hint": "Trreh me le on eh Pes they yet me yeh" },
+            { "id": "lesson-6.020", "prompt": "5,000,500", "answer": "pesë milion | e pesëqind", "hint": "Pes me le on eh Pes chind" }
           ]
         }
       ]

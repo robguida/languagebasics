@@ -16,7 +16,9 @@
           { id: "sq/lesson-1", label: "Lesson 1 — 0–10", count: 11, rollup: true },
           { id: "sq/lesson-2", label: "Lesson 2 — 11–19", count: 9, rollup: true },
           { id: "sq/lesson-3", label: "Lesson 3 — Tens 20–90", count: 8, rollup: true },
-          { id: "sq/lesson-4", label: "Lesson 4 — 20–99 compounds", count: 80, rollup: true }
+          { id: "sq/lesson-4", label: "Lesson 4 — 20–99 compounds", count: 80, rollup: true },
+          { id: "sq/lesson-5", label: "Lesson 5 — Big Number Roots", count: 56, rollup: true },
+          { id: "sq/lesson-6", label: "Lesson 6 — Number Builder", count: 20, rollup: true }
         ]
       },
       {
@@ -57,7 +59,9 @@
           { id: "es/lesson-1", label: "Lesson 1 — 0–10", count: 11, rollup: true },
           { id: "es/lesson-2", label: "Lesson 2 — 11–19", count: 9, rollup: true },
           { id: "es/lesson-3", label: "Lesson 3 — Tens 20–90", count: 8, rollup: true },
-          { id: "es/lesson-4", label: "Lesson 4 — 20–99 compounds", count: 80, rollup: true }
+          { id: "es/lesson-4", label: "Lesson 4 — 20–99 compounds", count: 80, rollup: true },
+          { id: "es/lesson-5", label: "Lesson 5 — Big Number Roots", count: 56, rollup: true },
+          { id: "es/lesson-6", label: "Lesson 6 — Number Builder", count: 20, rollup: true }
         ]
       },
       {
@@ -98,7 +102,9 @@
           { id: "ja/lesson-1", label: "Lesson 1 — 0–10", count: 11, rollup: true },
           { id: "ja/lesson-2", label: "Lesson 2 — 11–19", count: 9, rollup: true },
           { id: "ja/lesson-3", label: "Lesson 3 — Tens 20–90", count: 8, rollup: true },
-          { id: "ja/lesson-4", label: "Lesson 4 — 20–99 compounds", count: 80, rollup: true }
+          { id: "ja/lesson-4", label: "Lesson 4 — 20–99 compounds", count: 80, rollup: true },
+          { id: "ja/lesson-5", label: "Lesson 5 — Big Number Roots", count: 56, rollup: true },
+          { id: "ja/lesson-6", label: "Lesson 6 — Number Builder", count: 20, rollup: true }
         ]
       },
       {
@@ -139,7 +145,9 @@
           { id: "bn/lesson-1", label: "Lesson 1 — 0–10", count: 11, rollup: true },
           { id: "bn/lesson-2", label: "Lesson 2 — 11–19", count: 9, rollup: true },
           { id: "bn/lesson-3", label: "Lesson 3 — Tens 20–90", count: 8, rollup: true },
-          { id: "bn/lesson-4", label: "Lesson 4 — 20–99 compounds", count: 80, rollup: true }
+          { id: "bn/lesson-4", label: "Lesson 4 — 20–99 compounds", count: 80, rollup: true },
+          { id: "bn/lesson-5", label: "Lesson 5 — Big Number Roots", count: 64, rollup: true },
+          { id: "bn/lesson-6", label: "Lesson 6 — Number Builder", count: 20, rollup: true }
         ]
       },
       {
