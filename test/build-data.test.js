@@ -683,7 +683,10 @@ test("escaping: <, U+2028 and U+2029 inside strings are written as escapes", () 
 });
 
 test("hostile-text fixture: every string round-trips exactly, and no file holds a raw <, U+2028 or U+2029", () => {
-  const docs = build.readSources(FIXTURE_DIR).map((s) => JSON.parse(s.text));
+  // Scoped to qaa, the hostile-text language. Other fixture languages (qab,
+  // numbers-only) are built below but are not held to its assertions.
+  const docs = build.readSources(FIXTURE_DIR).filter((s) => s.name === "qaa.json").map((s) => JSON.parse(s.text));
+  assert.equal(docs.length, 1, "qaa.json is in the fixture folder");
   const all = JSON.stringify(docs);
   // The fixture must really hold the hostile text, or this test proves nothing.
   assert.ok(all.includes("</script><script>"), "fixture holds </script>");
