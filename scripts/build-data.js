@@ -23,8 +23,12 @@
  *     strings, "<", U+2028 and U+2029 are written as escapes (same value)
  *   - LF line endings, UTF-8 with no BOM, a newline at the end, no timestamps
  *     and no paths
- *   - card ids, notes and retired ids stay in the JSON; they are never written
- *     to src/
+ *   - a language's ip.notice.full lines are written as "// " comment lines
+ *     after the banner of each of its lesson files, and as "  // " lines above
+ *     its block in languages.js. A language with no notice (every real one) gets
+ *     no such lines, so its files are byte-for-byte what they were before
+ *   - card ids, card notes, retired ids and the ip status, freeOnly, ruling and
+ *     notice.short stay in the JSON; they are never written to src/
  *
  * Error handling: every data file and every card is checked, and checking goes
  * on after an error so one run lists them all, each with its file and place
@@ -450,9 +454,25 @@ function S(value) {
     (ch) => "\\" + "u" + ch.charCodeAt(0).toString(16).padStart(4, "0"));
 }
 
-function renderLesson(code, lesson) {
+/* The notice is written as "// " comment lines. Validation already refuses line
+ * breaks, but this is the last step before disk, so it checks again and throws
+ * (a thrown error stops the build, nothing is written). */
+const LINE_BREAKS = new RegExp("[\r\n" + String.fromCharCode(0x2028, 0x2029) + "]");
+
+function noticeLines(notice, prefix) {
+  const out = [];
+  for (const line of notice || []) {
+    if (typeof line !== "string" || LINE_BREAKS.test(line)) {
+      throw new Error("a notice line holds a line break or is not text; refusing to write it as a comment");
+    }
+    out.push(prefix + line);
+  }
+  return out;
+}
+
+function renderLesson(code, lesson, notice) {
   const id = code + "/" + lesson.slug;
-  const lines = [BANNER_LINE_1, BANNER_LINE_2, "window.LB_LESSON = {"];
+  const lines = [BANNER_LINE_1, BANNER_LINE_2, ...noticeLines(notice, "// "), "window.LB_LESSON = {"];
   lines.push(`  id: ${S(id)},`);
   lines.push(`  title: ${S(lesson.title)},`);
   if (lesson.revealMs !== undefined) lines.push(`  revealMs: ${S(lesson.revealMs)},`);
@@ -475,6 +495,7 @@ function renderManifest(models) {
     "  window.LB_LANGUAGES = window.LB_LANGUAGES || [];"];
   for (const m of models) {
     lines.push("");
+    lines.push(...noticeLines(m.ip && m.ip.notice ? m.ip.notice.full : [], "  // "));
     lines.push("  window.LB_LANGUAGES.push({");
     lines.push(`    code: ${S(m.code)},`);
     lines.push(`    name: ${S(m.name)},`);
@@ -594,7 +615,7 @@ function generateFromSources(sources) {
     for (const g of m.groups) {
       for (const l of g.lessons) {
         const base = l.parked ? "parked/content" : "src/content";
-        files[`${base}/${m.code}/${l.slug}.js`] = renderLesson(m.code, l);
+        files[`${base}/${m.code}/${l.slug}.js`] = renderLesson(m.code, l, m.ip && m.ip.notice ? m.ip.notice.full : []);
       }
     }
   }
