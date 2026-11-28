@@ -27,8 +27,12 @@
  *     after the banner of each of its lesson files, and as "  // " lines above
  *     its block in languages.js. A language with no notice (every real one) gets
  *     no such lines, so its files are byte-for-byte what they were before
- *   - card ids, card notes, retired ids and the ip status, freeOnly, ruling and
- *     notice.short stay in the JSON; they are never written to src/
+ *   - a language's ip.notice.short is written as one "notice" key in its
+ *     languages.js entry (through the same S() writer as every other string),
+ *     ONLY when it is non-empty. A language with no notice (every natural one)
+ *     gets no such key, so its manifest entry is byte-for-byte what it was
+ *   - card ids, card notes, retired ids and the ip status, freeOnly and ruling
+ *     stay in the JSON; they are never written to src/
  *
  * Error handling: every data file and every card is checked, and checking goes
  * on after an error so one run lists them all, each with its file and place
@@ -128,6 +132,15 @@ const LIMITS = { fullLines: 8, fullLine: 160, short: 200, note: 280 };
 const TEXT_REFUSED = /[\p{Cc}\p{Cf}\p{Cs}\p{Cn}\p{Zl}\p{Zp}]|\*\/|</u;
 const PRIVATE_USE = /\p{Co}/u;
 
+/* Invisible filler characters that look like text but show nothing: the Hangul
+ * fillers (U+115F, U+1160, U+3164, U+FFA0), the braille blank (U+2800) and the
+ * non-ASCII spaces (U+00A0, U+2000-U+200A, U+202F, U+205F, U+3000). Refused in
+ * notice text only (same scope as Private Use), so a notice cannot be filled
+ * with nothing. Written with code points, not literal characters. */
+const FILLER_CHARS = new RegExp("[" +
+  [0x115f, 0x1160, 0x3164, 0xffa0, 0x2800, 0x00a0, 0x202f, 0x205f, 0x3000].map((c) => String.fromCharCode(c)).join("") +
+  String.fromCharCode(0x2000) + "-" + String.fromCharCode(0x200a) + "]");
+
 const cpLength = (s) => [...s].length;
 
 /** Check one piece of guarded text. Type is checked first. Returns the problem
@@ -143,6 +156,11 @@ function textProblem(v, min, max, noPrivateUse) {
     return "holds a refused character or sequence (" + shown + "): control, format, unassigned, line separator, \"*/\" and \"<\" are not allowed";
   }
   if (noPrivateUse && PRIVATE_USE.test(v)) return "holds a Private Use character";
+  if (noPrivateUse) {
+    const f = FILLER_CHARS.exec(v);
+    if (f) return "holds an invisible filler or non-ASCII space character (U+" + f[0].codePointAt(0).toString(16).toUpperCase().padStart(4, "0") + "); use a plain space";
+  }
+  if (v.trim() === "") return "is blank (spaces only)";
   const n = cpLength(v);
   if (n < min) return "must be at least " + min + " character" + (min === 1 ? "" : "s");
   if (n > max) return "is " + n + " characters long; the limit is " + max;
@@ -499,6 +517,10 @@ function renderManifest(models) {
     lines.push("  window.LB_LANGUAGES.push({");
     lines.push(`    code: ${S(m.code)},`);
     lines.push(`    name: ${S(m.name)},`);
+    // LB-44: the short notice, only when the language has one (natural languages get no key).
+    if (m.ip && m.ip.notice && typeof m.ip.notice.short === "string" && m.ip.notice.short !== "") {
+      lines.push(`    notice: ${S(m.ip.notice.short)},`);
+    }
     lines.push(`    defaultLesson: ${S(m.code + "/" + m.defaultLesson)},`);
     lines.push("    groups: [");
     const liveGroups = m.groups

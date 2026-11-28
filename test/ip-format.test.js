@@ -12,7 +12,8 @@
  *     class, what still passes, lengths counted in code points.
  *  3. Output: notice lines after the banner in lesson files (live and parked),
  *     above the language block in languages.js, nothing for an empty notice,
- *     nothing for status / freeOnly / ruling / short / card note.
+ *     nothing for status / freeOnly / ruling / card note. notice.short is written
+ *     only as a "notice" key in languages.js, and only when non-empty (LB-44).
  *  4. The writer re-checks line breaks; rebuild-over and stale delete still work
  *     with notice lines in a file.
  *  5. The real languages are unchanged: natural, no notice lines anywhere.
@@ -149,7 +150,7 @@ const IP_RULES = [
   ["ruling.id: trailing text", OWNED, (d) => { d.ip.ruling.id = "IP-0001/x"; }, "ip.ruling.id"],
   ["ruling.id: a path", OWNED, (d) => { d.ip.ruling.id = "../a"; }, "ip.ruling.id"],
   ["ruling.id: a drive path", OWNED, (d) => { d.ip.ruling.id = "C:x"; }, "ip.ruling.id"],
-  ["ruling.id: a name", OWNED, (d) => { d.ip.ruling.id = "Tolkien"; }, "ip.ruling.id"],
+  ["ruling.id: a name", OWNED, (d) => { d.ip.ruling.id = "Zork Quimby"; }, "ip.ruling.id"],
   ["ruling.id: empty", OWNED, (d) => { d.ip.ruling.id = ""; }, "ip.ruling.id"],
   ["ruling.id: a number", OWNED, (d) => { d.ip.ruling.id = 1; }, "ip.ruling.id"],
   ["ruling.date: wrong format", OWNED, (d) => { d.ip.ruling.date = "14-11-2026"; }, "ip.ruling.date"],
@@ -479,9 +480,10 @@ test("output: notice lines sit above that language's block in languages.js, and 
     "  window.LB_LANGUAGES.push({",
     '    code: "xx",',
   ].join("\n")), text);
-  // No new manifest key: the object is exactly what it was before the add-on.
+  // LB-44: a language with a short notice carries one extra key, notice. The rest is as before.
   const langs = runManifest(text);
-  assert.deepEqual(Object.keys(langs[0]), ["code", "name", "defaultLesson", "groups"]);
+  assert.deepEqual(Object.keys(langs[0]), ["code", "name", "notice", "defaultLesson", "groups"]);
+  assert.equal(langs[0].notice, "Short.");
   assert.deepEqual(langs[0].groups, [{ label: "Numbers", lessons: [{ id: "xx/lesson-1", label: "Lesson 1", count: 2, rollup: true }] }]);
 });
 
@@ -516,7 +518,7 @@ test("output: a free language with a non-empty full notice does get its lines", 
   assert.ok(r.files["src/content/xx/lesson-1.js"].startsWith(BANNER + "// Credit line.\nwindow.LB_LESSON"));
 });
 
-test("output: status, freeOnly, ruling and notice.short are never written to any file", () => {
+test("output: status, freeOnly and ruling are never written to any file; notice.short only to languages.js (LB-44)", () => {
   const d = doc("xx", 1, {
     status: "licensed", freeOnly: true,
     notice: { full: ["Full line."], short: "SHORT-MARK-ZQ" },
@@ -525,7 +527,9 @@ test("output: status, freeOnly, ruling and notice.short are never written to any
   const r = gen(d);
   assert.deepEqual(r.errors, []);
   for (const [rel, text] of Object.entries(r.files)) {
-    for (const needle of ["SHORT-MARK-ZQ", "IP-4242", "2026-11-14", "freeOnly", "ruling", "licensed", "status"]) {
+    // The short notice may sit in the manifest only; no lesson file holds it.
+    if (!rel.endsWith("languages.js")) assert.ok(!text.includes("SHORT-MARK-ZQ"), `${rel} must not hold the short notice`);
+    for (const needle of ["IP-4242", "2026-11-14", "freeOnly", "ruling", "licensed", "status"]) {
       assert.ok(!text.includes(needle), `${rel} must not hold "${needle}"`);
     }
   }

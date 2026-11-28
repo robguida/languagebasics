@@ -291,6 +291,26 @@ button.secondary { background: #475569; }
 }
 .mastery-readout-lesson { font-weight: 700; color: #ffffff; }
 
+/* ---- LB-44: the language's short notice ---- */
+/* One small line. Wraps at spaces; overflow-wrap only breaks a single word that
+   cannot fit at all. No word-break rule. */
+.ip-notice {
+  margin: 0 0 14px;
+  font-size: .8rem;
+  line-height: 1.35;
+  color: #cbd5e1;
+  max-width: 100%;
+  overflow-wrap: break-word;
+}
+
+/* ---- LB-44: Klingon text ----
+   Klingon is case-meaningful and a capital I must be told apart from a small l,
+   so a card tagged lang="tlh" uses a SYSTEM monospace stack. No font file, no
+   web font, no external request, and no case-changing rule anywhere. */
+:lang(tlh) {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
+}
+
 /* ---- LB-36: test-result modal ---- */
 /* Reuses .modal / .modal-panel / .modal-head / .modal-close (shared with the
    settings modal) for the overlay + panel chrome. These rules style only the

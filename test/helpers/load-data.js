@@ -63,7 +63,7 @@ function dataFromSources(sources, dirs) {
   const languages = [];
   const lessons = [];
   for (const m of parsed.models) {
-    const lang = { code: m.code, name: m.name, order: m.order, defaultLesson: m.code + "/" + m.defaultLesson, groups: [] };
+    const lang = { code: m.code, name: m.name, order: m.order, defaultLesson: m.code + "/" + m.defaultLesson, ipStatus: m.ip && m.ip.status, groups: [] };
     for (const g of m.groups) {
       const group = { label: g.label, lessons: [] };
       for (const l of g.lessons) {
