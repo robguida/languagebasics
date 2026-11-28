@@ -298,8 +298,9 @@
       // LB-44: show the open language's short notice, if its manifest entry has
       // one. textContent only (never innerHTML). No notice -> the line stays hidden.
       // Klingon text is case-meaningful, and a capital I must read differently
-      // from a small l, so the card gets lang="tlh" (the CSS picks a monospace
-      // system font for it). Only the card is tagged, not <html>.
+      // from a small l, so the answer line (#word) gets lang="tlh" (the CSS picks
+      // a monospace system font for it). Only that element is tagged, not <html>
+      // and not the whole card. The results dialog tags its own missed-cards list.
       function renderIpNotice() {
         var el = document.getElementById("ipNotice");
         var text = "";
@@ -315,8 +316,8 @@
           el.textContent = text;
           el.hidden = false;
         }
-        var card = document.querySelector(".card");
-        if (card && activeCode === "tlh") card.setAttribute("lang", "tlh");
+        var answerEl = document.getElementById("word");
+        if (answerEl && activeCode === "tlh") answerEl.setAttribute("lang", "tlh");
       }
 
       // Load the active lesson's data file synchronously, then the engine.

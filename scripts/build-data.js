@@ -160,7 +160,11 @@ function textProblem(v, min, max, noPrivateUse) {
     const f = FILLER_CHARS.exec(v);
     if (f) return "holds an invisible filler or non-ASCII space character (U+" + f[0].codePointAt(0).toString(16).toUpperCase().padStart(4, "0") + "); use a plain space";
   }
-  if (v.trim() === "") return "is blank (spaces only)";
+  if (v.trim() === "") return "is empty or blank";
+  // Notice text must show something: at least one letter or number. This refuses
+  // a notice made only of invisible marks (variation selectors, U+034F, U+17B4-5,
+  // U+180B-180D, U+1680) that the other checks let through.
+  if (noPrivateUse && !/[\p{L}\p{N}]/u.test(v)) return "must hold at least one letter or number";
   const n = cpLength(v);
   if (n < min) return "must be at least " + min + " character" + (min === 1 ? "" : "s");
   if (n > max) return "is " + n + " characters long; the limit is " + max;
@@ -214,7 +218,6 @@ function checkIp(ip, err, unknownKeys) {
         const place = "ip.notice.full[" + i + "]";
         const p = textProblem(line, 1, LIMITS.fullLine, true);
         if (p) bad(place, p);
-        else if (line.trim() === "") bad(place, "is a blank line");
         else full.push(line);
       });
     }

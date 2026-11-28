@@ -5,8 +5,10 @@
  * notice key); the page shows it with textContent only; the :lang(tlh) rule is
  * a system monospace stack with no text-transform; the privacy page and README
  * carry the full notice; blank-only text is refused (M1); the numbers-only
- * exemption comes from the data (M2); filler characters are refused in notice
- * text. No Klingon data is used: only the made-up fixture languages.
+ * exemption comes from the data (M2); filler characters and notices with no
+ * letter or number are refused. The guard tests use made-up fixture languages;
+ * the manifest, page and font checks read the real data (Klingon among it), and
+ * test/klingon.test.js holds the Klingon-only checks.
  * Built-ins only.
  */
 "use strict";
@@ -73,10 +75,18 @@ test("notice.short: never written into any lesson file", () => {
   }
 });
 
-test("natural languages: no notice key anywhere in languages.js, and the real files match the build (byte-identical)", () => {
+test("natural languages: no notice key in languages.js (Klingon only), and the real files match the build (byte-identical)", () => {
   const files = build.generate(build.DATA_DIR).files;
   const m = files["src/content/languages.js"];
-  assert.ok(!/\bnotice\b/.test(m), "no notice key in the real manifest");
+  // Keyed by the data: a manifest entry has a notice exactly when its language's notice.short is non-empty.
+  const docs = new Map(loadData().docs.map((d) => [d.language.code, d]));
+  const entries = runManifest(m);
+  assert.equal(entries.length, docs.size);
+  for (const l of entries) {
+    const short = docs.get(l.code).ip.notice ? docs.get(l.code).ip.notice.short : "";
+    assert.equal("notice" in l, typeof short === "string" && short !== "", `notice key for ${l.code}`);
+    if ("notice" in l) assert.equal(l.notice, short, l.code);
+  }
   assert.deepEqual(build.check(files), { differs: [], missing: [], stale: [] });
 });
 
@@ -97,7 +107,8 @@ test("index.html: the notice is set with textContent only, and the element start
   assert.ok(/getElementById\("ipNotice"\)/.test(fn));
   assert.ok(/el\.textContent = text/.test(fn), "uses textContent");
   assert.ok(!/innerHTML|outerHTML|insertAdjacentHTML|document\.write\(\s*text/.test(fn), "no HTML sink for the notice");
-  assert.ok(/activeCode === "tlh"/.test(fn) && /setAttribute\("lang", "tlh"\)/.test(fn), "the card (not <html>) gets lang=tlh");
+  assert.ok(/activeCode === "tlh"/.test(fn) && /getElementById\("word"\)/.test(fn) && /setAttribute\("lang", "tlh"\)/.test(fn), "the answer element #word gets lang=tlh");
+  assert.ok(!/querySelector\("\.card"\)/.test(fn), "the whole card is not tagged");
   assert.ok(!/documentElement[^;]*lang|<html[^>]*tlh/.test(html), "<html> lang is untouched");
 });
 
@@ -180,4 +191,47 @@ test("filler characters are refused in notice text (full line and short), each o
 
 test("filler characters: a plain space and ordinary text still pass", () => {
   assert.deepEqual(errs(doc("xx", 1, OWNED("Fan-made; not affiliated. Plain spaces are fine."))), []);
+});
+
+/* ------------------------------------- letters or numbers, picker label, results */
+
+test("E: a notice made only of invisible marks (no letter or number) is refused", () => {
+  const MARKS = [ch(0xfe0f), ch(0x034f), ch(0x17b4), ch(0x17b5), ch(0x180b), ch(0x180c), ch(0x180d), ch(0x1680)];
+  for (const m of MARKS) {
+    const hex = m.codePointAt(0).toString(16);
+    const a = doc("xx", 1, OWNED("ok"));
+    a.ip.notice.full = [m + m];
+    assert.ok(errs(a).some((e) => e.startsWith("data/xx.json ip.notice.full[0]: ")), hex + ": " + errs(a).join("\n"));
+    const b = doc("xx", 1, OWNED(m));
+    assert.ok(errs(b).some((e) => e.startsWith("data/xx.json ip.notice.short: ")), hex + ": " + errs(b).join("\n"));
+  }
+  const empty = doc("xx", 1, OWNED(""));
+  assert.ok(errs(empty).some((e) => e.startsWith("data/xx.json ip.notice.short: ") && /empty or blank/.test(e)), errs(empty).join("\n"));
+  assert.deepEqual(errs(doc("xx", 1, OWNED("1990"))), [], "a number counts");
+});
+
+test("picker: the Klingon label is exactly \"Klingon (tlhIngan Hol)\" in the data, the manifest and the picker options", () => {
+  const { loadManifest } = require("./helpers/load-lesson.js");
+  const { LBManifest } = loadManifest();
+  const doc_ = loadData().docs.find((d) => d.language.code === "tlh");
+  if (!doc_) return; // Klingon switched off: nothing to pin
+  assert.equal(doc_.language.name, "Klingon (tlhIngan Hol)");
+  const m = vm.runInNewContext("(function(){var window={};" + read("src/content/languages.js") + ";return window.LB_LANGUAGES;})()");
+  assert.equal(m.find((l) => l.code === "tlh").name, "Klingon (tlhIngan Hol)");
+  const opts = LBManifest.buildLanguageOptions(m);
+  assert.equal(opts.find((o) => o.value === "tlh").label, "Klingon (tlhIngan Hol)");
+});
+
+test("C: on a Klingon lesson each missed row in the results list gets lang=tlh; on other languages it does not", () => {
+  const { makeEngineEnv } = require("./helpers/engine-dom.js");
+  const { makeLocalStorage } = require("./helpers/local-storage-shim.js");
+  for (const [id, want] of [["tlh/lesson-1", "tlh"], ["sq/lesson-1", undefined]]) {
+    const cards = [1, 2, 3].map((i) => ({ prompt: i, answer: "w" + i, hint: "h" + i }));
+    const h = makeEngineEnv({ modules: ["store.js", "prefs.js", "game.js", "progress.js", "streak.js"], storage: makeLocalStorage() });
+    h.engine.startTest({ id, title: "T", revealMs: 5000, cards });
+    for (let i = 0; i < 3; i++) { h.click("toggleBtn"); h.advance(500); h.click("rateNotYetBtn"); }
+    const rows = h.elements.resultList.children;
+    assert.equal(rows.length, 3, id);
+    for (const li of rows) assert.equal(li.children[0].attrs.lang, want, id);
+  }
 });

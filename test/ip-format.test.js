@@ -353,16 +353,16 @@ test("lengths: a notice line of 160 characters passes, 161 fails", () => {
   assertErrorAt(d, "ip.notice.full[0]");
 });
 
-test("lengths: counted in code points, so 160 emoji pass and 161 fail", () => {
+test("lengths: counted in code points, so 160 code points (one letter and emoji) pass and 161 fail", () => {
   const d = doc("xx", 1, OWNED());
-  d.ip.notice.full = ["😀".repeat(160)];
+  d.ip.notice.full = ["a" + "😀".repeat(159)];
   assertValid(d);
-  d.ip.notice.full = ["😀".repeat(161)];
+  d.ip.notice.full = ["a" + "😀".repeat(160)];
   assertErrorAt(d, "ip.notice.full[0]");
   d.ip.notice.full = ["Line"];
-  d.ip.notice.short = "😀".repeat(200);
+  d.ip.notice.short = "a" + "😀".repeat(199);
   assertValid(d);
-  d.ip.notice.short = "😀".repeat(201);
+  d.ip.notice.short = "a" + "😀".repeat(200);
   assertErrorAt(d, "ip.notice.short");
 });
 
@@ -660,27 +660,57 @@ test("stale delete: a hand-written file with a comment but no banner is kept and
 
 /* ----------------------------------------- 5. the real languages: unchanged */
 
-test("real languages: every data file is format 2 with ip natural and nothing else in ip", () => {
+test("real languages: every data file is format 2; a natural language has exactly {status:\"natural\"} and nothing else in ip", () => {
   const sources = build.readSources(DATA_DIR);
   assert.ok(sources.length >= 4);
   for (const s of sources) {
     const j = JSON.parse(s.text);
     assert.equal(j.formatVersion, 2, s.name);
-    assert.deepEqual(j.ip, { status: "natural" }, s.name);
+    // Any other status (owned, free) is checked by the build's own validator, which already ran on this data.
+    if (j.ip && j.ip.status === "natural") assert.deepEqual(j.ip, { status: "natural" }, s.name);
   }
+  assert.ok(sources.filter((s) => JSON.parse(s.text).ip.status === "natural").length >= 4, "the natural languages are still checked");
 });
 
-test("real languages: no comment line in any generated lesson file or in languages.js (byte-for-byte as before)", () => {
+test("real languages: comment lines only for a language with a notice, exactly its full notice; every other file has none", () => {
   const files = build.generate(DATA_DIR).files;
+  const noticeOf = new Map();
+  for (const s of build.readSources(DATA_DIR)) {
+    const j = JSON.parse(s.text);
+    const full = (j.ip && j.ip.notice && j.ip.notice.full) || [];
+    noticeOf.set(j.language.code, full);
+  }
   let lessonFiles = 0;
   for (const [rel, text] of Object.entries(files)) {
     const lines = text.split("\n");
-    assert.ok(!lines.some((l) => /^\s*\/\//.test(l)), `${rel} must have no // comment line`);
+    const commentIdx = lines.map((l, i) => (/^\s*\/\//.test(l) ? i : -1)).filter((i) => i >= 0);
     if (rel.endsWith("languages.js")) {
       assert.equal(lines[2], "(function () {", rel);
-    } else {
-      lessonFiles++;
+      const allowed = new Set();
+      for (const [code, full] of noticeOf) {
+        if (full.length === 0) continue;
+        const at = lines.findIndex((l, i) => l.trim() === `code: "${code}",` && /LB_LANGUAGES\.push/.test(lines[i - 1]));
+        assert.ok(at > 0, `the ${code} entry is in languages.js`);
+        const start = at - 1 - full.length;
+        full.forEach((line, k) => {
+          assert.equal(lines[start + k], "  // " + line, `${code}: notice line ${k} above its block`);
+          allowed.add(start + k);
+        });
+      }
+      assert.ok(commentIdx.every((i) => allowed.has(i)), `${rel}: a // line that is not a notice`);
+      continue;
+    }
+    const m = /(?:^|\/)content\/([^/]+)\/[^/]+\.js$/.exec(rel);
+    assert.ok(m, `unexpected generated file ${rel}`);
+    lessonFiles++;
+    const full = noticeOf.get(m[1]) || [];
+    if (full.length === 0) {
+      assert.equal(commentIdx.length, 0, `${rel} must have no // comment line`);
       assert.equal(lines[2], "window.LB_LESSON = {", `${rel}: the lesson starts right after the banner`);
+    } else {
+      full.forEach((line, k) => assert.equal(lines[2 + k], "// " + line, `${rel}: notice line ${k} under the banner`));
+      assert.deepEqual(commentIdx, full.map((_, k) => 2 + k), `${rel}: only the notice lines are comments`);
+      assert.equal(lines[2 + full.length], "window.LB_LESSON = {", `${rel}: the lesson starts right after the notice`);
     }
   }
   assert.ok(lessonFiles >= 4 * 20, "the real lesson files were checked");
