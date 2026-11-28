@@ -9,7 +9,8 @@ Read this first to orient on the codebase: what it is, the stack, layout, conven
 LanguageBasics is a hobby **language flashcard web app**. RandBMedia-owned (Rob's own product surface).
 
 - **Live at:** `https://bengusa.pro/languagebasics/` (on bengusa.pro's Lightsail box). For the old address, see "Old host" under Deploy.
-- **4 languages:** Albanian (`sq`, Tosk), Spanish (`es`), Japanese (`ja`), Bengali (`bn`). Each has number lessons, an Alphabet / script section, and Words + Phrases decks.
+- **5 languages:** Albanian (`sq`, Tosk), Spanish (`es`), Japanese (`ja`), Bengali (`bn`) and Klingon (`tlh`). The first four each have number lessons, an Alphabet / script section, and Words + Phrases decks.
+- **Klingon (`tlh`, LB-44) is numbers only.** One Numbers group, lessons 1 to 6: 11, 9, 8, 80, 45 and 20 cards (173 in all). No alphabet, words or phrases. The linguist owns every Klingon form, hint and the notice text. See "Klingon (LB-44)".
 - **Live number lessons (each language):**
   1. Lesson 1 — Numbers 0–10 (11 cards)
   2. Lesson 2 — Numbers 11–19 (9 cards)
@@ -52,10 +53,10 @@ src/
   styles.css              # all styling
   content/                # GENERATED from data/*.json — do not hand-edit
     languages.js          # GENERATED manifest: every language + live lesson (id, count, rollup)
-    sq/ es/ ja/ bn/       # GENERATED per-language lesson files (window.LB_LESSON):
+    sq/ es/ ja/ bn/ tlh/  # GENERATED per-language lesson files (window.LB_LESSON):
                           #   lesson-1..4, alphabet-*, words-1..5, phrases-1..5
 data/                     # LB-41: lesson data, one JSON file per language — edit HERE. NOT served
-  sq.json es.json ja.json bn.json
+  sq.json es.json ja.json bn.json tlh.json
 scripts/                  # dev tools, NOT served
   build-data.js           # data/*.json -> src/content + parked/content (build:data / check:data)
   deploy/                 # LB-37: the deploy kit (deploy.sh, lb-release.sh, preflight.js pre-upload
@@ -75,7 +76,7 @@ test/                     # node --test suite (NOT served)
   helpers/load-data.js    # LB-42: reads data/*.json with the build's own parser
   fixtures/shipped-lesson-ids.json  # lesson ids that have shipped (see "Adding a language")
   fixtures/card-id-high-marks.json  # each lesson's highest card id, locked (see "Card counts")
-  fixtures/data-extra/    # a made-up test language; proves a new language needs no test edits
+  fixtures/data-extra/    # made-up test languages (qaa, qab); prove a new language needs no test edits
 docs/                     # concept/source files, NOT served (see Docs)
 package.json              # name, test / build:data / check:data scripts — no deps
 ```
@@ -107,6 +108,18 @@ package.json              # name, test / build:data / check:data scripts — no 
   5. The owner's go.
 - This repo is public. Never write account names, emails, server paths, addresses or keys here.
 
+### Klingon (LB-44)
+
+- **Data:** `data/tlh.json`. It is the only franchise language: `ip.status` is `owned`, with a full notice and a short one.
+- **Short notice:** shown in a line above the card (`#ipNotice` in `index.html`) on any lesson whose manifest entry has a `notice`. Today that is Klingon only. It comes from `notice` in `languages.js` (the build writes `notice.short` there, when it is not empty) and is set with `textContent`.
+- **Full notice:** written as `//` comment lines under the banner of every `src/content/tlh/` lesson file, and as `  //` lines above the Klingon block in `languages.js`. It is also on the privacy page and README. No other generated file has comment lines.
+- **Font:** the answer line (`#word`) gets `lang="tlh"` on a Klingon lesson, and so does each row of the results list's missed cards. `styles.css` sets a system monospace stack for `:lang(tlh)`, so a capital I is not mistaken for a small l. No font file, no external request, no case-changing rule anywhere.
+- **Answers are byte-exact:** case matters (`Soch`, `loS`, `wa'maH`) and the apostrophe is always the straight one (U+0027). Millions keep their double apostrophe (`wa''uy'`). Never retype, trim or "fix" quotes in Klingon text. `test/klingon.test.js` guards this.
+- **Cards with a one-line `note`** (10,000 and 100,000) keep it in the data only. It is never written to a generated file or shown.
+- **To switch Klingon off:** remove `data/tlh.json`, run `npm run build:data`, then `npm test`. The build deletes the generated Klingon files and the manifest row (the empty `src/content/tlh/` folder may stay). `test/klingon.test.js` skips itself with a stated reason, and the data-keyed checks in `test/ip-format.test.js` and `test/lb44-notice.test.js` follow the data. Once Klingon has shipped, also taking its lines out of `test/fixtures/shipped-lesson-ids.json` and `card-id-high-marks.json` needs the owner's go. That is the one exception to "never lower or remove a line".
+- **Pinned counts:** `test/klingon.test.js` pins the lesson list and the card counts (11, 9, 8, 80, 45, 20) on purpose, as an acceptance check. It is the one exception to "changing a lesson's cards needs no test edit".
+- **Release:** once Klingon ships, add its lesson ids to `test/fixtures/shipped-lesson-ids.json` and its highest card ids to `test/fixtures/card-id-high-marks.json`.
+
 ### Parked lessons (LB-34)
 
 - **Nothing is parked today.** Lessons 5 and 6 were parked in LB-34 and are live again since LB-45. This section is the how-to for parking or un-parking a lesson.
@@ -124,9 +137,18 @@ package.json              # name, test / build:data / check:data scripts — no 
 
 ### Adding a language
 
-`sq` is the Albanian namespace. A new language is **one new file, `data/<code>.json`**, then `npm run build:data` — **no engine change and no edit to `index.html`**. The build writes its lesson files and its entry in `src/content/languages.js`; the picker, the `?lesson=` whitelist, the default lesson and the card counts all come from that file. `language.order` sets where it sits in the language list. The engine is language-agnostic.
+`sq` is the Albanian namespace. A new language is **one new file, `data/<code>.json`** (format version 2, with its `ip` block), then `npm run build:data` — **no engine change and no edit to `index.html`**. The build writes its lesson files and its entry in `src/content/languages.js`; the picker, the `?lesson=` whitelist, the default lesson and the card counts all come from that file. `language.order` sets where it sits in the language list. The engine is language-agnostic.
 
-**No test edits are needed (LB-42).** The tests read the languages, lessons, card counts and parked flags from `data/*.json` through the build's own parser (`test/helpers/load-data.js`). Every data-driven test also runs once with a made-up language added (`test/fixtures/data-extra/qaa.json`, built in memory, never shipped), which proves a new language passes with no test edits. Run `npm test` after `npm run build:data`.
+**No test edits are needed (LB-42).** The tests read the languages, lessons, card counts and parked flags from `data/*.json` through the build's own parser (`test/helpers/load-data.js`). Every data-driven test also runs once with the made-up test languages (qaa, qab) added (`test/fixtures/data-extra/`, built in memory, never shipped), which proves a new language passes with no test edits. Run `npm test` after `npm run build:data`.
+
+**The `ip` block (LB-43).** Every language file needs one. Full rules are in `docs/requirements.md` section 7; the checks are in `scripts/build-data.js`.
+1. `ip.status` is `natural`, `free`, `owned` or `licensed`. A real language is `{ "status": "natural" }` and nothing else (any extra key is an error).
+2. Any other status needs `freeOnly` (true or false; must be true for `owned` and `licensed`), `notice` (`full`: up to 8 lines of up to 160 characters; `short`: up to 200 characters) and `ruling` (`id` like `IP-0007`, an opaque label, plus a real date `YYYY-MM-DD`). For `owned` and `licensed`, `notice.full` needs at least one line and `notice.short` cannot be empty. A `free` language may have both empty. A free language with a non-empty notice is written too.
+3. **What the build writes:** the `notice.full` lines as `// ` comment lines after the 2-line banner in each of that language's lesson files, and as `  // ` lines above its block in `src/content/languages.js`. `notice.short` is written to `src/content/languages.js` as the entry's `notice` (only when it is not empty), and nowhere else. Status, `freeOnly` and the ruling stay in the JSON. A language with no notice gets no extra lines, so every real language's generated files are unchanged.
+4. **Text guard** on notice lines and card notes: refused are control characters (TAB, CR and LF included), hidden formatting characters (text-direction controls, zero-width characters including ZWJ and ZWNJ, BOM), lone surrogates, unassigned code points, line and paragraph separators, `*/` and `<`; the text must be in NFC form and a string. Notice text (full lines and short) also refuses Private Use characters, invisible filler characters (Hangul fillers, the braille blank, non-ASCII spaces), blank text (spaces only), and text with no letter or number in it. A blank card note is refused too. Lengths count code points. The guard covers notice and note text only. Do not widen it to titles, answers, hints or names without a ticket (Bengali needs ZWJ and ZWNJ there).
+5. A language marked free only never goes in anything that is sold.
+
+**Made-up test languages.** The tests build two in memory, next to the real data, and they never ship: `qaa` (status `owned`, a 3-line notice and a ruling; `test/fixtures/data-extra/qaa.json`) and `qab` (Numbers only, `free`, empty notice; `test/fixtures/data-extra/qab.json`). `qab` proves that a language with only Numbers passes: the lesson-5 roots test exempts any language that is not `natural` and has no lesson 5 (qaa and qab). Klingon has a lesson 5, so it is checked.
 
 **Shipped lesson ids:** `test/fixtures/shipped-lesson-ids.json` lists every lesson id that has shipped, in picker order. Saved progress and `?lesson=` links use these ids. Adding lessons is fine anywhere. Removing or renaming a shipped lesson, or changing their order, fails `test/manifest.test.js`. Once a new lesson ships, add its id to that file.
 
@@ -137,8 +159,9 @@ package.json              # name, test / build:data / check:data scripts — no 
 **Edits happen in `data/<code>.json`, never in the generated `.js` files.** One JSON file per language:
 
 ```json
-{ "format": "languagebasics-lessons", "formatVersion": 1,
+{ "format": "languagebasics-lessons", "formatVersion": 2,
   "language": { "code": "sq", "name": "Albanian", "order": 1, "defaultLesson": "lesson-1" },
+  "ip": { "status": "natural" },
   "notes": [], "retiredCardIds": [],
   "groups": [ { "label": "Numbers", "notes": [], "lessons": [
     { "slug": "lesson-1", "label": "Lesson 1 — 0–10", "title": "Albanian Tosk Numbers: 0–10",
@@ -150,6 +173,8 @@ package.json              # name, test / build:data / check:data scripts — no 
 - `code` must match `^[a-z][a-z0-9]{1,7}$` and equal the file name; `slug` must match `^[a-z0-9]+(-[a-z0-9]+)*$` and be unique in the file. They are strict because the lesson id is written into a script tag. Unknown keys fail (catches typos).
 - `order` is a unique positive number and sets the language order. `defaultLesson` must be a live (not parked) lesson. `rollup` is required (true/false). `revealMs`, `recallPrompt`, `parked` and `notes` are optional.
 - On each card, `id`, `prompt`, `answer` and `hint` are required. The build accepts any string as `hint`, even `""`, but the tests require a non-empty hint on every card. `audio` is optional.
+- **`formatVersion` is 2 (LB-43).** A version 1 file is refused, and the error says how to move it up. Every language file has an `ip` block (see "The `ip` block" below).
+- A language may have only some lesson groups (for example Numbers only). Each language has its own topic list.
 - Each lesson has exactly one of `cards` or `cardRefs`. The combined alphabet decks (`alphabet-all`) use `cardRefs`: a list of card ids from the other alphabet decks, so their cards are never copied.
 - **Card `id`** (JSON only, never written to `src/`): `<slug>.<NNN>`, NNN = the card's place when the data was converted, padded to 3 digits. It is never taken from the card text and is frozen: rewording or moving a card keeps its id. A new card gets the highest NNN used for that slug (counting retired ids) + 1. A deleted card's id goes into `retiredCardIds` and is never reused.
 - `notes` hold the comments that used to sit in the `.js` files. They are never written to `src/`.
@@ -181,10 +206,11 @@ window.LB_LESSON = {
 | `audio`  | string         | optional  | reserved future slot; currently `""`. May be left out of the JSON (written as `""`) |
 | `id`     | string         | yes (JSON only) | stable card id; never written to the `.js` files |
 | `recallPrompt` | string   | optional  | reserved: the engine accepts it but never shows it today |
+| `note`   | string         | optional (JSON only) | one note for the card, 1–280 characters, passes the notice text guard (Private Use allowed). Data only: never written to `src/`, never shown to learners (LB-43) |
 
 \* The engine treats `hint`/`audio` as optional, but the **current dataset fills `hint` on every card** and the schema test enforces non-empty hints app-wide (including the parked lessons).
 
-**Multi-part answers:** `sq/lesson-2` and every Japanese (`ja`) and Bengali (`bn`) numbers, words and phrases deck use `" | "` as a line separator, as do lesson 6 in all 4 languages and lesson 5 in `ja` and `bn`; the engine renders it as `<br>`. The engine also auto-shrinks the font for long answers so they fit the card. For big-number prompts, `fitPrompt` in `src/engine.js` (LB-45) shrinks the prompt to fit the card width on one line, so a number never splits in the middle.
+**Multi-part answers:** `sq/lesson-2` and every Japanese (`ja`) and Bengali (`bn`) numbers, words and phrases deck use `" | "` as a line separator, as do lesson 6 in all 5 languages and lesson 5 in `ja` and `bn` (Klingon lesson 5 does not use it); the engine renders it as `<br>`. The engine also auto-shrinks the font for long answers so they fit the card. For big-number prompts, `fitPrompt` in `src/engine.js` (LB-45) shrinks the prompt to fit the card width on one line, so a number never splits in the middle.
 
 ---
 

@@ -64,7 +64,11 @@ for (const world of [repoWorld(), fixtureWorld()]) {
 
   test(`${T}D: each language's roots lesson covers 100, 1,000, 10,000 and 1,000,000`, () => {
     const bad = [];
-    const real = world.data.languages.filter((l) => l.code !== "qaa");
+    // Exempt: a language that is not "natural" (ip status read from the data) AND has
+    // no roots lesson. The made-up fixture languages are like that (qab is numbers-only
+    // with no roots lesson). A non-natural language that does have lesson-5 is still checked.
+    const real = world.data.languages.filter((l) =>
+      !(l.ipStatus !== "natural" && !world.data.byId.has(`${l.code}/${ROOTS_SLUG}`)));
     assert.ok(real.length >= 4, "the four real languages are present");
     for (const lang of real) {
       const row = world.data.byId.get(`${lang.code}/${ROOTS_SLUG}`);

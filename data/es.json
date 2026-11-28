@@ -1,12 +1,13 @@
 {
   "format": "languagebasics-lessons",
-  "formatVersion": 1,
+  "formatVersion": 2,
   "language": {
     "code": "es",
     "name": "Spanish",
     "order": 2,
     "defaultLesson": "lesson-1"
   },
+  "ip": { "status": "natural" },
   "notes": [
     "LB-25: Spanish (es) — the 2nd language. A full 6-lesson number deck applied",
     "verbatim from the Spanish linguistics dataset review. Same number RANGES and",

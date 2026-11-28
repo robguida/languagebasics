@@ -1,6 +1,6 @@
 # LanguageBasics — requirements (plain English)
 
-Last updated: 2026-11-27 (LB-45). Update this file whenever a requirement changes.
+Last updated: 2026-11-28 (LB-44). Update this file whenever a requirement changes.
 This file describes what is true on the current branch. For code layout and commands, see `CLAUDE.md`.
 
 ## 1. What the app is
@@ -9,17 +9,25 @@ This file describes what is true on the current branch. For code layout and comm
 3. It is static files only. No accounts, no backend, no pricing. It works when opened straight from disk or over the web.
 
 ## 2. Languages and lessons
-1. Four languages: Albanian (Tosk), Spanish, Japanese, Bengali.
-2. Each language has number lessons, an alphabet or script section, and Words and Phrases decks.
-3. The number lessons, in every language:
+1. Five languages: Albanian (Tosk), Spanish, Japanese, Bengali, and Klingon.
+2. Albanian, Spanish, Japanese and Bengali each have number lessons, an alphabet or script section, and Words and Phrases decks. Klingon has number lessons only for now (see item 6).
+3. The number lessons, in every language (except Klingon, see item 6):
    1. Lesson 1: 0–10 (11 cards).
    2. Lesson 2: 11–19 (9 cards).
    3. Lesson 3: tens, 20–90 (8 cards).
    4. Lesson 4: 20–99 compounds (80 cards).
    5. Lesson 5, Big Number Roots: 56 cards in Albanian, Spanish and Japanese; 64 in Bengali. Reveal time 5 seconds.
    6. Lesson 6, Number Builder: 20 compound cards (for example 101, 1,500, 44,444, 2,500,000), in value order. Reveal time 10 seconds.
-4. Lesson 5 covers 100–900, 1,000–9,000, 10,000, 100,000, 1M–9M, billions, trillions and quadrillions. Bengali adds 200,000–900,000, because Bengali counts in lakh.
+4. Lesson 5 covers 100–900, 1,000–9,000, 10,000, 100,000, 1M–9M, billions, trillions and quadrillions (except Klingon, see item 6). Bengali adds 200,000–900,000, because Bengali counts in lakh.
 5. Nothing is parked now. A lesson can still be parked (hidden from learners and never deployed) and brought back later.
+6. Klingon (LB-44) is the fifth language. It shows in the picker as exactly "Klingon (tlhIngan Hol)". Its code is `tlh`.
+   1. Numbers group only. No alphabet, words or phrases decks yet.
+   2. Lessons 1 to 4 have the same card counts as the other languages (11, 9, 8 and 80).
+   3. Lesson 5, Big Number Roots: 45 cards. It covers the hundreds, thousands, ten-thousands, hundred-thousands and millions, and the digits 1–9. Nothing goes above 9 million, because the language has no word above a million.
+   4. Lesson 6, Number Builder: 20 cards, the same numbers as the other languages.
+   5. Klingon is Latin letters only. There is no Klingon script.
+   6. Klingon is a free app only. It never goes in anything that is sold.
+   7. To switch Klingon off, remove its data file (`data/tlh.json`), run the build, then the tests. The build deletes the generated Klingon files and its picker row (the empty `src/content/tlh/` folder may stay). The Klingon test file skips itself, with a stated reason. Once Klingon has shipped, taking its lines out of the two fixture files of shipped lesson ids and card id marks needs the owner's go. That is the one exception to "never lower or remove a line".
 
 ## 3. Number prompts
 1. Every language shows numbers the same way: Western comma strings, such as "1,250,000".
@@ -50,6 +58,10 @@ This file describes what is true on the current branch. For code layout and comm
 3. The page counter is built but off. Turning it on needs the site code, updated page rules, a referrer header, a changed privacy page and the owner's go.
 4. The app never reads, writes or deletes browser storage keys that belong to other apps on the same site.
 
+### 6a. Klingon notice
+1. A short notice line shows whenever a Klingon lesson is open, and only then: "Klingon is a trademark of CBS Studios Inc. Fan-made; not affiliated with or endorsed by CBS or Paramount. Language created by Marc Okrand."
+2. The full notice is on the privacy page, in the README, and as comment lines at the top of every Klingon lesson file.
+
 ## 7. Lesson data format
 1. Each language is one JSON file in `data/`. This is the only place lesson content is edited.
 2. A build step writes the files the browser loads. The build and the tests must both pass before a deploy.
@@ -57,6 +69,57 @@ This file describes what is true on the current branch. For code layout and comm
 4. A language needs no code change and no test change to be added. One new JSON file is enough.
 5. Lesson ids that have shipped cannot be removed, renamed or reordered.
 6. Language content is owned by the language review. Engineers apply it and do not change it.
+7. The data format is version 2 (`formatVersion` is 2). A version 1 file is refused, and the error says how to move it up.
+8. A language may have only some lesson groups. Example: Numbers only.
+
+### 7a. The `ip` block (every language file)
+1. Every language file has an `ip` block. A file without one is refused.
+2. `ip.status` is one of: `natural`, `free`, `owned`, `licensed`.
+3. A real language is `{ "status": "natural" }` and nothing else. Any other key in a natural block is an error.
+4. The other three statuses need all of these:
+   1. `freeOnly`: true or false. For `owned` and `licensed` it must be true.
+   2. `notice.full`: a list of notice lines, at most 8 lines of at most 160 characters each. For `owned` and `licensed` it needs at least one line. For `free` it may be empty.
+   3. `notice.short`: one line of at most 200 characters. For `owned` and `licensed` it cannot be empty. For `free` it may be empty.
+   4. `ruling`: an `id` and a `date`. The id is `IP-` and four digits, such as `IP-0007`. It is only a label and carries no meaning. The date must be a real calendar date, written YYYY-MM-DD.
+5. Unknown keys inside `ip`, `notice` or `ruling` are errors.
+6. A language marked free only never goes in anything that is sold.
+7. The status, the free-only flag and the ruling stay in the JSON. They are never written to `src/`.
+
+### 7b. Notice text
+1. The notice lines are the disclaimer and the creator credit.
+2. The build writes the lines `notice.full` as comment lines. In each lesson file they come right after the 2-line GENERATED banner. In `src/content/languages.js` they sit above that language's block.
+3. `notice.short` is checked, and since LB-44 the app shows it (see section 6a).
+4. A free language with a non-empty `notice.full` has its notice written too.
+5. A language with no notice, which is every real language today, gets no extra lines. Its generated files are exactly what they were before.
+6. The build refuses a notice line (and a card note) that holds any of these:
+   1. A control character. This includes TAB, carriage return and line feed.
+   2. A hidden formatting character: text-direction controls, zero-width characters (including the joiner and non-joiner), or a byte-order mark.
+   3. A broken character (a lone surrogate) or a code point that is not assigned.
+   4. A line or paragraph separator.
+   5. The two characters `*/` together, or the character `<`.
+   6. Text that is not in Unicode NFC form.
+   7. Anything that is not a string.
+   8. A blank or empty notice line, or a blank `notice.short` (spaces only), or an empty `notice.short` for an owned or licensed language, or a blank card note.
+   9. In notice text only: an invisible filler character (the Hangul fillers, the braille blank, and non-ASCII spaces).
+   10. In notice text only: text with no letter or number in it, such as a notice made only of invisible marks.
+7. A notice line also cannot hold a Private Use character.
+8. Lengths count characters as people see them in code points, so an emoji counts as one.
+9. This guard covers the notice and the card note only. Titles, answers and hints are not held to it. Bengali, for example, needs the joiner characters there.
+10. Do not widen the guard to titles, answers, hints or names without a ticket.
+
+### 7c. Card note
+1. A card may have one optional `note`: at most 280 characters, and it must pass the same text guard as the notice (Private Use is allowed here).
+2. The note is data only. It is never written to `src/` and never shown to learners.
+3. Klingon has card notes (the ones on 10,000 and 100,000). They stay in the data and are never written to `src/` or shown.
+
+### 7d. Made-up languages
+1. Klingon is the first made-up language to ship (LB-44). More are planned. Each one is one new JSON file, like any other language.
+2. Spelling is exact. Capital and small letters are different letters (q and Q are not the same). The straight apostrophe (') is a letter. The app never changes case, and never swaps or strips the apostrophe.
+3. Capital I and small l look alike in the normal font. Klingon answers therefore use a fixed-width font, where they look different.
+4. Klingon pronunciation hints use the owner's own syllable notation, approved on 2026-11-28. Examples: 9 is "Khoot", 8 is "Chorgh".
+5. Two made-up test languages prove the format. They are built in memory by the tests and never shipped:
+   1. `qaa`: status `owned`, with a 3-line notice and a ruling.
+   2. `qab`: Numbers only, status `free`, empty notice (`test/fixtures/data-extra/qab.json`). It proves that a Numbers-only language passes. The lesson-5 roots test exempts any language that is not natural and has no lesson 5 (qaa and qab). Klingon has a lesson 5, so it is checked.
 
 ## 8. Deploy
 1. Only the `src/` folder is served.
@@ -68,4 +131,5 @@ This file describes what is true on the current branch. For code layout and comm
 2. The timer slider shows 5 seconds on Lesson 6, which really runs 10 seconds. Left as is by the owner's choice.
 3. A very long answer can push the buttons down on a small phone. Left as is by the owner's choice.
 4. Progress is saved by prompt text, not by card id. Saving by card id is planned and must land before any Words or Phrases deck that could repeat a prompt.
-5. More made-up languages are planned.
+5. More made-up languages are planned (see section 7d). A second script is not needed yet.
+6. Klingon has number lessons only. Alphabet, words and phrases decks are not built yet.
