@@ -1,11 +1,24 @@
 {
   "format": "languagebasics-lessons",
-  "formatVersion": 1,
+  "formatVersion": 2,
   "language": {
     "code": "qaa",
     "name": "Made-up test language",
     "order": 999,
     "defaultLesson": "lesson-1"
+  },
+  "ip": {
+    "status": "owned",
+    "freeOnly": true,
+    "notice": {
+      "full": [
+        "TEST FIXTURE ONLY. A made-up language used by the tests; it never ships.",
+        "This line has an apostrophe (it's fine), an accent (café) and a dash – all allowed.",
+        "Credit line for the fixture: made up for the test suite."
+      ],
+      "short": "Made-up test language. Free use only."
+    },
+    "ruling": { "id": "IP-9999", "date": "2026-11-14" }
   },
   "notes": [
     "TEST FIXTURE ONLY. Never built into src/: the tests generate it in memory, next to the real data/*.json files.",

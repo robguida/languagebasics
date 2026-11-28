@@ -1,12 +1,13 @@
 {
   "format": "languagebasics-lessons",
-  "formatVersion": 1,
+  "formatVersion": 2,
   "language": {
     "code": "bn",
     "name": "Bengali",
     "order": 4,
     "defaultLesson": "lesson-1"
   },
+  "ip": { "status": "natural" },
   "notes": [
     "LB-26: Bengali (bn) — the 4th language. A full 6-lesson number deck applied",
     "verbatim from the Bengali linguistics dataset review. Standard Bangladeshi",

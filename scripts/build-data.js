@@ -23,8 +23,12 @@
  *     strings, "<", U+2028 and U+2029 are written as escapes (same value)
  *   - LF line endings, UTF-8 with no BOM, a newline at the end, no timestamps
  *     and no paths
- *   - card ids, notes and retired ids stay in the JSON; they are never written
- *     to src/
+ *   - a language's ip.notice.full lines are written as "// " comment lines
+ *     after the banner of each of its lesson files, and as "  // " lines above
+ *     its block in languages.js. A language with no notice (every real one) gets
+ *     no such lines, so its files are byte-for-byte what they were before
+ *   - card ids, card notes, retired ids and the ip status, freeOnly, ruling and
+ *     notice.short stay in the JSON; they are never written to src/
  *
  * Error handling: every data file and every card is checked, and checking goes
  * on after an error so one run lists them all, each with its file and place
@@ -47,7 +51,7 @@ const ROOT = path.resolve(__dirname, "..");
 const DATA_DIR = path.join(ROOT, "data");
 
 const FORMAT = "languagebasics-lessons";
-const FORMAT_VERSION = 1;
+const FORMAT_VERSION = 2;
 
 // Strict on purpose: the lesson id (code + "/" + slug) is written into a
 // <script src> by document.write in index.html, so only plain a-z0-9 may reach it.
@@ -64,11 +68,14 @@ const OUTPUT_ROOTS = ["src/content", "parked/content"];
 const MANIFEST_FILE = "src/content/languages.js";
 
 const KEYS = {
-  top: ["format", "formatVersion", "language", "notes", "retiredCardIds", "groups"],
+  top: ["format", "formatVersion", "language", "ip", "notes", "retiredCardIds", "groups"],
   language: ["code", "name", "order", "defaultLesson"],
+  ip: ["status", "freeOnly", "notice", "ruling"],
+  notice: ["full", "short"],
+  ruling: ["id", "date"],
   group: ["label", "notes", "lessons"],
   lesson: ["slug", "parked", "label", "title", "revealMs", "rollup", "recallPrompt", "notes", "cards", "cardRefs"],
-  card: ["id", "prompt", "answer", "hint", "audio"],
+  card: ["id", "prompt", "answer", "hint", "audio", "note"],
 };
 
 /* ------------------------------------------------------------------ helpers */
@@ -100,6 +107,123 @@ function hasBanner(text) {
 
 /* --------------------------------------------------------------- validation */
 
+const IP_STATUSES = ["natural", "free", "owned", "licensed"];
+const RULING_ID_RE = /^IP-[0-9]{4}$/;
+const RULING_DATE_RE = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
+
+// Limits are counted in code points (not UTF-16 units), so a character outside
+// the Basic Multilingual Plane counts once.
+const LIMITS = { fullLines: 8, fullLine: 160, short: 200, note: 280 };
+
+/* Text guard for text that is written raw into a generated file's comments
+ * (the notice) or kept as data (a card note). It refuses, rather than escapes,
+ * because a comment has no escape form. Refused: every control character
+ * (Cc, which includes TAB, CR and LF), format characters (Cf: the bidi controls,
+ * zero-width characters, BOM), lone surrogates (Cs), unassigned code points
+ * (Cn), the line and paragraph separators (Zl, Zp), "*" followed by "/" and "<".
+ * Cf also holds ZWJ and ZWNJ. They are refused HERE ONLY (notice and note text,
+ * written into comments). Scripts that need them (Bengali) keep them in titles,
+ * answers and hints, which this guard does not touch. Do not widen the guard to
+ * those fields without a ticket. */
+const TEXT_REFUSED = /[\p{Cc}\p{Cf}\p{Cs}\p{Cn}\p{Zl}\p{Zp}]|\*\/|</u;
+const PRIVATE_USE = /\p{Co}/u;
+
+const cpLength = (s) => [...s].length;
+
+/** Check one piece of guarded text. Type is checked first. Returns the problem
+ *  text, or null when the text is fine. */
+function textProblem(v, min, max, noPrivateUse) {
+  if (typeof v !== "string") return "must be a string";
+  if (typeof v.isWellFormed === "function" && !v.isWellFormed()) return "holds a lone surrogate (broken text)";
+  if (v.normalize("NFC") !== v) return "is not in Unicode NFC form (normalize it first)";
+  const m = TEXT_REFUSED.exec(v);
+  if (m) {
+    const ch = m[0];
+    const shown = ch.length === 1 ? "U+" + ch.codePointAt(0).toString(16).toUpperCase().padStart(4, "0") : JSON.stringify(ch);
+    return "holds a refused character or sequence (" + shown + "): control, format, unassigned, line separator, \"*/\" and \"<\" are not allowed";
+  }
+  if (noPrivateUse && PRIVATE_USE.test(v)) return "holds a Private Use character";
+  const n = cpLength(v);
+  if (n < min) return "must be at least " + min + " character" + (min === 1 ? "" : "s");
+  if (n > max) return "is " + n + " characters long; the limit is " + max;
+  return null;
+}
+
+/** True for a real calendar date written YYYY-MM-DD. */
+function isRealDate(s) {
+  if (!RULING_DATE_RE.test(s)) return false;
+  const [y, m, d] = s.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return y >= 1 && dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+}
+
+/** Check the ip block. Every error names its place and checking goes on.
+ *  Returns the clean ip model, or null when the block cannot be used. */
+function checkIp(ip, err, unknownKeys) {
+  if (ip === undefined) { err("ip", "is required: every language states its status (real languages: { \"status\": \"natural\" })"); return null; }
+  if (!isObject(ip)) { err("ip", "must be an object"); return null; }
+  unknownKeys(ip, KEYS.ip, "ip");
+  if (!IP_STATUSES.includes(ip.status)) { err("ip.status", "must be one of " + IP_STATUSES.join(", ")); return null; }
+  const status = ip.status;
+
+  if (status === "natural") {
+    for (const k of KEYS.ip) {
+      if (k !== "status" && ip[k] !== undefined) err("ip." + k, "is not allowed when status is natural (a natural language needs no notice or ruling)");
+    }
+    return { status };
+  }
+
+  // free / owned / licensed: freeOnly, notice and ruling are all required.
+  const strict = status === "owned" || status === "licensed";
+  let ok = true;
+  const bad = (place, msg) => { err(place, msg); ok = false; };
+
+  if (typeof ip.freeOnly !== "boolean") bad("ip.freeOnly", "must be true or false");
+  else if (strict && ip.freeOnly !== true) bad("ip.freeOnly", "must be true when status is " + status);
+
+  let full = [];
+  let short = "";
+  if (!isObject(ip.notice)) {
+    bad("ip.notice", "is required and must be an object with full and short");
+  } else {
+    unknownKeys(ip.notice, KEYS.notice, "ip.notice");
+    if (!Array.isArray(ip.notice.full)) {
+      bad("ip.notice.full", "must be an array of lines");
+    } else {
+      if (strict && ip.notice.full.length === 0) bad("ip.notice.full", "needs at least one line when status is " + status);
+      if (ip.notice.full.length > LIMITS.fullLines) bad("ip.notice.full", "has " + ip.notice.full.length + " lines; the limit is " + LIMITS.fullLines);
+      ip.notice.full.forEach((line, i) => {
+        const place = "ip.notice.full[" + i + "]";
+        const p = textProblem(line, 1, LIMITS.fullLine, true);
+        if (p) bad(place, p);
+        else if (line.trim() === "") bad(place, "is a blank line");
+        else full.push(line);
+      });
+    }
+    if (typeof ip.notice.short !== "string") {
+      bad("ip.notice.short", "must be a string");
+    } else if (ip.notice.short === "" && !strict) {
+      short = "";
+    } else {
+      const p = textProblem(ip.notice.short, 1, LIMITS.short, true);
+      if (p) bad("ip.notice.short", p); else short = ip.notice.short;
+    }
+  }
+
+  let ruling = null;
+  if (!isObject(ip.ruling)) {
+    bad("ip.ruling", "is required and must be an object with id and date");
+  } else {
+    unknownKeys(ip.ruling, KEYS.ruling, "ip.ruling");
+    if (typeof ip.ruling.id !== "string" || !RULING_ID_RE.test(ip.ruling.id)) bad("ip.ruling.id", "must look like IP-0001 (IP- and four digits)");
+    if (typeof ip.ruling.date !== "string" || !isRealDate(ip.ruling.date)) bad("ip.ruling.date", "must be a real calendar date written YYYY-MM-DD");
+    if (ok) ruling = { id: ip.ruling.id, date: ip.ruling.date };
+  }
+
+  if (!ok) return null;
+  return { status, freeOnly: ip.freeOnly, notice: { full, short }, ruling };
+}
+
 /**
  * Check one parsed data file and build its clean model.
  * @param {string} where  e.g. "data/sq.json"
@@ -130,7 +254,11 @@ function validateLanguage(where, fileCode, doc) {
   unknownKeys(doc, KEYS.top, "");
 
   if (doc.format !== FORMAT) err("format", `must be "${FORMAT}"`);
-  if (doc.formatVersion !== FORMAT_VERSION) err("formatVersion", `must be ${FORMAT_VERSION}`);
+  if (doc.formatVersion === 1) {
+    err("formatVersion", "1 is no longer accepted: this build reads format 2. Add an \"ip\" block (real languages: { \"status\": \"natural\" }) and set formatVersion to 2");
+  } else if (doc.formatVersion !== FORMAT_VERSION) {
+    err("formatVersion", `must be ${FORMAT_VERSION}`);
+  }
   checkNotes(doc.notes, "notes");
 
   // language header
@@ -151,6 +279,9 @@ function validateLanguage(where, fileCode, doc) {
     if (!isPositiveInt(lang.order)) err("language.order", "must be a positive whole number");
     if (typeof lang.defaultLesson !== "string") err("language.defaultLesson", "must be the slug of a live lesson");
   }
+
+  // ip block (who may use this language's text, and what notice it carries)
+  const ip = checkIp(doc.ip, err, unknownKeys);
 
   // retired ids
   const retired = new Set();
@@ -247,7 +378,13 @@ function validateLanguage(where, fileCode, doc) {
             if (!isNonEmptyString(c.answer)) { err(`${cp}.answer`, "must be a non-empty string"); ok = false; }
             if (typeof c.hint !== "string") { err(`${cp}.hint`, "must be a string"); ok = false; }
             if (c.audio !== undefined && typeof c.audio !== "string") { err(`${cp}.audio`, "must be a string"); ok = false; }
+            // note: data only. Checked here, kept on the model, never written to src/.
+            if (c.note !== undefined) {
+              const np = textProblem(c.note, 1, LIMITS.note, false);
+              if (np) { err(`${cp}.note`, np); ok = false; }
+            }
             const card = { prompt: c.prompt, answer: c.answer, hint: c.hint, audio: c.audio === undefined ? "" : c.audio };
+            if (typeof c.note === "string" && ok) card.note = c.note;
             if (typeof c.id === "string" && !cardIds.has(c.id)) cardIds.set(c.id, { place: cp, card });
             if (ok) lesson.cards.push(card);
           });
@@ -296,6 +433,7 @@ function validateLanguage(where, fileCode, doc) {
       name: lang.name,
       order: lang.order,
       defaultLesson: lang.defaultLesson,
+      ip,
       groups,
     },
   };
@@ -316,9 +454,25 @@ function S(value) {
     (ch) => "\\" + "u" + ch.charCodeAt(0).toString(16).padStart(4, "0"));
 }
 
-function renderLesson(code, lesson) {
+/* The notice is written as "// " comment lines. Validation already refuses line
+ * breaks, but this is the last step before disk, so it checks again and throws
+ * (a thrown error stops the build, nothing is written). */
+const LINE_BREAKS = new RegExp("[\r\n" + String.fromCharCode(0x2028, 0x2029) + "]");
+
+function noticeLines(notice, prefix) {
+  const out = [];
+  for (const line of notice || []) {
+    if (typeof line !== "string" || LINE_BREAKS.test(line)) {
+      throw new Error("a notice line holds a line break or is not text; refusing to write it as a comment");
+    }
+    out.push(prefix + line);
+  }
+  return out;
+}
+
+function renderLesson(code, lesson, notice) {
   const id = code + "/" + lesson.slug;
-  const lines = [BANNER_LINE_1, BANNER_LINE_2, "window.LB_LESSON = {"];
+  const lines = [BANNER_LINE_1, BANNER_LINE_2, ...noticeLines(notice, "// "), "window.LB_LESSON = {"];
   lines.push(`  id: ${S(id)},`);
   lines.push(`  title: ${S(lesson.title)},`);
   if (lesson.revealMs !== undefined) lines.push(`  revealMs: ${S(lesson.revealMs)},`);
@@ -341,6 +495,7 @@ function renderManifest(models) {
     "  window.LB_LANGUAGES = window.LB_LANGUAGES || [];"];
   for (const m of models) {
     lines.push("");
+    lines.push(...noticeLines(m.ip && m.ip.notice ? m.ip.notice.full : [], "  // "));
     lines.push("  window.LB_LANGUAGES.push({");
     lines.push(`    code: ${S(m.code)},`);
     lines.push(`    name: ${S(m.name)},`);
@@ -460,7 +615,7 @@ function generateFromSources(sources) {
     for (const g of m.groups) {
       for (const l of g.lessons) {
         const base = l.parked ? "parked/content" : "src/content";
-        files[`${base}/${m.code}/${l.slug}.js`] = renderLesson(m.code, l);
+        files[`${base}/${m.code}/${l.slug}.js`] = renderLesson(m.code, l, m.ip && m.ip.notice ? m.ip.notice.full : []);
       }
     }
   }

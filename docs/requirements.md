@@ -1,6 +1,6 @@
 # LanguageBasics — requirements (plain English)
 
-Last updated: 2026-11-27 (LB-45). Update this file whenever a requirement changes.
+Last updated: 2026-11-27 (LB-43). Update this file whenever a requirement changes.
 This file describes what is true on the current branch. For code layout and commands, see `CLAUDE.md`.
 
 ## 1. What the app is
@@ -57,6 +57,53 @@ This file describes what is true on the current branch. For code layout and comm
 4. A language needs no code change and no test change to be added. One new JSON file is enough.
 5. Lesson ids that have shipped cannot be removed, renamed or reordered.
 6. Language content is owned by the language review. Engineers apply it and do not change it.
+7. The data format is version 2 (`formatVersion` is 2). A version 1 file is refused, and the error says how to move it up.
+8. A language may have only some lesson groups. Example: Numbers only.
+
+### 7a. The `ip` block (every language file)
+1. Every language file has an `ip` block. A file without one is refused.
+2. `ip.status` is one of: `natural`, `free`, `owned`, `licensed`.
+3. A real language is `{ "status": "natural" }` and nothing else. Any other key in a natural block is an error.
+4. The other three statuses need all of these:
+   1. `freeOnly`: true or false. For `owned` and `licensed` it must be true.
+   2. `notice.full`: a list of notice lines, at most 8 lines of at most 160 characters each. For `owned` and `licensed` it needs at least one line. For `free` it may be empty.
+   3. `notice.short`: one line of at most 200 characters. For `owned` and `licensed` it cannot be empty. For `free` it may be empty.
+   4. `ruling`: an `id` and a `date`. The id is `IP-` and four digits, such as `IP-0007`. It is only a label and carries no meaning. The date must be a real calendar date, written YYYY-MM-DD.
+5. Unknown keys inside `ip`, `notice` or `ruling` are errors.
+6. A language marked free only never goes in anything that is sold.
+7. The status, the free-only flag and the ruling stay in the JSON. They are never written to `src/`.
+
+### 7b. Notice text
+1. The notice lines are the disclaimer and the creator credit.
+2. The build writes the lines `notice.full` as comment lines. In each lesson file they come right after the 2-line GENERATED banner. In `src/content/languages.js` they sit above that language's block.
+3. `notice.short` is checked, but it is not written anywhere yet.
+4. A free language with a non-empty `notice.full` has its notice written too.
+5. A language with no notice, which is every real language today, gets no extra lines. Its generated files are exactly what they were before.
+6. The build refuses a notice line (and a card note) that holds any of these:
+   1. A control character. This includes TAB, carriage return and line feed.
+   2. A hidden formatting character: text-direction controls, zero-width characters (including the joiner and non-joiner), or a byte-order mark.
+   3. A broken character (a lone surrogate) or a code point that is not assigned.
+   4. A line or paragraph separator.
+   5. The two characters `*/` together, or the character `<`.
+   6. Text that is not in Unicode NFC form.
+   7. Anything that is not a string.
+   8. A blank line in the notice.
+7. A notice line also cannot hold a Private Use character.
+8. Lengths count characters as people see them in code points, so an emoji counts as one.
+9. This guard covers the notice and the card note only. Titles, answers and hints are not held to it. Bengali, for example, needs the joiner characters there.
+10. Do not widen the guard to titles, answers, hints or names without a ticket.
+
+### 7c. Card note
+1. A card may have one optional `note`: at most 280 characters, and it must pass the same text guard as the notice (Private Use is allowed here).
+2. The note is data only. It is never written to `src/` and never shown to learners.
+3. No real card has a note today.
+
+### 7d. Made-up languages
+1. More made-up languages are planned. Each one is one new JSON file, like any other language.
+2. Spelling is exact, including capital letters. The straight apostrophe (') is a letter: it is kept as written, never swapped or stripped.
+3. Two made-up test languages prove the format. They are built in memory by the tests and never shipped:
+   1. `qaa`: status `owned`, with a 3-line notice and a ruling.
+   2. `qab`: Numbers only, status `free`, empty notice (`test/fixtures/data-extra/qab.json`). It proves that a Numbers-only language passes. The lesson-5 roots test exempts qaa and qab.
 
 ## 8. Deploy
 1. Only the `src/` folder is served.
@@ -68,4 +115,4 @@ This file describes what is true on the current branch. For code layout and comm
 2. The timer slider shows 5 seconds on Lesson 6, which really runs 10 seconds. Left as is by the owner's choice.
 3. A very long answer can push the buttons down on a small phone. Left as is by the owner's choice.
 4. Progress is saved by prompt text, not by card id. Saving by card id is planned and must land before any Words or Phrases deck that could repeat a prompt.
-5. More made-up languages are planned.
+5. More made-up languages are planned (see section 7d). A second script or font hint is not needed yet.

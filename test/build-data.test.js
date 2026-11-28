@@ -39,7 +39,8 @@ const { ROOT, DATA_DIR, BANNER, CARD_ID_RE } = build;
 function fixture(code, order) {
   return {
     format: "languagebasics-lessons",
-    formatVersion: 1,
+    formatVersion: 2,
+    ip: { status: "natural" },
     language: { code, name: "Test " + code, order, defaultLesson: "lesson-1" },
     notes: ["a note"],
     retiredCardIds: ["lesson-1.009"],
@@ -207,7 +208,7 @@ const cardAt = (d, c) => d.groups[0].lessons[0].cards[c];
 
 const RULES = [
   ["format must be the format name", (d) => { d.format = "other"; }, "format"],
-  ["formatVersion must be 1", (d) => { d.formatVersion = 2; }, "formatVersion"],
+  ["formatVersion must be 2", (d) => { d.formatVersion = 1; }, "formatVersion"],
   ["unknown top-level key", (d) => { d.grups = []; }, "grups"],
   ["code must be plain a-z0-9", (d) => { d.language.code = "X-1"; }, "language.code"],
   ["code must equal the file name", (d) => { d.language.code = "yy"; }, "language.code"],
@@ -682,7 +683,10 @@ test("escaping: <, U+2028 and U+2029 inside strings are written as escapes", () 
 });
 
 test("hostile-text fixture: every string round-trips exactly, and no file holds a raw <, U+2028 or U+2029", () => {
-  const docs = build.readSources(FIXTURE_DIR).map((s) => JSON.parse(s.text));
+  // Scoped to qaa, the hostile-text language. Other fixture languages (qab,
+  // numbers-only) are built below but are not held to its assertions.
+  const docs = build.readSources(FIXTURE_DIR).filter((s) => s.name === "qaa.json").map((s) => JSON.parse(s.text));
+  assert.equal(docs.length, 1, "qaa.json is in the fixture folder");
   const all = JSON.stringify(docs);
   // The fixture must really hold the hostile text, or this test proves nothing.
   assert.ok(all.includes("</script><script>"), "fixture holds </script>");

@@ -1,0 +1,39 @@
+{
+  "format": "languagebasics-lessons",
+  "formatVersion": 2,
+  "language": {
+    "code": "qab",
+    "name": "Made-up numbers-only test language",
+    "order": 998,
+    "defaultLesson": "lesson-1"
+  },
+  "ip": {
+    "status": "free",
+    "freeOnly": false,
+    "notice": { "full": [], "short": "" },
+    "ruling": { "id": "IP-9998", "date": "2026-11-14" }
+  },
+  "notes": [
+    "TEST FIXTURE ONLY. Never built into src/. A language may have only some lesson groups: this one has a single Numbers lesson and nothing else."
+  ],
+  "retiredCardIds": [],
+  "groups": [
+    {
+      "label": "Numbers",
+      "notes": [],
+      "lessons": [
+        {
+          "slug": "lesson-1",
+          "label": "Lesson 1 — 1–2",
+          "title": "Made-up Numbers: 1–2",
+          "revealMs": 5000,
+          "rollup": true,
+          "cards": [
+            { "id": "lesson-1.001", "prompt": 1, "answer": "one-ish", "hint": "Wun ish" },
+            { "id": "lesson-1.002", "prompt": 2, "answer": "two-ish", "hint": "Too ish" }
+          ]
+        }
+      ]
+    }
+  ]
+}

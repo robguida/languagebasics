@@ -75,7 +75,7 @@ test/                     # node --test suite (NOT served)
   helpers/load-data.js    # LB-42: reads data/*.json with the build's own parser
   fixtures/shipped-lesson-ids.json  # lesson ids that have shipped (see "Adding a language")
   fixtures/card-id-high-marks.json  # each lesson's highest card id, locked (see "Card counts")
-  fixtures/data-extra/    # a made-up test language; proves a new language needs no test edits
+  fixtures/data-extra/    # made-up test languages (qaa, qab); prove a new language needs no test edits
 docs/                     # concept/source files, NOT served (see Docs)
 package.json              # name, test / build:data / check:data scripts — no deps
 ```
@@ -124,9 +124,18 @@ package.json              # name, test / build:data / check:data scripts — no 
 
 ### Adding a language
 
-`sq` is the Albanian namespace. A new language is **one new file, `data/<code>.json`**, then `npm run build:data` — **no engine change and no edit to `index.html`**. The build writes its lesson files and its entry in `src/content/languages.js`; the picker, the `?lesson=` whitelist, the default lesson and the card counts all come from that file. `language.order` sets where it sits in the language list. The engine is language-agnostic.
+`sq` is the Albanian namespace. A new language is **one new file, `data/<code>.json`** (format version 2, with its `ip` block), then `npm run build:data` — **no engine change and no edit to `index.html`**. The build writes its lesson files and its entry in `src/content/languages.js`; the picker, the `?lesson=` whitelist, the default lesson and the card counts all come from that file. `language.order` sets where it sits in the language list. The engine is language-agnostic.
 
-**No test edits are needed (LB-42).** The tests read the languages, lessons, card counts and parked flags from `data/*.json` through the build's own parser (`test/helpers/load-data.js`). Every data-driven test also runs once with a made-up language added (`test/fixtures/data-extra/qaa.json`, built in memory, never shipped), which proves a new language passes with no test edits. Run `npm test` after `npm run build:data`.
+**No test edits are needed (LB-42).** The tests read the languages, lessons, card counts and parked flags from `data/*.json` through the build's own parser (`test/helpers/load-data.js`). Every data-driven test also runs once with the made-up test languages (qaa, qab) added (`test/fixtures/data-extra/`, built in memory, never shipped), which proves a new language passes with no test edits. Run `npm test` after `npm run build:data`.
+
+**The `ip` block (LB-43).** Every language file needs one. Full rules are in `docs/requirements.md` section 7; the checks are in `scripts/build-data.js`.
+1. `ip.status` is `natural`, `free`, `owned` or `licensed`. A real language is `{ "status": "natural" }` and nothing else (any extra key is an error).
+2. Any other status needs `freeOnly` (true or false; must be true for `owned` and `licensed`), `notice` (`full`: up to 8 lines of up to 160 characters; `short`: up to 200 characters) and `ruling` (`id` like `IP-0007`, an opaque label, plus a real date `YYYY-MM-DD`). For `owned` and `licensed`, `notice.full` needs at least one line and `notice.short` cannot be empty. A `free` language may have both empty. A free language with a non-empty notice is written too.
+3. **What the build writes:** the `notice.full` lines as `// ` comment lines after the 2-line banner in each of that language's lesson files, and as `  // ` lines above its block in `src/content/languages.js`. `notice.short` is checked but not written yet. Status, `freeOnly` and the ruling stay in the JSON. A language with no notice gets no extra lines, so every real language's generated files are unchanged.
+4. **Text guard** on notice lines and card notes: refused are control characters (TAB, CR and LF included), hidden formatting characters (text-direction controls, zero-width characters including ZWJ and ZWNJ, BOM), lone surrogates, unassigned code points, line and paragraph separators, `*/` and `<`; the text must be in NFC form and a string. Notice lines also refuse Private Use characters and blank lines. Lengths count code points. The guard covers notice and note text only. Do not widen it to titles, answers, hints or names without a ticket (Bengali needs ZWJ and ZWNJ there).
+5. A language marked free only never goes in anything that is sold.
+
+**Made-up test languages.** The tests build two in memory, next to the real data, and they never ship: `qaa` (status `owned`, a 3-line notice and a ruling; `test/fixtures/data-extra/qaa.json`) and `qab` (Numbers only, `free`, empty notice; `test/fixtures/data-extra/qab.json`). `qab` proves that a language with only Numbers passes: the lesson-5 roots test exempts qaa and qab.
 
 **Shipped lesson ids:** `test/fixtures/shipped-lesson-ids.json` lists every lesson id that has shipped, in picker order. Saved progress and `?lesson=` links use these ids. Adding lessons is fine anywhere. Removing or renaming a shipped lesson, or changing their order, fails `test/manifest.test.js`. Once a new lesson ships, add its id to that file.
 
@@ -137,8 +146,9 @@ package.json              # name, test / build:data / check:data scripts — no 
 **Edits happen in `data/<code>.json`, never in the generated `.js` files.** One JSON file per language:
 
 ```json
-{ "format": "languagebasics-lessons", "formatVersion": 1,
+{ "format": "languagebasics-lessons", "formatVersion": 2,
   "language": { "code": "sq", "name": "Albanian", "order": 1, "defaultLesson": "lesson-1" },
+  "ip": { "status": "natural" },
   "notes": [], "retiredCardIds": [],
   "groups": [ { "label": "Numbers", "notes": [], "lessons": [
     { "slug": "lesson-1", "label": "Lesson 1 — 0–10", "title": "Albanian Tosk Numbers: 0–10",
@@ -150,6 +160,8 @@ package.json              # name, test / build:data / check:data scripts — no 
 - `code` must match `^[a-z][a-z0-9]{1,7}$` and equal the file name; `slug` must match `^[a-z0-9]+(-[a-z0-9]+)*$` and be unique in the file. They are strict because the lesson id is written into a script tag. Unknown keys fail (catches typos).
 - `order` is a unique positive number and sets the language order. `defaultLesson` must be a live (not parked) lesson. `rollup` is required (true/false). `revealMs`, `recallPrompt`, `parked` and `notes` are optional.
 - On each card, `id`, `prompt`, `answer` and `hint` are required. The build accepts any string as `hint`, even `""`, but the tests require a non-empty hint on every card. `audio` is optional.
+- **`formatVersion` is 2 (LB-43).** A version 1 file is refused, and the error says how to move it up. Every language file has an `ip` block (see "The `ip` block" below).
+- A language may have only some lesson groups (for example Numbers only). Each language has its own topic list.
 - Each lesson has exactly one of `cards` or `cardRefs`. The combined alphabet decks (`alphabet-all`) use `cardRefs`: a list of card ids from the other alphabet decks, so their cards are never copied.
 - **Card `id`** (JSON only, never written to `src/`): `<slug>.<NNN>`, NNN = the card's place when the data was converted, padded to 3 digits. It is never taken from the card text and is frozen: rewording or moving a card keeps its id. A new card gets the highest NNN used for that slug (counting retired ids) + 1. A deleted card's id goes into `retiredCardIds` and is never reused.
 - `notes` hold the comments that used to sit in the `.js` files. They are never written to `src/`.
@@ -181,6 +193,7 @@ window.LB_LESSON = {
 | `audio`  | string         | optional  | reserved future slot; currently `""`. May be left out of the JSON (written as `""`) |
 | `id`     | string         | yes (JSON only) | stable card id; never written to the `.js` files |
 | `recallPrompt` | string   | optional  | reserved: the engine accepts it but never shows it today |
+| `note`   | string         | optional (JSON only) | one note for the card, 1–280 characters, passes the notice text guard (Private Use allowed). Data only: never written to `src/`, never shown to learners (LB-43) |
 
 \* The engine treats `hint`/`audio` as optional, but the **current dataset fills `hint` on every card** and the schema test enforces non-empty hints app-wide (including the parked lessons).
 

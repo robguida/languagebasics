@@ -19,6 +19,7 @@ const { repoWorld, fixtureWorld } = require("./helpers/load-data.js");
 const { makeEngineEnv } = require("./helpers/engine-dom.js");
 
 const ROOTS_SLUG = "lesson-5";
+const FIXTURE_CODES = ["qaa", "qab"];
 const OWNER_ROOTS = [100, 1000, 10000, 1000000];
 const WORD_UNITS = { trillion: 1e12, quadrillion: 1e15 };
 
@@ -64,7 +65,9 @@ for (const world of [repoWorld(), fixtureWorld()]) {
 
   test(`${T}D: each language's roots lesson covers 100, 1,000, 10,000 and 1,000,000`, () => {
     const bad = [];
-    const real = world.data.languages.filter((l) => l.code !== "qaa");
+    // Made-up fixture languages are exempt: a language may have only some lesson
+    // groups (qab is numbers-only), so the roots lesson is required of the real ones only.
+    const real = world.data.languages.filter((l) => !FIXTURE_CODES.includes(l.code));
     assert.ok(real.length >= 4, "the four real languages are present");
     for (const lang of real) {
       const row = world.data.byId.get(`${lang.code}/${ROOTS_SLUG}`);
