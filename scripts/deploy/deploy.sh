@@ -427,12 +427,17 @@ outside_check() { # outside_check <manifest-file> <release-id>: every problem is
             [ "$vals" = "$val" ] || ofail+=("headers of /${p}: ${name} is '${vals//$'\n'/ | }', want '${val}'")
         done < "$KT/expected-headers.txt"
     done
-    # e. each language: lesson 1, one alphabet deck and one words deck are current; its lesson page loads
+    # e. each language: lesson 1 is current and its lesson page loads. A language whose release has an
+    #    alphabet or words deck also needs one alphabet deck and words-1.js current (a numbers-only
+    #    language has neither, and passes; half a set fails)
     local langs; langs=$(printf '%s\n' "${!want[@]}" | sed -n 's#^content/\([a-z][a-z0-9-]*\)/lesson-1\.js$#\1#p' | sort)
     [ -n "$langs" ] || ofail+=("no language found in the manifest")
     for lang in $langs; do
-        local alpha; alpha=$(printf '%s\n' "${!want[@]}" | grep -E "^content/$lang/alphabet-[^/]+\.js$" | sort | head -1)
-        for p in "content/$lang/lesson-1.js" "${alpha:-content/$lang/alphabet-(none)}" "content/$lang/words-1.js"; do
+        local alpha decks; local -a need=("content/$lang/lesson-1.js")
+        alpha=$(printf '%s\n' "${!want[@]}" | grep -E "^content/$lang/alphabet-[^/]+\.js$" | sort | head -1)
+        decks=$(printf '%s\n' "${!want[@]}" | grep -E "^content/$lang/(alphabet|words)-[^/]+\.js$" | head -1)
+        [ -z "$decks" ] || need+=("${alpha:-content/$lang/alphabet-(none)}" "content/$lang/words-1.js")
+        for p in "${need[@]}"; do
             if [ -z "${want[$p]:-}" ]; then ofail+=("language $lang: $p is not in the release");
             elif [ -n "${afail[$p]:-}" ]; then ofail+=("language $lang: $p is not served correctly"); fi
         done

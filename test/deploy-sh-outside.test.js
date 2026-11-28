@@ -19,6 +19,8 @@
  *  - the connection is lost during the automatic rollback (rc 255): exit 1, the new release may
  *    still be live.
  *  (the server refusing the automatic rollback, rc 1: deploy-sh-outside-rc.test.js)
+ *  - LB-44, own world: a numbers-only language passes the per-language check; a language with an
+ *    alphabet deck but no words-1.js fails it and is rolled back.
  */
 "use strict";
 
@@ -117,5 +119,41 @@ describe("deploy.sh: a failed outside check rolls the new release back", { skip:
     assert.doesNotMatch(r.err, /nothing was switched/);
     assert.equal(w.boxLive(), G);
     assert.equal(localRows(w, "deploy").pop(), `${G} outside FAIL, auto-rollback rc=255`);
+  });
+});
+
+/* LB-44: a numbers-only language (lesson files, no alphabet or words deck) passes the per-language
+ * check; a language with an alphabet deck but no words-1.js (half a set) still fails it. Own world,
+ * so the suite above keeps its own last good release. */
+describe("deploy.sh: per-language check, numbers-only and half-set languages", { skip: SKIP }, () => {
+  const NUMBERS_ONLY = Object.assign({}, DECKS, { "src/content/tlh/lesson-1.js": "window.LB_LESSON = { l: \"tlh\" };\n" });
+  const S = suiteWorld({ files: NUMBERS_ONLY });
+  let A = "";
+
+  it("a numbers-only language (lesson 1, no alphabet or words deck) passes the outside checks", () => {
+    const w = S.w;
+    const r = w.run([], { LB_EXPECT_SHA: w.sha, FAKE_HEADERS: HEADERS });
+    assert.equal(r.code, 0, r.all);
+    A = builtId(r);
+    assert.equal(w.boxLive(), A);
+    assert.match(r.all.replace(/\r\n/g, "\n"), /OUTSIDE OK: .*languages: bn es ja sq tlh$/m);
+    assert.doesNotMatch(r.all, /language tlh:/);
+  });
+
+  it("a language with an alphabet deck but no words-1.js fails, names words-1.js, and is rolled back", () => {
+    const w = S.w;
+    write(path.join(w.checkout, "src", "content", "tlh", "alphabet-1.js"), "window.LB_LESSON = { a: \"tlh\" };\n");
+    w.git("add", "-A");
+    w.git("commit", "-q", "-m", "half set");
+    w.git("push", "-q", "origin", "HEAD:main");
+    const sha = w.git("rev-parse", "HEAD");
+    const r = w.run([], { LB_EXPECT_SHA: sha, FAKE_HEADERS: HEADERS });
+    assert.equal(r.code, 1, r.all);
+    const id = builtId(r);
+    assert.ok(r.err.includes(`OUTSIDE FAIL for release ${id} (1 problem(s)):`), r.err);
+    assert.match(r.err.replace(/\r\n/g, "\n"), /^ {2}- language tlh: content\/tlh\/words-1\.js is not in the release$/m);
+    assert.doesNotMatch(r.err, /alphabet-\(none\)/);
+    assert.ok(r.err.includes(`FAILED: release ${id} failed the outside checks and was rolled back`), r.err);
+    assert.equal(w.boxLive(), A, "the numbers-only release is live again");
   });
 });
