@@ -134,11 +134,11 @@ const PRIVATE_USE = /\p{Co}/u;
 
 /* Invisible filler characters that look like text but show nothing: the Hangul
  * fillers (U+115F, U+1160, U+3164, U+FFA0), the braille blank (U+2800) and the
- * non-ASCII spaces (U+00A0, U+2000-U+200A, U+202F, U+205F, U+3000). Refused in
+ * non-ASCII spaces (U+00A0, U+2000-U+200A, U+202F, U+205F, U+3000) and the Ogham space mark (U+1680). Refused in
  * notice text only (same scope as Private Use), so a notice cannot be filled
  * with nothing. Written with code points, not literal characters. */
 const FILLER_CHARS = new RegExp("[" +
-  [0x115f, 0x1160, 0x3164, 0xffa0, 0x2800, 0x00a0, 0x202f, 0x205f, 0x3000].map((c) => String.fromCharCode(c)).join("") +
+  [0x115f, 0x1160, 0x3164, 0xffa0, 0x2800, 0x00a0, 0x202f, 0x205f, 0x3000, 0x1680].map((c) => String.fromCharCode(c)).join("") +
   String.fromCharCode(0x2000) + "-" + String.fromCharCode(0x200a) + "]");
 
 const cpLength = (s) => [...s].length;
@@ -163,7 +163,7 @@ function textProblem(v, min, max, noPrivateUse) {
   if (v.trim() === "") return "is empty or blank";
   // Notice text must show something: at least one letter or number. This refuses
   // a notice made only of invisible marks (variation selectors, U+034F, U+17B4-5,
-  // U+180B-180D, U+1680) that the other checks let through.
+  // U+180B-180D) that the other checks let through.
   if (noPrivateUse && !/[\p{L}\p{N}]/u.test(v)) return "must hold at least one letter or number";
   const n = cpLength(v);
   if (n < min) return "must be at least " + min + " character" + (min === 1 ? "" : "s");

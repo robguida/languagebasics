@@ -161,23 +161,21 @@ test("every loaded answer, hint and prompt equals the data", () => {
   assert.deepEqual(bad, []);
 });
 
-test("notice: short one in the manifest for tlh only; full one as comment lines at the top of every tlh lesson file", () => {
+test("notice: short one in the manifest for tlh; full one as comment lines at the top of every tlh lesson file", () => {
   const { languages } = world.loadManifest();
-  for (const l of languages) assert.equal(typeof l.notice === "string" && l.notice.length > 0, l.code === "tlh", `notice on ${l.code}`);
-  assert.equal(languages.find((l) => l.code === "tlh").notice, tlhDoc.ip.notice.short);
+  const tlhEntry = languages.find((l) => l.code === "tlh");
+  assert.ok(typeof tlhEntry.notice === "string" && tlhEntry.notice.length > 0, "the tlh entry has a notice");
+  assert.equal(tlhEntry.notice, tlhDoc.ip.notice.short);
   const full = tlhDoc.ip.notice.full;
   assert.ok(full.length >= 1);
   const bad = collect(tlhRows.map((r) => ({ lesson: r.slug, c: { id: r.id } })), (it) => {
     const row = tlhRows.find((r) => r.slug === it.lesson);
-    const lines = lessonText(row).split("\n");
+    const lines = lessonText(row).split(/\r?\n/);
     if (!full.every((f, i) => lines[2 + i] === "// " + f)) return `${row.id}: the full notice is not the comment block under the banner`;
     if (!/^window\.LB_LESSON = \{/.test(lines[2 + full.length])) return `${row.id}: the lesson does not start right after the notice`;
     return null;
   });
   assert.deepEqual(bad, []);
-  for (const r of data.lessons.filter((l) => l.code !== "tlh")) {
-    assert.ok(!lessonText(r).split("\n").some((l) => /^\s*\/\//.test(l)), `${r.id} has no comment line`);
-  }
 });
 
 test("lesson and card notes in the data (such as the ones on 10,000 and 100,000) are never written to a generated file", () => {

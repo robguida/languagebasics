@@ -173,7 +173,7 @@ test("M2: the numbers-only exemption reads the ip status from the data, not a ty
 
 /* -------------------------------------------------------- filler characters */
 
-const FILLERS = [0x115f, 0x1160, 0x3164, 0xffa0, 0x2800, 0x00a0, 0x202f, 0x205f, 0x3000];
+const FILLERS = [0x115f, 0x1160, 0x3164, 0xffa0, 0x2800, 0x00a0, 0x202f, 0x205f, 0x3000, 0x1680];
 for (let c = 0x2000; c <= 0x200a; c++) FILLERS.push(c);
 
 test("filler characters are refused in notice text (full line and short), each one named", () => {
@@ -210,11 +210,10 @@ test("E: a notice made only of invisible marks (no letter or number) is refused"
   assert.deepEqual(errs(doc("xx", 1, OWNED("1990"))), [], "a number counts");
 });
 
-test("picker: the Klingon label is exactly \"Klingon (tlhIngan Hol)\" in the data, the manifest and the picker options", () => {
+const doc_ = loadData().docs.find((d) => d.language.code === "tlh");
+test("picker: the Klingon label is exactly \"Klingon (tlhIngan Hol)\" in the data, the manifest and the picker options", { skip: !doc_ && "Klingon is switched off (no data/tlh.json)" }, () => {
   const { loadManifest } = require("./helpers/load-lesson.js");
   const { LBManifest } = loadManifest();
-  const doc_ = loadData().docs.find((d) => d.language.code === "tlh");
-  if (!doc_) return; // Klingon switched off: nothing to pin
   assert.equal(doc_.language.name, "Klingon (tlhIngan Hol)");
   const m = vm.runInNewContext("(function(){var window={};" + read("src/content/languages.js") + ";return window.LB_LANGUAGES;})()");
   assert.equal(m.find((l) => l.code === "tlh").name, "Klingon (tlhIngan Hol)");

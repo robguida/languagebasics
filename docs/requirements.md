@@ -99,7 +99,7 @@ This file describes what is true on the current branch. For code layout and comm
    5. The two characters `*/` together, or the character `<`.
    6. Text that is not in Unicode NFC form.
    7. Anything that is not a string.
-   8. A blank or empty notice line, or a blank or empty `notice.short`, or a blank card note.
+   8. A blank or empty notice line, or a blank `notice.short` (spaces only), or an empty `notice.short` for an owned or licensed language, or a blank card note.
    9. In notice text only: an invisible filler character (the Hangul fillers, the braille blank, and non-ASCII spaces).
    10. In notice text only: text with no letter or number in it, such as a notice made only of invisible marks.
 7. A notice line also cannot hold a Private Use character.
