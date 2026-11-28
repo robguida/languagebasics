@@ -176,4 +176,29 @@
       }
     ]
   });
+
+  // Klingon is a trademark of CBS Studios Inc. Star Trek and related marks are owned by CBS Studios Inc.
+  // LanguageBasics is a free, fan-made learning tool.
+  // It is not endorsed by, sponsored by, or affiliated with CBS Studios, Paramount, or the Star Trek franchise.
+  // The Klingon language was created by Marc Okrand.
+  // The card selection, English meanings and pronunciation guides here are our own work.
+  window.LB_LANGUAGES.push({
+    code: "tlh",
+    name: "Klingon (tlhIngan Hol)",
+    notice: "Klingon is a trademark of CBS Studios Inc. Fan-made; not affiliated with or endorsed by CBS or Paramount. Language created by Marc Okrand.",
+    defaultLesson: "tlh/lesson-1",
+    groups: [
+      {
+        label: "Numbers",
+        lessons: [
+          { id: "tlh/lesson-1", label: "Lesson 1 — 0–10", count: 11, rollup: true },
+          { id: "tlh/lesson-2", label: "Lesson 2 — 11–19", count: 9, rollup: true },
+          { id: "tlh/lesson-3", label: "Lesson 3 — Tens 20–90", count: 8, rollup: true },
+          { id: "tlh/lesson-4", label: "Lesson 4 — 20–99 compounds", count: 80, rollup: true },
+          { id: "tlh/lesson-5", label: "Lesson 5 — Big Number Roots", count: 45, rollup: true },
+          { id: "tlh/lesson-6", label: "Lesson 6 — Number Builder", count: 20, rollup: true }
+        ]
+      }
+    ]
+  });
 })();

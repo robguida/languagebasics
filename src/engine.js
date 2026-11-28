@@ -805,6 +805,8 @@
           li.className = "result-item";
           var main = document.createElement("span");
           main.className = "result-item-main";
+          // LB-44: Klingon answers keep the monospace font in the results list too.
+          if (lessonId.indexOf("tlh/") === 0) main.setAttribute("lang", "tlh");
           var parts = String(c.answer).split(" | ");
           main.appendChild(document.createTextNode(String(c.prompt) + " → " + parts[0]));
           for (var p = 1; p < parts.length; p++) {
