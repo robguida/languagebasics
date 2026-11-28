@@ -48,7 +48,9 @@ Before anything leaves your computer, `deploy.sh`:
 After the upload, the server runs its smoke test and rolls back on its own if it fails. Then `deploy.sh`
 checks from outside, through the CDN: every file of the release (200 and the right hash), the privacy page,
 a list of private paths that must answer 404, the headers in `expected-headers.txt`, no cookies, and for
-each language lesson 1, one alphabet deck and one words deck. Any failure rolls the release back.
+each language lesson 1 and its lesson page. A language that has an alphabet or words deck in the release
+must also have one alphabet deck and `words-1.js`; a numbers-only language has neither and passes. Any
+failure rolls the release back.
 
 ## Other modes
 
